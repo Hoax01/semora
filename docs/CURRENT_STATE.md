@@ -100,6 +100,15 @@ prisma
 tests
 ```
 
+Root workspace tooling is now configured:
+
+```text
+workspace package manifest
+TypeScript base configuration
+Prettier configuration
+npm lockfile and installed dependencies
+```
+
 The local Git repository has been initialized on `main` and contains the initial
 scaffold commit. No GitHub remote exists yet.
 
@@ -634,10 +643,10 @@ DECISIONS.md
 Current implementation issues:
 
 ```text
-Git ownership safety requires an explicit per-command safe-directory override in
-the current sandbox user context.
+No application implementation exists yet.
 
-No GitHub remote has been configured.
+The Codex sandbox still requires a per-command Git safe-directory override, while
+the developer terminal has configured the repository as safe.
 ```
 
 ---
@@ -645,7 +654,7 @@ No GitHub remote has been configured.
 # 18. Test Status
 
 ```text
-Test directory exists, but no test runner or tests exist yet.
+Workspace test command is configured, but no tests exist yet.
 ```
 
 Testing infrastructure is part of Phase 0.
@@ -680,8 +689,9 @@ TESTS                 NOT STARTED
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
+WORKSPACE TOOLING      CONFIGURED
 LOCAL GIT REPOSITORY   INITIALIZED — INITIAL COMMIT CREATED
-GITHUB REMOTE          NOT CONFIGURED
+GITHUB REMOTE          CONFIGURED
 ```
 
 ---
@@ -695,10 +705,10 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Configure a GitHub remote and push the repository
-2. Complete root workspace/tooling setup
-3. Initialize web and API applications
-4. Add Prisma configuration and Phase 0 schema
+1. Initialize the web and API applications
+2. Add Prisma configuration and Phase 0 schema
+3. Add the health endpoint and database connectivity checks
+4. Add basic authentication and the protected application shell
 ```
 
 ---
