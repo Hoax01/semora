@@ -155,7 +155,7 @@ Express
 ## Database
 
 ```text
-NOT STARTED
+PARTIALLY IMPLEMENTED — PRISMA SCHEMA AND SEED SCAFFOLDED
 ```
 
 Planned:
@@ -163,6 +163,23 @@ Planned:
 ```text
 PostgreSQL
 Prisma
+```
+
+Implemented:
+
+```text
+Phase 0 Prisma schema
+Prisma configuration and generated client
+Docker Compose definition for local PostgreSQL
+Idempotent LUMS / Fall 2026 development seed
+```
+
+Pending:
+
+```text
+Start a PostgreSQL instance with the configured credentials
+Create and apply the initial migration
+Run and verify the seed against the real database
 ```
 
 ---
@@ -652,6 +669,10 @@ Current implementation issues:
 Database connectivity, authentication, and protected routes are not implemented
 yet.
 
+Docker Desktop is not running in the current environment. A local PostgreSQL 18
+service is running, but its connection credentials have not been configured for
+this project.
+
 The Codex sandbox still requires a per-command Git safe-directory override, while
 the developer terminal has configured the repository as safe.
 ```
@@ -692,12 +713,13 @@ UI/UX SPEC            COMPLETE
 FUTURE BACKLOG        CREATED
 
 APPLICATION CODE      PHASE 0 FOUNDATION IN PROGRESS
-DATABASE              NOT STARTED
+DATABASE              PRISMA CONFIGURED — MIGRATION NOT APPLIED
 TESTS                 API HEALTH TEST ONLY
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
 WORKSPACE TOOLING      CONFIGURED
+PRISMA SCHEMA          CONFIGURED — MIGRATION PENDING DATABASE
 LOCAL GIT REPOSITORY   INITIALIZED — INITIAL COMMIT CREATED
 GITHUB REMOTE          CONFIGURED
 ```
@@ -713,10 +735,10 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Add Prisma configuration and the Phase 0 schema
-2. Add database connectivity checks and seed scaffolding
-3. Add basic authentication and the protected application shell
-4. Add Phase 0 integration coverage
+1. Start/configure PostgreSQL and apply the initial migration
+2. Run and verify the LUMS / Fall 2026 development seed
+3. Add database connectivity checks
+4. Add basic authentication and the protected application shell
 ```
 
 ---

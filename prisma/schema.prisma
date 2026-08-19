@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../apps/api/src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AcademicTermType {
+  FALL
+  SPRING
+  SUMMER
+  OTHER
+}
+
+enum AcademicTermStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum GradingMode {
+  ABSOLUTE
+  RELATIVE
+  PASS_FAIL
+  UNKNOWN
+}
+
+enum MeetingDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum MeetingType {
+  LECTURE
+  LAB
+  TUTORIAL
+  SEMINAR
+  OTHER
+}
+
+enum WorkspaceState {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model User {
+  id          String              @id @default(cuid())
+  email       String              @unique
+  displayName String              @map("display_name")
+  timezone    String              @default("Asia/Karachi")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  workspaces  SemesterWorkspace[]
+
+  @@map("users")
+}
+
+model University {
+  id        String         @id @default(cuid())
+  name      String
+  shortName String         @unique @map("short_name")
+  country   String
+  timezone  String
+  createdAt DateTime       @default(now()) @map("created_at")
+  terms     AcademicTerm[]
+  courses   Course[]
+
+  @@map("universities")
+}
+
+model AcademicTerm {
+  id             String              @id @default(cuid())
+  universityId   String              @map("university_id")
+  name           String
+  termType       AcademicTermType    @map("term_type")
+  academicYear   String              @map("academic_year")
+  startDate      DateTime            @map("start_date") @db.Date
+  endDate        DateTime            @map("end_date") @db.Date
+  addDropEndDate DateTime?           @map("add_drop_end_date") @db.Date
+  examStartDate  DateTime?           @map("exam_start_date") @db.Date
+  examEndDate    DateTime?           @map("exam_end_date") @db.Date
+  status         AcademicTermStatus  @default(UPCOMING)
+  university     University          @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  offerings      CourseOffering[]
+  workspaces     SemesterWorkspace[]
+
+  @@unique([universityId, name])
+  @@map("academic_terms")
+}
+
+model Course {
+  id                 String           @id @default(cuid())
+  universityId       String           @map("university_id")
+  courseCode         String           @map("course_code")
+  title              String
+  description        String?
+  creditHoursDefault Decimal          @map("credit_hours_default") @db.Decimal(4, 1)
+  department         String?
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  university         University       @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  offerings          CourseOffering[]
+
+  @@unique([universityId, courseCode])
+  @@map("courses")
+}
+
+model CourseOffering {
+  id                  String       @id @default(cuid())
+  courseId            String       @map("course_id")
+  academicTermId      String       @map("academic_term_id")
+  creditHours         Decimal      @map("credit_hours") @db.Decimal(4, 1)
+  descriptionOverride String?      @map("description_override")
+  gradingMode         GradingMode  @default(UNKNOWN) @map("grading_mode")
+  sourceConfidence    String       @default("OFFICIAL_IMPORT") @map("source_confidence")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  course              Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicTerm        AcademicTerm @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  sections            Section[]
+
+  @@unique([courseId, academicTermId])
+  @@map("course_offerings")
+}
+
+model Section {
+  id                String         @id @default(cuid())
+  courseOfferingId  String         @map("course_offering_id")
+  sectionCode       String         @map("section_code")
+  capacity          Int?
+  instructorDisplay String?        @map("instructor_display")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  courseOffering    CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  meetings          Meeting[]
+
+  @@unique([courseOfferingId, sectionCode])
+  @@map("sections")
+}
+
+model Meeting {
+  id          String      @id @default(cuid())
+  sectionId   String      @map("section_id")
+  dayOfWeek   MeetingDay  @map("day_of_week")
+  startTime   DateTime    @map("start_time") @db.Time(0)
+  endTime     DateTime    @map("end_time") @db.Time(0)
+  meetingType MeetingType @default(LECTURE) @map("meeting_type")
+  location    String?
+  section     Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, dayOfWeek, startTime, endTime, meetingType])
+  @@map("meetings")
+}
+
+model SemesterWorkspace {
+  id             String         @id @default(cuid())
+  userId         String         @map("user_id")
+  academicTermId String         @map("academic_term_id")
+  state          WorkspaceState @default(PLANNING)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academicTerm   AcademicTerm   @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, academicTermId])
+  @@map("semester_workspaces")
+}

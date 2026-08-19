@@ -9,5 +9,6 @@ coverage/
 .turbo/
 .vite/
 *.tsbuildinfo
+apps/api/src/generated/
 prisma/*.db
 prisma/*.db-journal

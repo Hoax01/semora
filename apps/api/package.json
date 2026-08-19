@@ -11,11 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "@prisma/adapter-pg": "^7.1.0",
+    "@prisma/client": "^7.1.0",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4",
     "tsx": "^4.20.3"
