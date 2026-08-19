@@ -670,8 +670,8 @@ Database connectivity, authentication, and protected routes are not implemented
 yet.
 
 Docker Desktop is not running in the current environment. A local PostgreSQL 18
-service is running, but its connection credentials have not been configured for
-this project.
+service is running on port 5432, so Semora's Docker PostgreSQL is configured to
+use host port 5433.
 
 The Codex sandbox still requires a per-command Git safe-directory override, while
 the developer terminal has configured the repository as safe.

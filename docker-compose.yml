@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: semora
       POSTGRES_PASSWORD: semora
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - semora_postgres_data:/var/lib/postgresql/data
 
