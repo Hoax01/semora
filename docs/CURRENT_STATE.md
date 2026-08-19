@@ -100,8 +100,8 @@ prisma
 tests
 ```
 
-The local Git repository has been initialized. No commit or GitHub remote exists
-yet.
+The local Git repository has been initialized on `main` and contains the initial
+scaffold commit. No GitHub remote exists yet.
 
 ---
 
@@ -637,7 +637,7 @@ Current implementation issues:
 Git ownership safety requires an explicit per-command safe-directory override in
 the current sandbox user context.
 
-No initial commit or GitHub remote has been created.
+No GitHub remote has been configured.
 ```
 
 ---
@@ -680,7 +680,7 @@ TESTS                 NOT STARTED
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
-LOCAL GIT REPOSITORY   INITIALIZED
+LOCAL GIT REPOSITORY   INITIALIZED — INITIAL COMMIT CREATED
 GITHUB REMOTE          NOT CONFIGURED
 ```
 
@@ -695,11 +695,10 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Complete root workspace/tooling setup
-2. Initialize web and API applications
-3. Add Prisma configuration and Phase 0 schema
-4. Add the first local Git commit
-5. Configure a GitHub remote and push the repository
+1. Configure a GitHub remote and push the repository
+2. Complete root workspace/tooling setup
+3. Initialize web and API applications
+4. Add Prisma configuration and Phase 0 schema
 ```
 
 ---
