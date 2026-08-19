@@ -1,8 +1,49 @@
-import { FormEvent, useState } from 'react';
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { FormEvent, useEffect, useState } from 'react';
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import { authClient } from './auth-client';
 
 type AuthMode = 'sign-in' | 'sign-up';
+
+type CatalogueCourse = {
+  id: string;
+  courseCode: string;
+  title: string;
+  description: string | null;
+  department: string | null;
+  credits: number;
+  term: string;
+  sections: Array<{
+    id: string;
+    sectionCode: string;
+    capacity: number | null;
+    instructor: string | null;
+    meetings: Array<{
+      day: string;
+      startTime: string;
+      endTime: string;
+      type: string;
+      location: string | null;
+    }>;
+  }>;
+};
+
+async function getApi<T>(url: string): Promise<T> {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok)
+    throw new Error(
+      response.status === 401 ? 'Please sign in again.' : 'Unable to load catalogue.',
+    );
+  return response.json() as Promise<T>;
+}
 
 function AuthPage({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
@@ -17,19 +58,20 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setError(undefined);
     setIsSubmitting(true);
-
-    const result = isSignUp
-      ? await authClient.signUp.email({ name, email, password })
-      : await authClient.signIn.email({ email, password });
-
-    setIsSubmitting(false);
-
-    if (result.error) {
-      setError(result.error.message ?? 'Unable to continue. Please try again.');
-      return;
+    try {
+      const result = isSignUp
+        ? await authClient.signUp.email({ name, email, password })
+        : await authClient.signIn.email({ email, password });
+      if (result.error) {
+        setError(result.error.message ?? 'Unable to continue. Please try again.');
+        return;
+      }
+      navigate('/', { replace: true });
+    } catch {
+      setError('Unable to reach Semora. Check that the API is running.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    navigate('/', { replace: true });
   }
 
   return (
@@ -89,17 +131,186 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   );
 }
 
+function HomePage() {
+  return (
+    <main className="shell">
+      <p className="eyebrow">SEMORA / FOUNDATION</p>
+      <h1>Design a semester you won’t regret.</h1>
+      <p className="lede">
+        Start with the Fall 2026 catalogue, then build and compare possible semesters.
+      </p>
+      <Link className="primary-link" to="/catalogue">
+        Browse course catalogue
+      </Link>
+    </main>
+  );
+}
+
+function CataloguePage() {
+  const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [courses, setCourses] = useState<CatalogueCourse[]>([]);
+  const [termName, setTermName] = useState('Fall 2026');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    let isCurrent = true;
+    setIsLoading(true);
+    setError(undefined);
+    const params = new URLSearchParams({ term: 'Fall 2026' });
+    if (appliedQuery) params.set('q', appliedQuery);
+    getApi<{ term: { name: string }; courses: CatalogueCourse[] }>(`/api/catalogue?${params}`)
+      .then((result) => {
+        if (!isCurrent) return;
+        setCourses(result.courses);
+        setTermName(result.term.name);
+      })
+      .catch((reason: unknown) => {
+        if (isCurrent)
+          setError(reason instanceof Error ? reason.message : 'Unable to load catalogue.');
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [appliedQuery]);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAppliedQuery(query.trim());
+  }
+
+  return (
+    <main className="app-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">PLAN / COURSE CATALOGUE</p>
+          <h1>{termName}</h1>
+          <p className="lede">Browse the courses and sections available for your next semester.</p>
+        </div>
+        <Link className="back-link" to="/">
+          Back to workspace
+        </Link>
+      </div>
+      <form className="catalogue-search" onSubmit={submitSearch}>
+        <label htmlFor="course-search">Search courses</label>
+        <div className="search-row">
+          <input
+            id="course-search"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Try CS, Operating Systems, or Computer Science"
+            value={query}
+          />
+          <button type="submit">Search</button>
+        </div>
+      </form>
+      {isLoading ? <p className="catalogue-message">Loading available courses…</p> : null}
+      {error ? <p className="form-error catalogue-message">{error}</p> : null}
+      {!isLoading && !error && courses.length === 0 ? (
+        <p className="catalogue-message">
+          No courses match “{appliedQuery}”. Try a course code or department.
+        </p>
+      ) : null}
+      <div className="catalogue-list">
+        {courses.map((course) => (
+          <Link className="catalogue-item" key={course.id} to={`/catalogue/${course.id}`}>
+            <div>
+              <p className="course-code">{course.courseCode}</p>
+              <h2>{course.title}</h2>
+              <p className="course-meta">
+                {course.department ?? 'General'} · {course.credits} credits
+              </p>
+            </div>
+            <div className="course-summary">
+              <strong>{course.sections.length} sections</strong>
+              <span>{course.sections[0]?.meetings[0]?.day ?? 'Timing TBA'}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+function CourseDetailPage() {
+  const { offeringId } = useParams();
+  const [course, setCourse] = useState<CatalogueCourse>();
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!offeringId) return;
+    getApi<{ course: CatalogueCourse }>(`/api/catalogue/${offeringId}`)
+      .then((result) => setCourse(result.course))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : 'Unable to load course.'),
+      );
+  }, [offeringId]);
+
+  if (error)
+    return (
+      <main className="app-page">
+        <p className="form-error">{error}</p>
+      </main>
+    );
+  if (!course)
+    return (
+      <main className="app-page">
+        <p className="catalogue-message">Loading course details…</p>
+      </main>
+    );
+
+  return (
+    <main className="app-page">
+      <Link className="back-link" to="/catalogue">
+        ← Back to catalogue
+      </Link>
+      <div className="detail-heading">
+        <p className="eyebrow">
+          {course.courseCode} / {course.term}
+        </p>
+        <h1>{course.title}</h1>
+        <p className="course-meta">
+          {course.department ?? 'General'} · {course.credits} credits
+        </p>
+      </div>
+      <p className="course-description">
+        {course.description ?? 'No course description has been provided yet.'}
+      </p>
+      <section className="section-grid" aria-labelledby="sections-title">
+        <h2 id="sections-title">Available sections</h2>
+        {course.sections.map((section) => (
+          <article className="section-card" key={section.id}>
+            <div className="section-card-heading">
+              <h3>Section {section.sectionCode}</h3>
+              <span>
+                {section.capacity ? `Capacity ${section.capacity}` : 'Capacity not provided'}
+              </span>
+            </div>
+            <p>{section.instructor ?? 'Instructor not provided'}</p>
+            <ul>
+              {section.meetings.map((meeting) => (
+                <li key={`${meeting.day}-${meeting.startTime}-${meeting.type}`}>
+                  {meeting.day} · {meeting.startTime}–{meeting.endTime} ·{' '}
+                  {meeting.location ?? 'Location TBA'}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </section>
+    </main>
+  );
+}
+
 function ProtectedShell() {
   const navigate = useNavigate();
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) {
-    return <main className="shell">Loading your workspace…</main>;
-  }
-
-  if (!session) {
-    return <Navigate replace to="/sign-in" />;
-  }
+  if (isPending) return <main className="shell">Loading your workspace…</main>;
+  if (!session) return <Navigate replace to="/sign-in" />;
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -107,20 +318,20 @@ function ProtectedShell() {
   }
 
   return (
-    <main className="shell">
-      <p className="eyebrow">SEMORA / FOUNDATION</p>
-      <h1>Design a semester you won’t regret.</h1>
-      <p className="lede">
-        Welcome, {session.user.name}. Your planning workspace is ready for Phase 1.
-      </p>
-      <div className="status-card" role="status">
-        <span className="status-dot" aria-hidden="true" />
-        Signed in as {session.user.email}
-      </div>
-      <button className="secondary-button" onClick={handleSignOut} type="button">
-        Sign out
-      </button>
-    </main>
+    <>
+      <nav className="app-nav" aria-label="Main navigation">
+        <Link className="brand" to="/">
+          semora
+        </Link>
+        <div className="nav-actions">
+          <Link to="/catalogue">Catalogue</Link>
+          <button className="nav-signout" onClick={handleSignOut} type="button">
+            Sign out
+          </button>
+        </div>
+      </nav>
+      <Outlet />
+    </>
   );
 }
 
@@ -128,10 +339,14 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<ProtectedShell />} path="/" />
         <Route element={<AuthPage mode="sign-in" />} path="/sign-in" />
         <Route element={<AuthPage mode="sign-up" />} path="/sign-up" />
-        <Route element={<Navigate replace to="/" />} path="*" />
+        <Route element={<ProtectedShell />} path="/">
+          <Route element={<HomePage />} index />
+          <Route element={<CataloguePage />} path="catalogue" />
+          <Route element={<CourseDetailPage />} path="catalogue/:offeringId" />
+          <Route element={<Navigate replace to="/" />} path="*" />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

@@ -45,6 +45,26 @@ describe('email/password authentication', () => {
     expect(currentUser.status).toBe(200);
     expect(currentUser.body.user).toMatchObject({ email, name: 'Phase Zero User' });
 
+    const catalogue = await request(app)
+      .get('/api/catalogue')
+      .query({ term: 'Fall 2026', q: 'CS' })
+      .set('Cookie', sessionCookie);
+
+    expect(catalogue.status).toBe(200);
+    expect(catalogue.body.courses.length).toBeGreaterThan(0);
+    expect(catalogue.body.courses[0]).toMatchObject({
+      courseCode: expect.stringMatching(/^CS/),
+      credits: 3,
+    });
+    expect(catalogue.body.courses[0].sections[0].meetings.length).toBeGreaterThan(0);
+
+    const courseDetails = await request(app)
+      .get(`/api/catalogue/${catalogue.body.courses[0].id}`)
+      .set('Cookie', sessionCookie);
+
+    expect(courseDetails.status).toBe(200);
+    expect(courseDetails.body.course.courseCode).toMatch(/^CS/);
+
     const signOut = await request(app).post('/api/auth/sign-out').set('Cookie', sessionCookie);
 
     expect(signOut.status).toBe(200);

@@ -163,3 +163,245 @@ h1 {
   background: var(--positive);
   box-shadow: 0 0 0 0.25rem #63d39a22;
 }
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem clamp(1.25rem, 5vw, 4rem);
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+}
+
+.brand {
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.nav-actions a {
+  text-decoration: none;
+}
+
+.nav-signout {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 0.85rem;
+}
+
+.primary-link {
+  display: inline-block;
+  width: fit-content;
+  margin-top: 2rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.65rem;
+  color: var(--text-primary);
+  background: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-page {
+  width: min(100% - 2rem, 72rem);
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 4.5rem) 0 5rem;
+}
+
+.page-heading,
+.detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.app-page h1 {
+  max-width: 44rem;
+  font-size: clamp(2.25rem, 6vw, 4.5rem);
+}
+
+.back-link {
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.catalogue-search {
+  max-width: 54rem;
+  margin: 3rem 0 2rem;
+}
+
+.catalogue-search > label {
+  display: block;
+  margin-bottom: 0.6rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.search-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+}
+
+.catalogue-message {
+  color: var(--text-secondary);
+}
+
+.catalogue-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.catalogue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  color: inherit;
+  background: var(--surface);
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.catalogue-item:hover,
+.catalogue-item:focus-visible {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+}
+
+.catalogue-item h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1.2rem;
+}
+
+.course-code,
+.course-meta {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.course-code {
+  color: var(--accent-hover);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.course-meta {
+  margin-top: 0.5rem;
+}
+
+.course-summary {
+  display: grid;
+  flex-shrink: 0;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.course-summary strong {
+  color: var(--text-primary);
+}
+
+.detail-heading {
+  display: block;
+  margin-top: 2.5rem;
+}
+
+.course-description {
+  max-width: 54rem;
+  margin: 1.5rem 0 3rem;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.section-grid {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 54rem;
+}
+
+.section-grid > h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+}
+
+.section-card {
+  padding: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.section-card-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-card h3,
+.section-card p {
+  margin: 0;
+}
+
+.section-card-heading span,
+.section-card p,
+.section-card li {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.section-card ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1rem 0 0;
+  padding-left: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .page-heading,
+  .catalogue-item {
+    display: block;
+  }
+
+  .back-link,
+  .course-summary {
+    display: inline-block;
+    margin-top: 1rem;
+    text-align: left;
+  }
+
+  .search-row {
+    display: grid;
+  }
+}

@@ -1,10 +1,11 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 0 — Repository Foundation (complete)
-**Next Build Phase:** Phase 1 — Course Catalogue
-**Product Status:** Product and technical design are complete. The Phase 0
-application, database, authentication, and protected shell are implemented.
+**Current Phase:** Phase 1 — Academic Catalogue (in progress)
+**Next Build Phase:** Phase 2 — Semester Planning Core
+**Product Status:** Product and technical design are complete. Phase 0 is
+complete and the Phase 1 catalogue slice is implemented pending the official
+LUMS source-data import.
 
 ---
 
@@ -28,6 +29,9 @@ application, database, authentication, and protected shell are implemented.
 - Session-aware protected root route, loading state, authenticated identity
   display, and sign-out action.
 - Vite development proxy routes `/api` requests to the API.
+- Protected Fall 2026 catalogue screen with search, course rows, and course
+  detail views showing sections, credits, instructors, capacities, and meeting
+  times.
 
 ### API and authentication
 
@@ -38,6 +42,10 @@ application, database, authentication, and protected shell are implemented.
   user or `401 UNAUTHORIZED`.
 - API authentication routes are registered before JSON parsing, as required by
   the Better Auth Express handler.
+- Protected `GET /api/catalogue` search endpoint for course code, title, or
+  department, plus `GET /api/catalogue/:offeringId` detail endpoint.
+- Validated, transactional, idempotent JSON catalogue importer at
+  `npm run catalogue:import --workspace @semora/api -- <file.json>`.
 
 ### Database
 
@@ -72,6 +80,9 @@ Current API integration coverage verifies:
 - database connectivity response;
 - sign-up, authenticated current-user lookup, sign-out, and rejected session
   reuse.
+- authenticated catalogue search and course-detail responses.
+- importer validation and repeat execution were verified with the checked-in
+  example JSON fixture; the second run reused the same canonical records.
 
 ---
 
@@ -94,7 +105,9 @@ or its secret.
 ## Known issues and deviations
 
 ```text
-NONE
+The repository does not contain the official LUMS course memo/timing source
+files yet. The importer accepts a documented canonical JSON shape and is ready
+for those files; the checked-in development seed remains synthetic fixture data.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -110,6 +123,8 @@ AGENTS.md
 apps/api/src/app.ts
 apps/api/src/auth.ts
 apps/api/src/app.test.ts
+apps/api/src/catalogue/importer.ts
+apps/api/src/import-catalogue.ts
 apps/web/src/App.tsx
 apps/web/src/auth-client.ts
 apps/web/src/styles.css
@@ -118,13 +133,13 @@ prisma/seed.ts
 prisma/migrations/
 docs/BUILDPLAN.md
 docs/CURRENT_STATE.md
+docs/CATALOGUE_IMPORT.md
 ```
 
 ---
 
 ## Next objective
 
-Begin **Phase 1 — Course Catalogue** only after its scope is reviewed against
-`docs/BUILDPLAN.md`, `docs/PRODUCT.md`, and the relevant data-model and UI
-specifications. Do not start later semester-planning or intelligence features
-early.
+Obtain the official Fall 2026 LUMS course memo/timing files, convert them to the
+catalogue JSON import shape, run the importer, and verify the resulting browse
+experience. Then audit Phase 1 acceptance criteria before beginning Phase 2.

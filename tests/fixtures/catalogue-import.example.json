@@ -1,0 +1,50 @@
+{
+  "university": {
+    "name": "Lahore University of Management Sciences",
+    "shortName": "LUMS",
+    "country": "Pakistan",
+    "timezone": "Asia/Karachi"
+  },
+  "term": {
+    "name": "Fall 2026",
+    "termType": "FALL",
+    "academicYear": "2026-2027",
+    "startDate": "2026-08-31",
+    "endDate": "2026-12-18",
+    "addDropEndDate": "2026-09-11",
+    "examStartDate": "2026-12-07",
+    "examEndDate": "2026-12-18"
+  },
+  "courses": [
+    {
+      "courseCode": "CS 340",
+      "title": "Operating Systems",
+      "description": "Principles of operating systems and concurrent software.",
+      "department": "Computer Science",
+      "creditHoursDefault": 3,
+      "sections": [
+        {
+          "sectionCode": "01",
+          "capacity": 40,
+          "instructorDisplay": "Instructor 1",
+          "meetings": [
+            {
+              "dayOfWeek": "MONDAY",
+              "startTime": "08:00",
+              "endTime": "09:20",
+              "meetingType": "LECTURE",
+              "location": "Academic Block"
+            },
+            {
+              "dayOfWeek": "WEDNESDAY",
+              "startTime": "08:00",
+              "endTime": "09:20",
+              "meetingType": "LECTURE",
+              "location": "Academic Block"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
