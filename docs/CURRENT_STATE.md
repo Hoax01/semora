@@ -724,6 +724,7 @@ DEPLOYMENT            NOT STARTED
 REPOSITORY SCAFFOLD    CREATED
 WORKSPACE TOOLING      CONFIGURED
 PRISMA SCHEMA          CONFIGURED — MIGRATION AND SEED APPLIED
+AGENT WORKFLOW         MODEL ROLES AND ESCALATION RULES DOCUMENTED
 LOCAL GIT REPOSITORY   INITIALIZED — INITIAL COMMIT CREATED
 GITHUB REMOTE          CONFIGURED
 ```
@@ -755,5 +756,3 @@ Semora currently has:
 
 The next implementation agent should continue from the repository state above,
 using the existing documentation as the design contract.
-
-The next implementation agent should treat the existing documentation as the design contract and start building the smallest architecture required to reach Semester Designer.

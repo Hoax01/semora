@@ -11,6 +11,33 @@ PLAN → LOCK → NAVIGATE
 
 The current implementation phase is **Phase 0 — Repository Foundation**.
 
+## Developer workflow and model roles
+
+Use the following model responsibilities:
+
+- **Luna (Medium/High):** Main developer for approximately 90% of daily coding,
+  boilerplate, and unit tests.
+- **Terra (Low/Medium):** Tech Lead for end-of-phase audits and cross-file code
+  reviews.
+- **Sol:** Principal Architect for initial phase blueprints and critical
+  debugging failures.
+
+## Proactive model escalation
+
+Before implementing any task, analyze whether it requires broad architectural
+changes, multi-file structural refactoring, or complex logical reasoning.
+
+If it does:
+
+1. Stop immediately; do not write code.
+2. Warn the user that a major change is about to begin.
+3. Reference this `AGENTS.md` rule.
+4. Explicitly prompt the user to switch the IDE model to Terra or Sol before
+   implementation continues.
+
+This gate applies before code changes, not to narrow documentation edits,
+routine boilerplate, or isolated tests.
+
 ## Required startup reading
 
 Before changing code, read:
