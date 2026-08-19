@@ -6,6 +6,7 @@ services:
       POSTGRES_USER: semora
       POSTGRES_PASSWORD: semora
     ports:
+      # Host PostgreSQL commonly uses 5432; Docker uses 5433 to avoid a clash.
       - '5433:5432'
     volumes:
       - semora_postgres_data:/var/lib/postgresql/data

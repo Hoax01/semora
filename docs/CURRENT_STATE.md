@@ -3,7 +3,7 @@
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 0 — Repository Foundation (in progress)
 **Next Build Phase:** Phase 0 — Repository Foundation
-**Product Status:** Product and technical design complete; repository scaffold created; application implementation has not started.
+**Product Status:** Product and technical design complete; repository and database foundation are implemented; authentication remains.
 
 ---
 
@@ -155,7 +155,7 @@ Express
 ## Database
 
 ```text
-PARTIALLY IMPLEMENTED — PRISMA SCHEMA AND SEED SCAFFOLDED
+IMPLEMENTED — PRISMA SCHEMA, MIGRATION, AND DEVELOPMENT SEED
 ```
 
 Planned:
@@ -172,14 +172,15 @@ Phase 0 Prisma schema
 Prisma configuration and generated client
 Docker Compose definition for local PostgreSQL
 Idempotent LUMS / Fall 2026 development seed
+Initial migration applied successfully
+LUMS / Fall 2026 seed applied successfully
+Local PostgreSQL connection verified
 ```
 
 Pending:
 
 ```text
-Start a PostgreSQL instance with the configured credentials
-Create and apply the initial migration
-Run and verify the seed against the real database
+Database connectivity endpoint in the API
 ```
 
 ---
@@ -666,12 +667,12 @@ DECISIONS.md
 Current implementation issues:
 
 ```text
-Database connectivity, authentication, and protected routes are not implemented
-yet.
+The API does not yet expose a database connectivity check. Authentication and
+protected routes are not implemented yet.
 
-Docker Desktop is not running in the current environment. A local PostgreSQL 18
-service is running on port 5432, so Semora's Docker PostgreSQL is configured to
-use host port 5433.
+Development currently uses the local PostgreSQL 18 service on port 5432 through
+pgAdmin. Docker Compose remains an optional isolated alternative on host port
+5433.
 
 The Codex sandbox still requires a per-command Git safe-directory override, while
 the developer terminal has configured the repository as safe.
@@ -682,8 +683,11 @@ the developer terminal has configured the repository as safe.
 # 18. Test Status
 
 ```text
-API health integration test passes. Broader test coverage and test tooling for
-the web application are not implemented yet.
+API health integration test passes.
+Prisma migration status reports the database is up to date.
+Prisma seed command succeeds against the configured local database.
+Broader test coverage and test tooling for the web application are not
+implemented yet.
 ```
 
 Testing infrastructure is part of Phase 0.
@@ -713,13 +717,13 @@ UI/UX SPEC            COMPLETE
 FUTURE BACKLOG        CREATED
 
 APPLICATION CODE      PHASE 0 FOUNDATION IN PROGRESS
-DATABASE              PRISMA CONFIGURED — MIGRATION NOT APPLIED
+DATABASE              CONNECTED — MIGRATION AND SEED APPLIED
 TESTS                 API HEALTH TEST ONLY
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
 WORKSPACE TOOLING      CONFIGURED
-PRISMA SCHEMA          CONFIGURED — MIGRATION PENDING DATABASE
+PRISMA SCHEMA          CONFIGURED — MIGRATION AND SEED APPLIED
 LOCAL GIT REPOSITORY   INITIALIZED — INITIAL COMMIT CREATED
 GITHUB REMOTE          CONFIGURED
 ```
@@ -735,10 +739,9 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Start/configure PostgreSQL and apply the initial migration
-2. Run and verify the LUMS / Fall 2026 development seed
-3. Add database connectivity checks
-4. Add basic authentication and the protected application shell
+1. Add an API database connectivity check
+2. Add basic authentication and the protected application shell
+3. Add Phase 0 integration coverage
 ```
 
 ---
