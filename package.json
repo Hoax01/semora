@@ -1,0 +1,8 @@
+{
+  "name": "semora",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
