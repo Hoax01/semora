@@ -175,12 +175,13 @@ Idempotent LUMS / Fall 2026 development seed
 Initial migration applied successfully
 LUMS / Fall 2026 seed applied successfully
 Local PostgreSQL connection verified
+API database connectivity check at `/api/health/db`
 ```
 
 Pending:
 
 ```text
-Database connectivity endpoint in the API
+Authentication and protected routes in the API
 ```
 
 ---
@@ -667,8 +668,7 @@ DECISIONS.md
 Current implementation issues:
 
 ```text
-The API does not yet expose a database connectivity check. Authentication and
-protected routes are not implemented yet.
+Authentication and protected routes are not implemented yet.
 
 Development currently uses the local PostgreSQL 18 service on port 5432 through
 pgAdmin. Docker Compose remains an optional isolated alternative on host port
@@ -718,7 +718,7 @@ FUTURE BACKLOG        CREATED
 
 APPLICATION CODE      PHASE 0 FOUNDATION IN PROGRESS
 DATABASE              CONNECTED — MIGRATION AND SEED APPLIED
-TESTS                 API HEALTH TEST ONLY
+TESTS                 API AND DATABASE HEALTH TESTS
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
@@ -740,9 +740,8 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Add an API database connectivity check
-2. Add basic authentication and the protected application shell
-3. Add Phase 0 integration coverage
+1. Add basic authentication and the protected application shell
+2. Add Phase 0 integration coverage
 ```
 
 ---
