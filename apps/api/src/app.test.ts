@@ -1,6 +1,7 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { app } from './app.js';
+import { prisma } from './db.js';
 
 describe('GET /api/health', () => {
   it('returns a healthy API response', async () => {
@@ -17,5 +18,39 @@ describe('GET /api/health/db', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ok', service: 'database' });
+  });
+});
+
+describe('email/password authentication', () => {
+  const email = `phase0-${Date.now()}@example.test`;
+  const password = 'semora-test-password';
+
+  afterAll(async () => {
+    await prisma?.user.delete({ where: { email } }).catch(() => undefined);
+  });
+
+  it('signs up, returns the current user, and signs out', async () => {
+    const signUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Phase Zero User',
+      email,
+      password,
+    });
+
+    expect(signUp.status).toBe(200);
+    expect(signUp.headers['set-cookie']).toBeDefined();
+
+    const sessionCookie = signUp.headers['set-cookie'];
+    const currentUser = await request(app).get('/api/me').set('Cookie', sessionCookie);
+
+    expect(currentUser.status).toBe(200);
+    expect(currentUser.body.user).toMatchObject({ email, name: 'Phase Zero User' });
+
+    const signOut = await request(app).post('/api/auth/sign-out').set('Cookie', sessionCookie);
+
+    expect(signOut.status).toBe(200);
+
+    const signedOutUser = await request(app).get('/api/me').set('Cookie', sessionCookie);
+
+    expect(signedOutUser.status).toBe(401);
   });
 });
