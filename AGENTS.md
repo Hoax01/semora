@@ -15,28 +15,21 @@ The current implementation phase is **Phase 0 — Repository Foundation**.
 
 Use the following model responsibilities:
 
-- **Luna (Medium/High):** Main developer for approximately 90% of daily coding,
-  boilerplate, and unit tests.
-- **Terra (Low/Medium):** Tech Lead for end-of-phase audits and cross-file code
-  reviews.
-- **Sol:** Principal Architect for initial phase blueprints and critical
-  debugging failures.
+- **Luna (High):** Main developer for approximately 95% of all project work,
+  including daily coding, multi-file changes, and standard debugging.
+- **Sol:** Reserved for the remaining 5% of work: a critical architectural
+  failure or deep logical bug that remains unresolved after three attempts.
+- **Terra:** Not part of this workflow. Do not recommend switching to Terra.
 
 ## Proactive model escalation
 
-Before implementing any task, analyze whether it requires broad architectural
-changes, multi-file structural refactoring, or complex logical reasoning.
+Work through tasks completely with **Luna (High)** by default, including
+multi-file changes and ordinary debugging.
 
-If it does:
-
-1. Stop immediately; do not write code.
-2. Warn the user that a major change is about to begin.
-3. Reference this `AGENTS.md` rule.
-4. Explicitly prompt the user to switch the IDE model to Terra or Sol before
-   implementation continues.
-
-This gate applies before code changes, not to narrow documentation edits,
-routine boilerplate, or isolated tests.
+Only recommend switching to **Sol** after three genuine attempts have failed
+to resolve a complete dead-end block or structural failure. When that happens,
+explain the attempted resolutions and why Sol is required before writing any
+further code for that blocked task.
 
 ## Required startup reading
 

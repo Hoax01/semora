@@ -16,8 +16,9 @@ application, database, authentication, and protected shell are implemented.
   `packages/semester-engine`, `prisma`, and `tests`.
 - Shared TypeScript, Prettier, Vitest, and root build/test/typecheck scripts.
 - Git repository on `main`, connected to the `origin` GitHub remote.
-- `AGENTS.md` defines model roles, escalation, verification, database, and
-  documentation-maintenance workflow.
+- `AGENTS.md` defines a Luna High-first workflow, with Sol escalation only
+  after three failed attempts to resolve a critical dead-end, plus verification,
+  database, and documentation-maintenance workflow.
 
 ### Web application
 
