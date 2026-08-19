@@ -117,7 +117,7 @@ scaffold commit. No GitHub remote exists yet.
 ## Frontend
 
 ```text
-STRUCTURE CREATED — APPLICATION NOT IMPLEMENTED
+PARTIALLY IMPLEMENTED — VITE REACT SHELL
 ```
 
 Planned:
@@ -133,7 +133,13 @@ Vite
 ## Backend
 
 ```text
-STRUCTURE CREATED — APPLICATION NOT IMPLEMENTED
+PARTIALLY IMPLEMENTED — EXPRESS HEALTH API
+```
+
+Implemented:
+
+```text
+GET /api/health
 ```
 
 Planned:
@@ -643,7 +649,8 @@ DECISIONS.md
 Current implementation issues:
 
 ```text
-No application implementation exists yet.
+Database connectivity, authentication, and protected routes are not implemented
+yet.
 
 The Codex sandbox still requires a per-command Git safe-directory override, while
 the developer terminal has configured the repository as safe.
@@ -654,7 +661,8 @@ the developer terminal has configured the repository as safe.
 # 18. Test Status
 
 ```text
-Workspace test command is configured, but no tests exist yet.
+API health integration test passes. Broader test coverage and test tooling for
+the web application are not implemented yet.
 ```
 
 Testing infrastructure is part of Phase 0.
@@ -683,9 +691,9 @@ BUILD PLAN            COMPLETE
 UI/UX SPEC            COMPLETE
 FUTURE BACKLOG        CREATED
 
-APPLICATION CODE      NOT STARTED
+APPLICATION CODE      PHASE 0 FOUNDATION IN PROGRESS
 DATABASE              NOT STARTED
-TESTS                 NOT STARTED
+TESTS                 API HEALTH TEST ONLY
 DEPLOYMENT            NOT STARTED
 
 REPOSITORY SCAFFOLD    CREATED
@@ -705,10 +713,10 @@ Do **not** implement later-phase features.
 Next:
 
 ```text
-1. Initialize the web and API applications
-2. Add Prisma configuration and Phase 0 schema
-3. Add the health endpoint and database connectivity checks
-4. Add basic authentication and the protected application shell
+1. Add Prisma configuration and the Phase 0 schema
+2. Add database connectivity checks and seed scaffolding
+3. Add basic authentication and the protected application shell
+4. Add Phase 0 integration coverage
 ```
 
 ---
@@ -717,8 +725,10 @@ Next:
 
 Semora currently has:
 
-> **a locked product thesis and detailed engineering plan, but zero implementation debt.**
+> **a locked product thesis, a clean Phase 0 foundation, and no later-phase
+> product behavior implemented yet.**
 
-This is the ideal moment to begin Phase 0 cleanly.
+The next implementation agent should continue from the repository state above,
+using the existing documentation as the design contract.
 
 The next implementation agent should treat the existing documentation as the design contract and start building the smallest architecture required to reach Semester Designer.

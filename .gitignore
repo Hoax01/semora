@@ -8,6 +8,6 @@ coverage/
 *.log
 .turbo/
 .vite/
+*.tsbuildinfo
 prisma/*.db
 prisma/*.db-journal
-

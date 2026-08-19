@@ -11,13 +11,15 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "format:check": "prettier --check \"package.json\" \"tsconfig.base.json\" \".prettierrc.json\" \"apps/**/package.json\" \"packages/**/package.json\""
+    "format:check": "prettier --check \"package.json\" \"tsconfig.base.json\" \".prettierrc.json\" \"apps/**/package.json\" \"packages/**/package.json\" \"apps/**/*.{ts,tsx,css,html}\""
   },
   "devDependencies": {
     "prettier": "^3.6.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }
