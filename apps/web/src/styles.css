@@ -940,6 +940,12 @@ h1 {
   background: var(--surface-elevated);
 }
 
+.selected-course-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
 .selected-course-row h3,
 .selected-course-row p {
   margin: 0;
@@ -952,6 +958,86 @@ h1 {
 
 .selected-course-row .meeting-summary {
   margin-top: 0.45rem;
+}
+
+.workload-editor {
+  max-width: 52rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px dashed #9a8fff88;
+  border-radius: 0.6rem;
+  background: #5f54c70b;
+}
+
+.workload-editor summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.workload-editor summary small {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.workload-editor form {
+  margin-top: 0.9rem;
+}
+
+.workload-editor-help {
+  margin: 0 0 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.workload-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.workload-field-grid label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.workload-field-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.4rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 400;
+}
+
+.workload-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.workload-editor-actions > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
 }
 
 .selected-course-actions {
@@ -1385,6 +1471,19 @@ h1 {
   .section-option {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .workload-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workload-editor-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workload-editor-actions > div {
+    justify-content: flex-start;
   }
 
   .selected-course-actions {

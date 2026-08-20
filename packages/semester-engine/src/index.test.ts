@@ -4,6 +4,9 @@ import {
   calculateScheduleMetrics,
   calculateTotalCredits,
   detectTimetableClashes,
+  estimateStructuralWorkloadProfile,
+  resolveWorkloadProfile,
+  validateWorkloadProfile,
   type CandidateCourseInput,
   type TimetableCourse,
 } from './index.js';
@@ -233,5 +236,56 @@ describe('analyzeCandidateSchedule', () => {
       schedule: { scheduledDays: ['TUESDAY'] },
     });
     expect(result.validity.clashes).toHaveLength(1);
+  });
+});
+
+describe('preliminary workload profiles', () => {
+  it('derives only explainable structural estimates and preserves unknown dimensions', () => {
+    const profile = estimateStructuralWorkloadProfile({
+      creditHours: 3,
+      meetings: [
+        { dayOfWeek: 'MONDAY', startTime: '10:00', endTime: '11:30' },
+        { dayOfWeek: 'WEDNESDAY', startTime: '10:00', endTime: '11:30', meetingType: 'LAB' },
+      ],
+    });
+
+    expect(profile).toMatchObject({
+      overallIntensity: 4.5,
+      estimatedWeeklyHours: 6.75,
+      scheduleBurden: 3,
+      labIntensity: 6,
+      confidence: 0.35,
+      source: 'STRUCTURAL_ESTIMATE',
+    });
+    expect(profile.projectIntensity).toBeUndefined();
+    expect(profile.examIntensity).toBeUndefined();
+  });
+
+  it('applies a user override without inventing values for missing dimensions', () => {
+    const profile = resolveWorkloadProfile(
+      {
+        creditHours: 3,
+        meetings: [{ dayOfWeek: 'TUESDAY', startTime: '12:00', endTime: '13:00' }],
+      },
+      { projectIntensity: 8, estimatedWeeklyHours: 9, confidence: 0.8 },
+    );
+
+    expect(profile).toMatchObject({
+      overallIntensity: 4.5,
+      projectIntensity: 8,
+      estimatedWeeklyHours: 9,
+      confidence: 0.8,
+      source: 'USER_ESTIMATE',
+    });
+    expect(profile.quizIntensity).toBeUndefined();
+  });
+
+  it('rejects out-of-range profile values', () => {
+    expect(() => validateWorkloadProfile({ projectIntensity: 10.1 })).toThrow(
+      'Workload profile projectIntensity must be between 0 and 10.',
+    );
+    expect(() => validateWorkloadProfile({ estimatedWeeklyHours: -1 })).toThrow(
+      'Estimated weekly hours must be a finite non-negative number.',
+    );
   });
 });

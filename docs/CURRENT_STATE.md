@@ -2,12 +2,13 @@
 
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 3 — Semester Intelligence (in progress)
-**Next Build Objective:** Phase 3.4 — Preliminary Workload Profiles
+**Next Build Objective:** Phase 3.5 — User Course Preferences in analysis
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
 checkpoint is complete. Phase 3 schedule analysis foundations are now
-implemented; workload profiles, scoring, findings, and comparison remain.
+implemented; preliminary workload profiles are now implemented, while scoring,
+findings, and comparison remain.
 
 ---
 
@@ -57,6 +58,10 @@ implemented; workload profiles, scoring, findings, and comparison remain.
 - Preliminary Semester Intelligence panel on the planner showing deterministic
   class time, scheduled/free days, campus span, idle gaps, early/late class
   exposure, and long-day indicators for the selected candidate.
+- Selected courses expose editable preliminary workload assumptions across the
+  initial ten dimensions plus estimated weekly hours. Structural estimates are
+  visibly distinguished from user estimates, unknown dimensions remain blank,
+  and user estimates can be reset.
 
 ### API and authentication
 
@@ -96,8 +101,11 @@ implemented; workload profiles, scoring, findings, and comparison remain.
   not invalidate a candidate.
 - Ownership-checked `GET /api/candidates/:candidateId/analysis` endpoint maps
   persisted candidate data, commitments, and preferences into the typed
-  Semester Engine input contract and returns deterministic schedule analysis
-  alongside hard-constraint validity.
+  Semester Engine input contract and returns deterministic schedule analysis,
+  resolved preliminary workload profiles, and hard-constraint validity.
+- Ownership-checked workload-profile PATCH/DELETE APIs persist per-workspace
+  user estimates for a course offering, validate 0–10 dimensions and weekly
+  hours, and restore structural estimates when reset.
 - Workspace responses include owned commitment names, categories, flexibility,
   weekly effort, and recurring meeting blocks for schedule rendering. No
   one-off event model is exposed in this phase.
@@ -119,15 +127,19 @@ implemented; workload profiles, scoring, findings, and comparison remain.
   - `20260819212143_add_auth_tables`
   - `20260819212415_add_auth_account_issuer`
   - `20260820105904_phase2_planning_foundation`
+  - `20260820153904_phase3_workload_profiles`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
   cascade/restrict boundaries.
+- `CourseWorkloadProfile` stores workspace-owned preliminary estimates with
+  source, confidence, optional section scope, and the ten Phase 3 dimensions.
 - The `@semora/semester-engine` package contains deterministic timetable
-  interval validation, credit arithmetic, typed candidate analysis inputs, and
-  schedule metrics for daily class duration, campus span, idle gaps,
-  fragmentation, free days, early/late exposure, and long-day detection. It
-  has no database, HTTP, React, or LLM dependencies.
+  interval validation, credit arithmetic, typed candidate analysis inputs,
+  structural workload estimation, user-profile resolution, and schedule
+  metrics for daily class duration, campus span, idle gaps, fragmentation, free
+  days, early/late exposure, and long-day detection. It has no database, HTTP,
+  React, or LLM dependencies.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
   on port 5432: 520 course offerings, 823 section/component records, and 1,441
   day-specific meetings.
@@ -182,8 +194,12 @@ Current API integration coverage verifies:
   duration, campus span, meaningful gaps, free days, configurable long-day and
   early/late thresholds, malformed intervals, and combined candidate validity.
 - The authorized candidate analysis endpoint returns the selected candidate's
-  deterministic schedule metrics and was exercised through the API integration
-  suite.
+  deterministic schedule metrics and resolved workload profiles and was
+  exercised through the API integration suite.
+- Workload profile unit tests cover structural estimates, unknown dimensions,
+  user overrides, validation bounds, and profile reset behavior. API coverage
+  covers authorized save, analysis resolution, reset, and existing ownership
+  boundaries.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
@@ -224,12 +240,12 @@ Implemented in this phase so far:
 3.1 Semester Engine Package foundation
 3.2 Typed CandidateSemesterInput contract
 3.3 Deterministic Schedule Metrics
+3.4 Preliminary Workload Profiles
 ```
 
 Not yet implemented:
 
 ```text
-3.4 Preliminary Workload Profiles
 3.5 User Course Preferences consumed by analysis
 3.6 Interaction Penalties
 3.7 Candidate Metrics
@@ -242,8 +258,8 @@ Not yet implemented:
 Phase 3 acceptance status:
 
 ```text
-IN PROGRESS — schedule analysis is available for one selected candidate;
-meaningful workload comparison is not yet implemented.
+IN PROGRESS — one candidate now has preliminary schedule and workload
+intelligence; meaningful preference-sensitive comparison is not yet implemented.
 ```
 
 Checkpoint A, the Sol architecture review described in
@@ -328,14 +344,17 @@ phase sequencing and defines candidate planning as Phase 2, which is also
 consistent with this file. Implementation follows `BUILDPLAN.md` to avoid
 product or architecture drift.
 
-The planning schema can persist course preferences and recurring commitments.
+The planning schema can persist course preferences, recurring commitments, and
+workspace-owned preliminary workload profiles.
 Candidate selections support add, switch, remove, duplication, and
 same-offering enforcement. Timetable validation and the initial schedule
 analysis run deterministically through the Semester Engine, the weekly schedule
 renders persisted course and commitment blocks, commitment CRUD updates both
-the schedule and clash analysis, and normalized preferences are editable per
-workspace. Preference values are mapped into the Phase 3 input contract but are
-not consumed by workload scoring until the remaining Phase 3 engine work.
+the schedule and clash analysis, normalized preferences are editable per
+workspace, and workload assumptions distinguish structural estimates from
+user overrides. Preference values are mapped into the Phase 3 input contract
+but are not consumed by workload scoring until the remaining Phase 3 engine
+work.
 
 `packages/domain` remains an intentionally empty workspace package. Current
 Phase 2 calculations are isolated in `packages/semester-engine`, while API and
@@ -384,7 +403,6 @@ docs/CATALOGUE_IMPORT.md
 ## Next objective
 
 Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
-has started with the schedule-analysis foundation. The next objective is to add
-preliminary workload profiles, then use them with persisted course preferences
-to produce explainable candidate metrics without implementing later LOCK or
-NAVIGATE behavior.
+has implemented its schedule-analysis and preliminary-profile foundations. The
+next objective is to consume persisted course preferences in deterministic
+candidate metrics without implementing later LOCK or NAVIGATE behavior.

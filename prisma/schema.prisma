@@ -70,6 +70,12 @@ enum CommitmentFlexibility {
   FLEXIBLE
 }
 
+enum WorkloadProfileSource {
+  STRUCTURAL_ESTIMATE
+  USER_ESTIMATE
+  VERIFIED_OUTLINE
+}
+
 model User {
   id            String              @id @default(cuid())
   name          String              @map("display_name")
@@ -137,19 +143,20 @@ model Course {
 }
 
 model CourseOffering {
-  id                  String                 @id @default(cuid())
-  courseId            String                 @map("course_id")
-  academicTermId      String                 @map("academic_term_id")
-  creditHours         Decimal                @map("credit_hours") @db.Decimal(4, 1)
-  descriptionOverride String?                @map("description_override")
-  gradingMode         GradingMode            @default(UNKNOWN) @map("grading_mode")
-  sourceConfidence    String                 @default("OFFICIAL_IMPORT") @map("source_confidence")
-  createdAt           DateTime               @default(now()) @map("created_at")
-  updatedAt           DateTime               @updatedAt @map("updated_at")
-  course              Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  academicTerm        AcademicTerm           @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  id                  String                  @id @default(cuid())
+  courseId            String                  @map("course_id")
+  academicTermId      String                  @map("academic_term_id")
+  creditHours         Decimal                 @map("credit_hours") @db.Decimal(4, 1)
+  descriptionOverride String?                 @map("description_override")
+  gradingMode         GradingMode             @default(UNKNOWN) @map("grading_mode")
+  sourceConfidence    String                  @default("OFFICIAL_IMPORT") @map("source_confidence")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  course              Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicTerm        AcademicTerm            @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
   sections            Section[]
   userPreferences     UserCoursePreference[]
+  workloadProfiles    CourseWorkloadProfile[]
 
   @@unique([courseId, academicTermId])
   @@map("course_offerings")
@@ -166,6 +173,7 @@ model Section {
   courseOffering      CourseOffering             @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   meetings            Meeting[]
   candidateSelections CandidateCourseSelection[]
+  workloadProfiles    CourseWorkloadProfile[]
 
   @@unique([courseOfferingId, sectionCode])
   @@map("sections")
@@ -186,17 +194,18 @@ model Meeting {
 }
 
 model SemesterWorkspace {
-  id                String                 @id @default(cuid())
-  userId            String                 @map("user_id")
-  academicTermId    String                 @map("academic_term_id")
-  state             WorkspaceState         @default(PLANNING)
-  createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @updatedAt @map("updated_at")
-  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  academicTerm      AcademicTerm           @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  id                String                  @id @default(cuid())
+  userId            String                  @map("user_id")
+  academicTermId    String                  @map("academic_term_id")
+  state             WorkspaceState          @default(PLANNING)
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academicTerm      AcademicTerm            @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
   preferences       SemesterPreferences?
   candidates        CandidateSemester[]
   coursePreferences UserCoursePreference[]
+  workloadProfiles  CourseWorkloadProfile[]
   commitments       Commitment[]
 
   @@unique([userId, academicTermId])
@@ -250,6 +259,35 @@ model CandidateCourseSelection {
   @@unique([candidateSemesterId, sectionId])
   @@index([sectionId])
   @@map("candidate_course_selections")
+}
+
+model CourseWorkloadProfile {
+  id                      String                @id @default(cuid())
+  workspaceId             String                @map("workspace_id")
+  courseOfferingId        String                @map("course_offering_id")
+  sectionId               String?               @map("section_id")
+  overallIntensity        Decimal?              @map("overall_intensity") @db.Decimal(3, 1)
+  continuousWorkload      Decimal?              @map("continuous_workload") @db.Decimal(3, 1)
+  assignmentIntensity     Decimal?              @map("assignment_intensity") @db.Decimal(3, 1)
+  quizIntensity           Decimal?              @map("quiz_intensity") @db.Decimal(3, 1)
+  projectIntensity        Decimal?              @map("project_intensity") @db.Decimal(3, 1)
+  examIntensity           Decimal?              @map("exam_intensity") @db.Decimal(3, 1)
+  labIntensity            Decimal?              @map("lab_intensity") @db.Decimal(3, 1)
+  readingIntensity        Decimal?              @map("reading_intensity") @db.Decimal(3, 1)
+  scheduleBurden          Decimal?              @map("schedule_burden") @db.Decimal(3, 1)
+  assessmentFragmentation Decimal?              @map("assessment_fragmentation") @db.Decimal(3, 1)
+  estimatedWeeklyHours    Decimal?              @map("estimated_weekly_hours") @db.Decimal(5, 2)
+  confidence              Decimal               @default(0.35) @db.Decimal(3, 2)
+  sourceType              WorkloadProfileSource @map("source_type")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+  workspace               SemesterWorkspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  courseOffering          CourseOffering        @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+  section                 Section?              @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, courseOfferingId])
+  @@index([courseOfferingId])
+  @@map("course_workload_profiles")
 }
 
 model UserCoursePreference {

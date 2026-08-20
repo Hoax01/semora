@@ -275,6 +275,40 @@ describe('Phase 2 planning foundation', () => {
       },
     });
 
+    const courseOfferingId = selection.body.selection.courseOfferingId as string;
+    const workloadProfile = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
+      .set('Cookie', ownerCookie)
+      .send({ projectIntensity: 8, estimatedWeeklyHours: 9 });
+    expect(workloadProfile.status).toBe(200);
+    expect(workloadProfile.body.workloadProfile).toMatchObject({
+      courseOfferingId,
+      projectIntensity: 8,
+      estimatedWeeklyHours: 9,
+      confidence: 0.8,
+      source: 'USER_ESTIMATE',
+    });
+
+    const overriddenAnalysis = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(overriddenAnalysis.status).toBe(200);
+    expect(overriddenAnalysis.body.workloadProfiles).toEqual([
+      expect.objectContaining({
+        courseOfferingId,
+        profile: expect.objectContaining({
+          projectIntensity: 8,
+          estimatedWeeklyHours: 9,
+          source: 'USER_ESTIMATE',
+        }),
+      }),
+    ]);
+
+    const resetWorkloadProfile = await request(app)
+      .delete(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
+      .set('Cookie', ownerCookie);
+    expect(resetWorkloadProfile.status).toBe(200);
+
     const selectedMeeting = switched.body.selection.meetings[0] as {
       day: string;
       startTime: string;
@@ -433,6 +467,12 @@ describe('Phase 2 planning foundation', () => {
       .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
       .set('Cookie', intruderCookie);
     expect(foreignAnalysis.status).toBe(404);
+
+    const foreignProfileUpdate = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
+      .set('Cookie', intruderCookie)
+      .send({ projectIntensity: 1 });
+    expect(foreignProfileUpdate.status).toBe(404);
 
     const foreignPreferences = await request(app)
       .patch(`/api/workspaces/${workspaceId}/preferences`)

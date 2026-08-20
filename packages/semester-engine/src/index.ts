@@ -15,6 +15,7 @@ export type TimetableMeeting = {
   dayOfWeek: MeetingDay;
   startTime: string;
   endTime: string;
+  meetingType?: 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER';
 };
 
 export type TimetableCourse = {
@@ -44,10 +45,25 @@ export type WorkloadDimension =
   | 'scheduleBurden'
   | 'assessmentFragmentation';
 
+export const WORKLOAD_DIMENSIONS = [
+  'overallIntensity',
+  'continuousWorkload',
+  'assignmentIntensity',
+  'quizIntensity',
+  'projectIntensity',
+  'examIntensity',
+  'labIntensity',
+  'readingIntensity',
+  'scheduleBurden',
+  'assessmentFragmentation',
+] as const satisfies readonly WorkloadDimension[];
+
+export type WorkloadProfileSource = 'STRUCTURAL_ESTIMATE' | 'USER_ESTIMATE' | 'VERIFIED_OUTLINE';
+
 export type CourseWorkloadProfile = Partial<Record<WorkloadDimension, number | null>> & {
   estimatedWeeklyHours?: number | null;
   confidence?: number;
-  source?: 'STRUCTURAL_ESTIMATE' | 'USER_ESTIMATE' | 'VERIFIED_OUTLINE';
+  source?: WorkloadProfileSource;
 };
 
 export type CandidateCourseInput = {
@@ -159,11 +175,35 @@ export const DEFAULT_SCHEDULE_METRICS_CONFIG: ScheduleMetricsConfig = {
   longDayMinutes: 6 * 60,
 };
 
+export type StructuralWorkloadConfig = {
+  structuralConfidence: number;
+  referenceCreditHours: number;
+  baseIntensity: number;
+  intensityPerCredit: number;
+  baseWeeklyHoursPerCredit: number;
+  labIntensity: number;
+};
+
+export const DEFAULT_STRUCTURAL_WORKLOAD_CONFIG: StructuralWorkloadConfig = {
+  structuralConfidence: 0.35,
+  referenceCreditHours: 3,
+  baseIntensity: 4.5,
+  intensityPerCredit: 0.8,
+  baseWeeklyHoursPerCredit: 2,
+  labIntensity: 6,
+};
+
 export type CandidateScheduleAnalysis = {
   candidateId: string | null;
   engineVersion: '0.1';
   validity: TimetableAnalysis;
   schedule: ScheduleMetrics;
+  workloadProfiles: Array<{
+    courseId: string;
+    courseOfferingId: string;
+    courseCode: string;
+    profile: CourseWorkloadProfile;
+  }>;
 };
 
 export function calculateTotalCredits(credits: readonly number[]) {
@@ -428,6 +468,119 @@ export function calculateScheduleMetrics(
   };
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function validateStructuralWorkloadConfig(config: StructuralWorkloadConfig) {
+  if (
+    !Number.isFinite(config.structuralConfidence) ||
+    config.structuralConfidence < 0 ||
+    config.structuralConfidence > 1 ||
+    !Number.isFinite(config.referenceCreditHours) ||
+    config.referenceCreditHours <= 0 ||
+    !Number.isFinite(config.baseIntensity) ||
+    !Number.isFinite(config.intensityPerCredit) ||
+    !Number.isFinite(config.baseWeeklyHoursPerCredit) ||
+    config.baseWeeklyHoursPerCredit < 0 ||
+    !Number.isFinite(config.labIntensity) ||
+    config.labIntensity < 0 ||
+    config.labIntensity > 10
+  ) {
+    throw new Error('Structural workload configuration contains invalid values.');
+  }
+}
+
+export function validateWorkloadProfile(profile: CourseWorkloadProfile) {
+  for (const dimension of WORKLOAD_DIMENSIONS) {
+    const value = profile[dimension];
+    if (
+      value !== undefined &&
+      value !== null &&
+      (!Number.isFinite(value) || value < 0 || value > 10)
+    ) {
+      throw new Error(`Workload profile ${dimension} must be between 0 and 10.`);
+    }
+  }
+  if (
+    profile.estimatedWeeklyHours !== undefined &&
+    profile.estimatedWeeklyHours !== null &&
+    (!Number.isFinite(profile.estimatedWeeklyHours) || profile.estimatedWeeklyHours < 0)
+  ) {
+    throw new Error('Estimated weekly hours must be a finite non-negative number.');
+  }
+  if (
+    profile.confidence !== undefined &&
+    (!Number.isFinite(profile.confidence) || profile.confidence < 0 || profile.confidence > 1)
+  ) {
+    throw new Error('Workload profile confidence must be between 0 and 1.');
+  }
+}
+
+export function estimateStructuralWorkloadProfile(
+  course: Pick<CandidateCourseInput, 'creditHours' | 'meetings'>,
+  config: StructuralWorkloadConfig = DEFAULT_STRUCTURAL_WORKLOAD_CONFIG,
+): CourseWorkloadProfile {
+  validateStructuralWorkloadConfig(config);
+  if (!Number.isFinite(course.creditHours) || course.creditHours < 0) {
+    throw new Error('Course credits must be finite non-negative numbers.');
+  }
+
+  let totalMeetingMinutes = 0;
+  let hasLab = false;
+  for (const meeting of course.meetings) {
+    const start = parseTime(meeting.startTime);
+    const end = parseTime(meeting.endTime);
+    if (start >= end) throw new Error('Timetable meetings must end after they start.');
+    totalMeetingMinutes += end - start;
+    hasLab ||= meeting.meetingType === 'LAB';
+  }
+
+  const profile: CourseWorkloadProfile = {
+    overallIntensity: clamp(
+      config.baseIntensity +
+        (course.creditHours - config.referenceCreditHours) * config.intensityPerCredit,
+      0,
+      10,
+    ),
+    estimatedWeeklyHours: roundMetric(
+      course.creditHours * config.baseWeeklyHoursPerCredit + (totalMeetingMinutes / 60) * 0.25,
+    ),
+    confidence: config.structuralConfidence,
+    source: 'STRUCTURAL_ESTIMATE',
+  };
+
+  if (course.meetings.length) {
+    profile.scheduleBurden = roundMetric(clamp(2 + totalMeetingMinutes / 180, 0, 10));
+  }
+  if (hasLab) profile.labIntensity = config.labIntensity;
+
+  return profile;
+}
+
+export function resolveWorkloadProfile(
+  course: Pick<CandidateCourseInput, 'creditHours' | 'meetings'>,
+  override?: CourseWorkloadProfile,
+  config: StructuralWorkloadConfig = DEFAULT_STRUCTURAL_WORKLOAD_CONFIG,
+): CourseWorkloadProfile {
+  const structural = estimateStructuralWorkloadProfile(course, config);
+  if (!override) return structural;
+  validateWorkloadProfile(override);
+  const resolved = { ...structural };
+  for (const dimension of WORKLOAD_DIMENSIONS) {
+    const value = override[dimension];
+    if (value !== undefined && value !== null) resolved[dimension] = value;
+  }
+  if (override.estimatedWeeklyHours !== undefined && override.estimatedWeeklyHours !== null) {
+    resolved.estimatedWeeklyHours = override.estimatedWeeklyHours;
+  }
+  return {
+    ...resolved,
+    confidence: override.confidence ?? 0.8,
+    source: override.source ?? 'USER_ESTIMATE',
+  };
+}
+
 export function analyzeCandidateSchedule(
   input: CandidateSemesterInput,
   config: ScheduleMetricsConfig = DEFAULT_SCHEDULE_METRICS_CONFIG,
@@ -448,5 +601,11 @@ export function analyzeCandidateSchedule(
     engineVersion: '0.1',
     validity,
     schedule: calculateScheduleMetrics(input.courses, config),
+    workloadProfiles: input.courses.map((course) => ({
+      courseId: course.id,
+      courseOfferingId: course.courseOfferingId,
+      courseCode: course.courseCode,
+      profile: resolveWorkloadProfile(course, course.workloadProfile),
+    })),
   };
 }

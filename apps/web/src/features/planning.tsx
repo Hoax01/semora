@@ -34,6 +34,12 @@ type CandidateAnalysis = {
   candidateId: string;
   engineVersion: string;
   validity: CandidateValidation;
+  workloadProfiles: Array<{
+    courseId: string;
+    courseOfferingId: string;
+    courseCode: string;
+    profile: WorkloadProfile;
+  }>;
   schedule: {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
@@ -47,6 +53,24 @@ type CandidateAnalysis = {
     lateClassMinutes: number;
     scheduleFragmentation: number;
   };
+};
+
+type WorkloadDimension =
+  | 'overallIntensity'
+  | 'continuousWorkload'
+  | 'assignmentIntensity'
+  | 'quizIntensity'
+  | 'projectIntensity'
+  | 'examIntensity'
+  | 'labIntensity'
+  | 'readingIntensity'
+  | 'scheduleBurden'
+  | 'assessmentFragmentation';
+
+type WorkloadProfile = Partial<Record<WorkloadDimension, number | null>> & {
+  estimatedWeeklyHours: number | null;
+  confidence: number;
+  source: string;
 };
 
 type TimetableClash = {
@@ -107,6 +131,12 @@ type Workspace = {
     university: { id: string; name: string; shortName: string };
   };
   preferences: Preferences | null;
+  workloadProfiles: Array<{
+    id: string;
+    courseOfferingId: string;
+    sectionId: string | null;
+    source: string;
+  }>;
   commitments: Commitment[];
   candidates: Candidate[];
 };
@@ -192,6 +222,18 @@ const preferenceChoices = [
   { value: 0, label: 'Low' },
   { value: 0.5, label: 'Medium' },
   { value: 1, label: 'High' },
+];
+const workloadProfileFields: Array<[WorkloadDimension, string]> = [
+  ['overallIntensity', 'Overall intensity'],
+  ['continuousWorkload', 'Continuous workload'],
+  ['assignmentIntensity', 'Assignment intensity'],
+  ['quizIntensity', 'Quiz intensity'],
+  ['projectIntensity', 'Project intensity'],
+  ['examIntensity', 'Exam intensity'],
+  ['labIntensity', 'Lab intensity'],
+  ['readingIntensity', 'Reading intensity'],
+  ['scheduleBurden', 'Schedule burden'],
+  ['assessmentFragmentation', 'Assessment fragmentation'],
 ];
 
 function defaultPreferenceDraft(): PreferenceDraft {
@@ -692,6 +734,35 @@ export function PlanningPage() {
       );
       setPreferenceDraft(preferenceDraftFrom(result.preferences));
     });
+  }
+
+  function saveWorkloadProfile(courseOfferingId: string, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId) return;
+    const formData = new FormData(event.currentTarget);
+    const numericValue = (field: string) => {
+      const value = String(formData.get(field) ?? '').trim();
+      return value ? Number(value) : null;
+    };
+    const body = Object.fromEntries([
+      ...workloadProfileFields.map(([field]) => [field, numericValue(field)]),
+      ['estimatedWeeklyHours', numericValue('estimatedWeeklyHours')],
+    ]);
+    void runMutation(`workload-profile-${courseOfferingId}`, () =>
+      apiRequest(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  function resetWorkloadProfile(courseOfferingId: string) {
+    if (!workspaceId) return;
+    void runMutation(`reset-workload-profile-${courseOfferingId}`, () =>
+      apiRequest(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`, {
+        method: 'DELETE',
+      }),
+    );
   }
 
   const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
@@ -1271,38 +1342,124 @@ export function PlanningPage() {
                   </div>
                   {selectedCandidate.selections.length ? (
                     <div className="selected-course-list">
-                      {selectedCandidate.selections.map((selection) => (
-                        <article className="selected-course-row" key={selection.id}>
-                          <div>
-                            <p className="course-code">{selection.courseCode}</p>
-                            <h3>{selection.title}</h3>
-                            <p className="course-meta">
-                              Section {selection.sectionCode} · {selection.credits} credits
-                            </p>
-                            <p className="meeting-summary">
-                              {selection.meetings.map(formatMeeting).join(' · ') || 'Timing TBA'}
-                            </p>
-                          </div>
-                          <div className="selected-course-actions">
-                            <button
-                              className="secondary-button compact-button"
-                              disabled={Boolean(busyAction)}
-                              onClick={() => openSelectedCourse(selection)}
-                              type="button"
-                            >
-                              Change section
-                            </button>
-                            <button
-                              className="danger-button compact-button"
-                              disabled={Boolean(busyAction)}
-                              onClick={() => removeSelection(selection.id)}
-                              type="button"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </article>
-                      ))}
+                      {selectedCandidate.selections.map((selection) => {
+                        const workloadAnalysis = candidateAnalysis?.workloadProfiles.find(
+                          (item) => item.courseOfferingId === selection.courseOfferingId,
+                        );
+                        const profile = workloadAnalysis?.profile;
+                        return (
+                          <article className="selected-course-row" key={selection.id}>
+                            <div className="selected-course-main">
+                              <div>
+                                <p className="course-code">{selection.courseCode}</p>
+                                <h3>{selection.title}</h3>
+                                <p className="course-meta">
+                                  Section {selection.sectionCode} · {selection.credits} credits
+                                </p>
+                                <p className="meeting-summary">
+                                  {selection.meetings.map(formatMeeting).join(' · ') ||
+                                    'Timing TBA'}
+                                </p>
+                              </div>
+                              {profile ? (
+                                <details className="workload-editor">
+                                  <summary>
+                                    <span>
+                                      Workload assumptions ·{' '}
+                                      {profile.source === 'USER_ESTIMATE'
+                                        ? 'Your estimate'
+                                        : 'Structural estimate'}
+                                    </span>
+                                    <small>
+                                      {Math.round(profile.confidence * 100)}% confidence
+                                    </small>
+                                  </summary>
+                                  <form
+                                    onSubmit={(event) =>
+                                      saveWorkloadProfile(selection.courseOfferingId, event)
+                                    }
+                                  >
+                                    <p className="workload-editor-help">
+                                      Unknown dimensions stay blank. Values are estimates, not
+                                      grades or official course facts.
+                                    </p>
+                                    <div className="workload-field-grid">
+                                      {workloadProfileFields.map(([field, label]) => (
+                                        <label key={field}>
+                                          {label}
+                                          <input
+                                            defaultValue={profile[field] ?? ''}
+                                            max="10"
+                                            min="0"
+                                            name={field}
+                                            placeholder="Unknown"
+                                            step="0.5"
+                                            type="number"
+                                          />
+                                        </label>
+                                      ))}
+                                      <label>
+                                        Estimated hours / week
+                                        <input
+                                          defaultValue={profile.estimatedWeeklyHours ?? ''}
+                                          max="168"
+                                          min="0"
+                                          name="estimatedWeeklyHours"
+                                          placeholder="Unknown"
+                                          step="0.25"
+                                          type="number"
+                                        />
+                                      </label>
+                                    </div>
+                                    <div className="workload-editor-actions">
+                                      <span>Saved per semester and course offering.</span>
+                                      <div>
+                                        <button
+                                          className="secondary-button compact-button"
+                                          disabled={Boolean(busyAction)}
+                                          type="submit"
+                                        >
+                                          Save estimate
+                                        </button>
+                                        {profile.source === 'USER_ESTIMATE' ? (
+                                          <button
+                                            className="text-button"
+                                            disabled={Boolean(busyAction)}
+                                            onClick={() =>
+                                              resetWorkloadProfile(selection.courseOfferingId)
+                                            }
+                                            type="button"
+                                          >
+                                            Reset structural estimate
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </form>
+                                </details>
+                              ) : null}
+                            </div>
+                            <div className="selected-course-actions">
+                              <button
+                                className="secondary-button compact-button"
+                                disabled={Boolean(busyAction)}
+                                onClick={() => openSelectedCourse(selection)}
+                                type="button"
+                              >
+                                Change section
+                              </button>
+                              <button
+                                className="danger-button compact-button"
+                                disabled={Boolean(busyAction)}
+                                onClick={() => removeSelection(selection.id)}
+                                type="button"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="selected-courses-empty">

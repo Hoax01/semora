@@ -3,7 +3,9 @@ import {
   analyzeCandidateSchedule,
   calculateTotalCredits,
   detectTimetableClashes,
+  resolveWorkloadProfile,
   type CandidateSemesterInput,
+  type CourseWorkloadProfile,
   type MeetingDay,
 } from '@semora/semester-engine';
 import { z } from 'zod';
@@ -105,6 +107,23 @@ const preferenceUpdateSchema = z
   })
   .refine((value) => Object.keys(value).length > 0);
 
+const workloadDimensionSchema = z.number().finite().min(0).max(10).nullable().optional();
+const workloadProfileUpdateSchema = z
+  .object({
+    overallIntensity: workloadDimensionSchema,
+    continuousWorkload: workloadDimensionSchema,
+    assignmentIntensity: workloadDimensionSchema,
+    quizIntensity: workloadDimensionSchema,
+    projectIntensity: workloadDimensionSchema,
+    examIntensity: workloadDimensionSchema,
+    labIntensity: workloadDimensionSchema,
+    readingIntensity: workloadDimensionSchema,
+    scheduleBurden: workloadDimensionSchema,
+    assessmentFragmentation: workloadDimensionSchema,
+    estimatedWeeklyHours: z.number().finite().min(0).max(168).nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+
 const selectionInclude = {
   section: {
     include: {
@@ -119,6 +138,7 @@ const commitmentInclude = { meetings: true } as const;
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
   preferences: true,
+  workloadProfiles: true,
   commitments: {
     include: commitmentInclude,
     orderBy: { createdAt: 'asc' as const },
@@ -195,6 +215,25 @@ type PreferencesRecord = {
   maxPreferredHardCourses: number | null;
 };
 
+type WorkloadProfileRecord = {
+  id: string;
+  courseOfferingId: string;
+  sectionId: string | null;
+  overallIntensity: { toString(): string } | null;
+  continuousWorkload: { toString(): string } | null;
+  assignmentIntensity: { toString(): string } | null;
+  quizIntensity: { toString(): string } | null;
+  projectIntensity: { toString(): string } | null;
+  examIntensity: { toString(): string } | null;
+  labIntensity: { toString(): string } | null;
+  readingIntensity: { toString(): string } | null;
+  scheduleBurden: { toString(): string } | null;
+  assessmentFragmentation: { toString(): string } | null;
+  estimatedWeeklyHours: { toString(): string } | null;
+  confidence: { toString(): string };
+  sourceType: string;
+};
+
 type WorkspaceRecord = {
   id: string;
   state: string;
@@ -208,6 +247,7 @@ type WorkspaceRecord = {
     university: { id: string; name: string; shortName: string };
   };
   preferences: PreferencesRecord | null;
+  workloadProfiles: WorkloadProfileRecord[];
   commitments: CommitmentRecord[];
   candidates: CandidateRecord[];
 };
@@ -289,6 +329,31 @@ function serializePreferences(preferences: PreferencesRecord) {
   };
 }
 
+function decimalOrNull(value: { toString(): string } | null) {
+  return value === null ? null : Number(value);
+}
+
+function serializeWorkloadProfile(profile: WorkloadProfileRecord) {
+  return {
+    id: profile.id,
+    courseOfferingId: profile.courseOfferingId,
+    sectionId: profile.sectionId,
+    overallIntensity: decimalOrNull(profile.overallIntensity),
+    continuousWorkload: decimalOrNull(profile.continuousWorkload),
+    assignmentIntensity: decimalOrNull(profile.assignmentIntensity),
+    quizIntensity: decimalOrNull(profile.quizIntensity),
+    projectIntensity: decimalOrNull(profile.projectIntensity),
+    examIntensity: decimalOrNull(profile.examIntensity),
+    labIntensity: decimalOrNull(profile.labIntensity),
+    readingIntensity: decimalOrNull(profile.readingIntensity),
+    scheduleBurden: decimalOrNull(profile.scheduleBurden),
+    assessmentFragmentation: decimalOrNull(profile.assessmentFragmentation),
+    estimatedWeeklyHours: decimalOrNull(profile.estimatedWeeklyHours),
+    confidence: Number(profile.confidence),
+    source: profile.sourceType,
+  };
+}
+
 function commitmentMeetingData(meeting: z.infer<typeof commitmentMeetingSchema>) {
   return {
     dayOfWeek: meeting.dayOfWeek,
@@ -311,6 +376,7 @@ function serializeWorkspace(workspace: WorkspaceRecord) {
       university: workspace.academicTerm.university,
     },
     preferences: workspace.preferences ? serializePreferences(workspace.preferences) : null,
+    workloadProfiles: workspace.workloadProfiles.map(serializeWorkloadProfile),
     commitments: workspace.commitments.map(serializeCommitment),
     candidates: workspace.candidates.map(serializeCandidate),
   };
@@ -371,6 +437,7 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
       workspace: {
         select: {
           preferences: true,
+          workloadProfiles: true,
           commitments: {
             include: { meetings: true },
             orderBy: { createdAt: 'asc' },
@@ -399,7 +466,44 @@ function candidateSemesterInput(
         dayOfWeek: meeting.dayOfWeek as MeetingDay,
         startTime: formatTime(meeting.startTime),
         endTime: formatTime(meeting.endTime),
+        meetingType: meeting.meetingType as 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
       })),
+      ...(() => {
+        const stored = candidate.workspace.workloadProfiles.find(
+          (profile) => profile.courseOfferingId === selection.section.courseOffering.id,
+        );
+        if (!stored) return {};
+        const override: CourseWorkloadProfile = {
+          overallIntensity: decimalOrNull(stored.overallIntensity),
+          continuousWorkload: decimalOrNull(stored.continuousWorkload),
+          assignmentIntensity: decimalOrNull(stored.assignmentIntensity),
+          quizIntensity: decimalOrNull(stored.quizIntensity),
+          projectIntensity: decimalOrNull(stored.projectIntensity),
+          examIntensity: decimalOrNull(stored.examIntensity),
+          labIntensity: decimalOrNull(stored.labIntensity),
+          readingIntensity: decimalOrNull(stored.readingIntensity),
+          scheduleBurden: decimalOrNull(stored.scheduleBurden),
+          assessmentFragmentation: decimalOrNull(stored.assessmentFragmentation),
+          estimatedWeeklyHours: decimalOrNull(stored.estimatedWeeklyHours),
+          confidence: Number(stored.confidence),
+          source: stored.sourceType as 'STRUCTURAL_ESTIMATE' | 'USER_ESTIMATE' | 'VERIFIED_OUTLINE',
+        };
+        return {
+          workloadProfile: resolveWorkloadProfile(
+            {
+              creditHours: Number(selection.section.courseOffering.creditHours),
+              meetings: selection.section.meetings.map((meeting) => ({
+                dayOfWeek: meeting.dayOfWeek as MeetingDay,
+                startTime: formatTime(meeting.startTime),
+                endTime: formatTime(meeting.endTime),
+                meetingType: meeting.meetingType as
+                  'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
+              })),
+            },
+            override,
+          ),
+        };
+      })(),
     })),
     commitments: candidate.workspace.commitments.map((commitment) => ({
       id: commitment.id,
@@ -618,6 +722,114 @@ export function registerPlanningRoutes(app: express.Express) {
     });
     response.status(200).json({ preferences: serializePreferences(preferences) });
   });
+
+  app.patch(
+    '/api/workspaces/:workspaceId/workload-profiles/:courseOfferingId',
+    async (request, response) => {
+      if (!prisma) {
+        response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+        return;
+      }
+      const userId = await requireUserId(request, response);
+      if (!userId) return;
+
+      const parsed = workloadProfileUpdateSchema.safeParse(request.body);
+      if (!parsed.success) {
+        validationError(response, parsed.error.flatten());
+        return;
+      }
+
+      const workspace = await prisma.semesterWorkspace.findFirst({
+        where: { id: request.params.workspaceId, userId },
+        select: { id: true, academicTermId: true },
+      });
+      if (!workspace) {
+        response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+        return;
+      }
+
+      const offering = await prisma.courseOffering.findFirst({
+        where: { id: request.params.courseOfferingId, academicTermId: workspace.academicTermId },
+        select: { id: true },
+      });
+      if (!offering) {
+        response.status(404).json({ error: 'COURSE_OFFERING_NOT_FOUND' });
+        return;
+      }
+
+      const values = parsed.data;
+      const profile = await prisma.courseWorkloadProfile.upsert({
+        where: {
+          workspaceId_courseOfferingId: {
+            workspaceId: workspace.id,
+            courseOfferingId: offering.id,
+          },
+        },
+        create: {
+          workspaceId: workspace.id,
+          courseOfferingId: offering.id,
+          sourceType: 'USER_ESTIMATE',
+          confidence: 0.8,
+          overallIntensity: values.overallIntensity ?? null,
+          continuousWorkload: values.continuousWorkload ?? null,
+          assignmentIntensity: values.assignmentIntensity ?? null,
+          quizIntensity: values.quizIntensity ?? null,
+          projectIntensity: values.projectIntensity ?? null,
+          examIntensity: values.examIntensity ?? null,
+          labIntensity: values.labIntensity ?? null,
+          readingIntensity: values.readingIntensity ?? null,
+          scheduleBurden: values.scheduleBurden ?? null,
+          assessmentFragmentation: values.assessmentFragmentation ?? null,
+          estimatedWeeklyHours: values.estimatedWeeklyHours ?? null,
+        },
+        update: {
+          sourceType: 'USER_ESTIMATE',
+          confidence: 0.8,
+          overallIntensity: values.overallIntensity ?? null,
+          continuousWorkload: values.continuousWorkload ?? null,
+          assignmentIntensity: values.assignmentIntensity ?? null,
+          quizIntensity: values.quizIntensity ?? null,
+          projectIntensity: values.projectIntensity ?? null,
+          examIntensity: values.examIntensity ?? null,
+          labIntensity: values.labIntensity ?? null,
+          readingIntensity: values.readingIntensity ?? null,
+          scheduleBurden: values.scheduleBurden ?? null,
+          assessmentFragmentation: values.assessmentFragmentation ?? null,
+          estimatedWeeklyHours: values.estimatedWeeklyHours ?? null,
+        },
+      });
+
+      response.status(200).json({ workloadProfile: serializeWorkloadProfile(profile) });
+    },
+  );
+
+  app.delete(
+    '/api/workspaces/:workspaceId/workload-profiles/:courseOfferingId',
+    async (request, response) => {
+      if (!prisma) {
+        response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+        return;
+      }
+      const userId = await requireUserId(request, response);
+      if (!userId) return;
+
+      const profile = await prisma.courseWorkloadProfile.findFirst({
+        where: {
+          workspaceId: request.params.workspaceId,
+          courseOfferingId: request.params.courseOfferingId,
+          workspace: { userId },
+        },
+        select: { id: true },
+      });
+      if (!profile) {
+        response.status(404).json({ error: 'WORKLOAD_PROFILE_NOT_FOUND' });
+        return;
+      }
+
+      await prisma.courseWorkloadProfile.delete({ where: { id: profile.id } });
+      response.status(200).json({ courseOfferingId: request.params.courseOfferingId });
+    },
+  );
 
   app.post('/api/workspaces/:workspaceId/commitments', async (request, response) => {
     if (!prisma) {
