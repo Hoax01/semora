@@ -107,6 +107,13 @@ const preferenceUpdateSchema = z
   })
   .refine((value) => Object.keys(value).length > 0);
 
+const coursePreferenceUpdateSchema = z
+  .object({
+    interestScore: preferenceValueSchema.nullable().optional(),
+    careerRelevanceScore: preferenceValueSchema.nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+
 const workloadDimensionSchema = z.number().finite().min(0).max(10).nullable().optional();
 const workloadProfileUpdateSchema = z
   .object({
@@ -138,6 +145,7 @@ const commitmentInclude = { meetings: true } as const;
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
   preferences: true,
+  coursePreferences: true,
   workloadProfiles: true,
   commitments: {
     include: commitmentInclude,
@@ -234,6 +242,15 @@ type WorkloadProfileRecord = {
   sourceType: string;
 };
 
+type CoursePreferenceRecord = {
+  id: string;
+  courseOfferingId: string;
+  interestScore: { toString(): string } | null;
+  careerRelevanceScore: { toString(): string } | null;
+  manualDifficultyEstimate: { toString(): string } | null;
+  manualNotes: string | null;
+};
+
 type WorkspaceRecord = {
   id: string;
   state: string;
@@ -247,6 +264,7 @@ type WorkspaceRecord = {
     university: { id: string; name: string; shortName: string };
   };
   preferences: PreferencesRecord | null;
+  coursePreferences: CoursePreferenceRecord[];
   workloadProfiles: WorkloadProfileRecord[];
   commitments: CommitmentRecord[];
   candidates: CandidateRecord[];
@@ -354,6 +372,17 @@ function serializeWorkloadProfile(profile: WorkloadProfileRecord) {
   };
 }
 
+function serializeCoursePreference(preference: CoursePreferenceRecord) {
+  return {
+    id: preference.id,
+    courseOfferingId: preference.courseOfferingId,
+    interestScore: decimalOrNull(preference.interestScore),
+    careerRelevanceScore: decimalOrNull(preference.careerRelevanceScore),
+    manualDifficultyEstimate: decimalOrNull(preference.manualDifficultyEstimate),
+    manualNotes: preference.manualNotes,
+  };
+}
+
 function commitmentMeetingData(meeting: z.infer<typeof commitmentMeetingSchema>) {
   return {
     dayOfWeek: meeting.dayOfWeek,
@@ -376,6 +405,7 @@ function serializeWorkspace(workspace: WorkspaceRecord) {
       university: workspace.academicTerm.university,
     },
     preferences: workspace.preferences ? serializePreferences(workspace.preferences) : null,
+    coursePreferences: workspace.coursePreferences.map(serializeCoursePreference),
     workloadProfiles: workspace.workloadProfiles.map(serializeWorkloadProfile),
     commitments: workspace.commitments.map(serializeCommitment),
     candidates: workspace.candidates.map(serializeCandidate),
@@ -437,6 +467,7 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
       workspace: {
         select: {
           preferences: true,
+          coursePreferences: true,
           workloadProfiles: true,
           commitments: {
             include: { meetings: true },
@@ -468,6 +499,16 @@ function candidateSemesterInput(
         endTime: formatTime(meeting.endTime),
         meetingType: meeting.meetingType as 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
       })),
+      interestScore: decimalOrNull(
+        candidate.workspace.coursePreferences.find(
+          (preference) => preference.courseOfferingId === selection.section.courseOffering.id,
+        )?.interestScore ?? null,
+      ),
+      careerRelevanceScore: decimalOrNull(
+        candidate.workspace.coursePreferences.find(
+          (preference) => preference.courseOfferingId === selection.section.courseOffering.id,
+        )?.careerRelevanceScore ?? null,
+      ),
       ...(() => {
         const stored = candidate.workspace.workloadProfiles.find(
           (profile) => profile.courseOfferingId === selection.section.courseOffering.id,
@@ -722,6 +763,107 @@ export function registerPlanningRoutes(app: express.Express) {
     });
     response.status(200).json({ preferences: serializePreferences(preferences) });
   });
+
+  app.patch(
+    '/api/workspaces/:workspaceId/course-preferences/:courseOfferingId',
+    async (request, response) => {
+      if (!prisma) {
+        response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+        return;
+      }
+      const userId = await requireUserId(request, response);
+      if (!userId) return;
+
+      const parsed = coursePreferenceUpdateSchema.safeParse(request.body);
+      if (!parsed.success) {
+        validationError(response, parsed.error.flatten());
+        return;
+      }
+
+      const workspace = await prisma.semesterWorkspace.findFirst({
+        where: { id: request.params.workspaceId, userId },
+        select: { id: true, academicTermId: true },
+      });
+      if (!workspace) {
+        response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+        return;
+      }
+
+      const offering = await prisma.courseOffering.findFirst({
+        where: { id: request.params.courseOfferingId, academicTermId: workspace.academicTermId },
+        select: { id: true },
+      });
+      if (!offering) {
+        response.status(404).json({ error: 'COURSE_OFFERING_NOT_FOUND' });
+        return;
+      }
+
+      const values = parsed.data;
+      const update: {
+        interestScore?: number | null;
+        careerRelevanceScore?: number | null;
+      } = {};
+      if (values.interestScore !== undefined) update.interestScore = values.interestScore;
+      if (values.careerRelevanceScore !== undefined) {
+        update.careerRelevanceScore = values.careerRelevanceScore;
+      }
+
+      const preference = await prisma.userCoursePreference.upsert({
+        where: {
+          workspaceId_courseOfferingId: {
+            workspaceId: workspace.id,
+            courseOfferingId: offering.id,
+          },
+        },
+        create: {
+          workspaceId: workspace.id,
+          courseOfferingId: offering.id,
+          interestScore: values.interestScore ?? null,
+          careerRelevanceScore: values.careerRelevanceScore ?? null,
+        },
+        update,
+      });
+
+      response.status(200).json({ coursePreference: serializeCoursePreference(preference) });
+    },
+  );
+
+  app.delete(
+    '/api/workspaces/:workspaceId/course-preferences/:courseOfferingId',
+    async (request, response) => {
+      if (!prisma) {
+        response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+        return;
+      }
+      const userId = await requireUserId(request, response);
+      if (!userId) return;
+
+      const workspace = await prisma.semesterWorkspace.findFirst({
+        where: { id: request.params.workspaceId, userId },
+        select: { id: true, academicTermId: true },
+      });
+      if (!workspace) {
+        response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+        return;
+      }
+
+      const preference = await prisma.userCoursePreference.findFirst({
+        where: {
+          workspaceId: workspace.id,
+          courseOfferingId: request.params.courseOfferingId,
+          courseOffering: { academicTermId: workspace.academicTermId },
+        },
+        select: { id: true },
+      });
+      if (!preference) {
+        response.status(404).json({ error: 'COURSE_PREFERENCE_NOT_FOUND' });
+        return;
+      }
+
+      await prisma.userCoursePreference.delete({ where: { id: preference.id } });
+      response.status(200).json({ courseOfferingId: request.params.courseOfferingId });
+    },
+  );
 
   app.patch(
     '/api/workspaces/:workspaceId/workload-profiles/:courseOfferingId',

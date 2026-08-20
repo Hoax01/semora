@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyzeCandidateSchedule,
+  calculateCoursePreferenceFit,
   calculateScheduleMetrics,
   calculateTotalCredits,
   detectTimetableClashes,
@@ -136,6 +137,8 @@ const scheduleCourse = (overrides: Partial<CandidateCourseInput>): CandidateCour
   creditHours: overrides.creditHours ?? 3,
   sectionCode: overrides.sectionCode ?? '1',
   meetings: overrides.meetings ?? [],
+  interestScore: overrides.interestScore,
+  careerRelevanceScore: overrides.careerRelevanceScore,
 });
 
 describe('calculateScheduleMetrics', () => {
@@ -236,6 +239,75 @@ describe('analyzeCandidateSchedule', () => {
       schedule: { scheduledDays: ['TUESDAY'] },
     });
     expect(result.validity.clashes).toHaveLength(1);
+  });
+});
+
+describe('course preference fit', () => {
+  it('averages known ratings and reports independent completeness', () => {
+    const result = calculateCoursePreferenceFit([
+      {
+        ...scheduleCourse({ id: 'course-1', creditHours: 1 }),
+        interestScore: 1,
+        careerRelevanceScore: 0.5,
+      },
+      {
+        ...scheduleCourse({ id: 'course-2', creditHours: 2 }),
+        interestScore: 0.5,
+        careerRelevanceScore: null,
+      },
+      {
+        ...scheduleCourse({ id: 'course-3', creditHours: 3 }),
+        interestScore: null,
+        careerRelevanceScore: 1,
+      },
+    ]);
+
+    expect(result).toEqual({
+      interestFit: 2 / 3,
+      careerFit: 0.875,
+      interestKnownCount: 2,
+      careerKnownCount: 2,
+      courseCount: 3,
+      interestCompleteness: 2 / 3,
+      careerCompleteness: 2 / 3,
+    });
+  });
+
+  it('keeps an entirely unknown dimension unknown and validates normalized ratings', () => {
+    expect(
+      calculateCoursePreferenceFit([scheduleCourse({ interestScore: undefined })]),
+    ).toMatchObject({
+      interestFit: null,
+      interestKnownCount: 0,
+      interestCompleteness: 0,
+    });
+    expect(calculateCoursePreferenceFit([])).toMatchObject({
+      interestFit: null,
+      careerFit: null,
+      courseCount: 0,
+      interestCompleteness: 0,
+      careerCompleteness: 0,
+    });
+    expect(() => calculateCoursePreferenceFit([scheduleCourse({ interestScore: 1.1 })])).toThrow(
+      'Course preference scores must be finite numbers between 0 and 1.',
+    );
+  });
+
+  it('includes the preference summary in candidate analysis', () => {
+    const result = analyzeCandidateSchedule({
+      courses: [scheduleCourse({ interestScore: 0.25, careerRelevanceScore: 1 })],
+      commitments: [],
+    });
+
+    expect(result.coursePreferenceFit).toEqual({
+      interestFit: 0.25,
+      careerFit: 1,
+      interestKnownCount: 1,
+      careerKnownCount: 1,
+      courseCount: 1,
+      interestCompleteness: 1,
+      careerCompleteness: 1,
+    });
   });
 });
 

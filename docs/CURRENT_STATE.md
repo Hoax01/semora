@@ -2,13 +2,14 @@
 
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 3 — Semester Intelligence (in progress)
-**Next Build Objective:** Phase 3.5 — User Course Preferences in analysis
+**Next Build Objective:** Phase 3.6 — Interaction Penalties
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
 checkpoint is complete. Phase 3 schedule analysis foundations are now
-implemented; preliminary workload profiles are now implemented, while scoring,
-findings, and comparison remain.
+implemented; preliminary workload profiles and course-preference fit summaries
+are now implemented, while interaction penalties, full scoring, findings, and
+comparison remain.
 
 ---
 
@@ -62,6 +63,10 @@ findings, and comparison remain.
   initial ten dimensions plus estimated weekly hours. Structural estimates are
   visibly distinguished from user estimates, unknown dimensions remain blank,
   and user estimates can be reset.
+- Selected courses expose normalized low/medium/high interest and career-
+  relevance ratings. Ratings are stored per workspace and course offering, so
+  alternate candidate semesters reuse them; the intelligence panel shows the
+  resulting weighted fit summaries and rating completeness.
 
 ### API and authentication
 
@@ -102,10 +107,14 @@ findings, and comparison remain.
 - Ownership-checked `GET /api/candidates/:candidateId/analysis` endpoint maps
   persisted candidate data, commitments, and preferences into the typed
   Semester Engine input contract and returns deterministic schedule analysis,
-  resolved preliminary workload profiles, and hard-constraint validity.
+  resolved preliminary workload profiles, course-preference fit summaries, and
+  hard-constraint validity.
 - Ownership-checked workload-profile PATCH/DELETE APIs persist per-workspace
   user estimates for a course offering, validate 0–10 dimensions and weekly
   hours, and restore structural estimates when reset.
+- Ownership-checked course-preference PATCH/DELETE APIs persist normalized
+  interest and career-relevance ratings per workspace and course offering,
+  validate exact academic-term ownership, and clear ratings when requested.
 - Workspace responses include owned commitment names, categories, flexibility,
   weekly effort, and recurring meeting blocks for schedule rendering. No
   one-off event model is exposed in this phase.
@@ -241,12 +250,12 @@ Implemented in this phase so far:
 3.2 Typed CandidateSemesterInput contract
 3.3 Deterministic Schedule Metrics
 3.4 Preliminary Workload Profiles
+3.5 User Course Preferences in analysis
 ```
 
 Not yet implemented:
 
 ```text
-3.5 User Course Preferences consumed by analysis
 3.6 Interaction Penalties
 3.7 Candidate Metrics
 3.8 Findings
@@ -258,8 +267,9 @@ Not yet implemented:
 Phase 3 acceptance status:
 
 ```text
-IN PROGRESS — one candidate now has preliminary schedule and workload
-intelligence; meaningful preference-sensitive comparison is not yet implemented.
+IN PROGRESS — one candidate now has preliminary schedule, workload, and
+course-preference fit intelligence; interaction-sensitive scoring and
+comparison are not yet implemented.
 ```
 
 Checkpoint A, the Sol architecture review described in
@@ -350,11 +360,12 @@ Candidate selections support add, switch, remove, duplication, and
 same-offering enforcement. Timetable validation and the initial schedule
 analysis run deterministically through the Semester Engine, the weekly schedule
 renders persisted course and commitment blocks, commitment CRUD updates both
-the schedule and clash analysis, normalized preferences are editable per
-workspace, and workload assumptions distinguish structural estimates from
-user overrides. Preference values are mapped into the Phase 3 input contract
-but are not consumed by workload scoring until the remaining Phase 3 engine
-work.
+the schedule and clash analysis, normalized semester preferences are editable
+per workspace, course interest/career ratings are editable and reused across
+candidates, and workload assumptions distinguish structural estimates from
+user overrides. Course ratings now produce a deterministic credit-weighted fit
+summary with explicit completeness; semester-level preference weighting and
+interaction penalties remain later Phase 3 work.
 
 `packages/domain` remains an intentionally empty workspace package. Current
 Phase 2 calculations are isolated in `packages/semester-engine`, while API and
@@ -403,6 +414,7 @@ docs/CATALOGUE_IMPORT.md
 ## Next objective
 
 Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
-has implemented its schedule-analysis and preliminary-profile foundations. The
-next objective is to consume persisted course preferences in deterministic
-candidate metrics without implementing later LOCK or NAVIGATE behavior.
+has implemented its schedule-analysis, preliminary-profile, and
+course-preference foundations. The next objective is Phase 3.6 interaction
+penalties for configured combinations of heavy assessment styles, without
+implementing later LOCK or NAVIGATE behavior.

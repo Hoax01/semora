@@ -204,6 +204,17 @@ export type CandidateScheduleAnalysis = {
     courseCode: string;
     profile: CourseWorkloadProfile;
   }>;
+  coursePreferenceFit: CoursePreferenceFit;
+};
+
+export type CoursePreferenceFit = {
+  interestFit: number | null;
+  careerFit: number | null;
+  interestKnownCount: number;
+  careerKnownCount: number;
+  courseCount: number;
+  interestCompleteness: number;
+  careerCompleteness: number;
 };
 
 export function calculateTotalCredits(credits: readonly number[]) {
@@ -214,6 +225,55 @@ export function calculateTotalCredits(credits: readonly number[]) {
     return total + Math.round(credit * 10);
   }, 0);
   return tenths / 10;
+}
+
+function averageCoursePreference(
+  courses: readonly CandidateCourseInput[],
+  selectScore: (course: CandidateCourseInput) => number | null | undefined,
+): {
+  value: number | null;
+  knownCount: number;
+} {
+  let total = 0;
+  let totalWeight = 0;
+  let knownCount = 0;
+
+  for (const course of courses) {
+    const score = selectScore(course);
+    if (score === undefined || score === null) continue;
+    if (!Number.isFinite(score) || score < 0 || score > 1) {
+      throw new Error('Course preference scores must be finite numbers between 0 and 1.');
+    }
+    if (!Number.isFinite(course.creditHours) || course.creditHours < 0) {
+      throw new Error('Course credits must be finite non-negative numbers.');
+    }
+    total += score * course.creditHours;
+    totalWeight += course.creditHours;
+    knownCount += 1;
+  }
+
+  return {
+    value: totalWeight ? total / totalWeight : null,
+    knownCount,
+  };
+}
+
+export function calculateCoursePreferenceFit(
+  courses: readonly CandidateCourseInput[],
+): CoursePreferenceFit {
+  const interest = averageCoursePreference(courses, (course) => course.interestScore);
+  const career = averageCoursePreference(courses, (course) => course.careerRelevanceScore);
+  const courseCount = courses.length;
+
+  return {
+    interestFit: interest.value,
+    careerFit: career.value,
+    interestKnownCount: interest.knownCount,
+    careerKnownCount: career.knownCount,
+    courseCount,
+    interestCompleteness: courseCount ? interest.knownCount / courseCount : 0,
+    careerCompleteness: courseCount ? career.knownCount / courseCount : 0,
+  };
 }
 
 function parseTime(value: string) {
@@ -607,5 +667,6 @@ export function analyzeCandidateSchedule(
       courseCode: course.courseCode,
       profile: resolveWorkloadProfile(course, course.workloadProfile),
     })),
+    coursePreferenceFit: calculateCoursePreferenceFit(input.courses),
   };
 }

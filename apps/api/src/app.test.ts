@@ -273,9 +273,83 @@ describe('Phase 2 planning foundation', () => {
         scheduledDays: expect.arrayContaining(['MONDAY']),
         freeDays: expect.arrayContaining(['TUESDAY', 'FRIDAY']),
       },
+      coursePreferenceFit: {
+        interestFit: null,
+        careerFit: null,
+        interestKnownCount: 0,
+        careerKnownCount: 0,
+        courseCount: 1,
+      },
     });
 
     const courseOfferingId = selection.body.selection.courseOfferingId as string;
+    const invalidCoursePreference = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/course-preferences/${courseOfferingId}`)
+      .set('Cookie', ownerCookie)
+      .send({ interestScore: 1.1 });
+    expect(invalidCoursePreference.status).toBe(400);
+
+    const savedCoursePreference = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/course-preferences/${courseOfferingId}`)
+      .set('Cookie', ownerCookie)
+      .send({ interestScore: 0.5, careerRelevanceScore: 1 });
+    expect(savedCoursePreference.status).toBe(200);
+    expect(savedCoursePreference.body.coursePreference).toMatchObject({
+      courseOfferingId,
+      interestScore: 0.5,
+      careerRelevanceScore: 1,
+    });
+
+    const ratedAnalysis = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(ratedAnalysis.status).toBe(200);
+    expect(ratedAnalysis.body.coursePreferenceFit).toEqual({
+      interestFit: 0.5,
+      careerFit: 1,
+      interestKnownCount: 1,
+      careerKnownCount: 1,
+      courseCount: 1,
+      interestCompleteness: 1,
+      careerCompleteness: 1,
+    });
+
+    const optionBSelection = await request(app)
+      .post(`/api/candidates/${optionB.body.candidate.id}/selections`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: secondSectionId });
+    expect(optionBSelection.status).toBe(201);
+    const optionBAnalysis = await request(app)
+      .get(`/api/candidates/${optionB.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(optionBAnalysis.body.coursePreferenceFit).toMatchObject({
+      interestFit: 0.5,
+      careerFit: 1,
+      interestCompleteness: 1,
+      careerCompleteness: 1,
+    });
+
+    const workspaceWithCoursePreference = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', ownerCookie);
+    expect(workspaceWithCoursePreference.body.workspace.coursePreferences).toEqual([
+      expect.objectContaining({ courseOfferingId, interestScore: 0.5, careerRelevanceScore: 1 }),
+    ]);
+
+    const resetCoursePreference = await request(app)
+      .delete(`/api/workspaces/${workspaceId}/course-preferences/${courseOfferingId}`)
+      .set('Cookie', ownerCookie);
+    expect(resetCoursePreference.status).toBe(200);
+    const clearedAnalysis = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(clearedAnalysis.body.coursePreferenceFit).toMatchObject({
+      interestFit: null,
+      careerFit: null,
+      interestCompleteness: 0,
+      careerCompleteness: 0,
+    });
+
     const workloadProfile = await request(app)
       .patch(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
       .set('Cookie', ownerCookie)

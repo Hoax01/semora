@@ -40,6 +40,15 @@ type CandidateAnalysis = {
     courseCode: string;
     profile: WorkloadProfile;
   }>;
+  coursePreferenceFit: {
+    interestFit: number | null;
+    careerFit: number | null;
+    interestKnownCount: number;
+    careerKnownCount: number;
+    courseCount: number;
+    interestCompleteness: number;
+    careerCompleteness: number;
+  };
   schedule: {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
@@ -131,6 +140,7 @@ type Workspace = {
     university: { id: string; name: string; shortName: string };
   };
   preferences: Preferences | null;
+  coursePreferences: CoursePreference[];
   workloadProfiles: Array<{
     id: string;
     courseOfferingId: string;
@@ -139,6 +149,15 @@ type Workspace = {
   }>;
   commitments: Commitment[];
   candidates: Candidate[];
+};
+
+type CoursePreference = {
+  id: string;
+  courseOfferingId: string;
+  interestScore: number | null;
+  careerRelevanceScore: number | null;
+  manualDifficultyEstimate: number | null;
+  manualNotes: string | null;
 };
 
 type Preferences = {
@@ -306,6 +325,10 @@ function formatMinutes(minutes: number) {
   if (!hours) return `${remainingMinutes}m`;
   if (!remainingMinutes) return `${hours}h`;
   return `${hours}h ${remainingMinutes}m`;
+}
+
+function formatPreferenceFit(value: number | null) {
+  return value === null ? 'Not rated' : `${Math.round(value * 100)}%`;
 }
 
 function formatDay(day: string) {
@@ -765,6 +788,34 @@ export function PlanningPage() {
     );
   }
 
+  function saveCoursePreference(courseOfferingId: string, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId) return;
+    const formData = new FormData(event.currentTarget);
+    const preferenceValue = (field: string) => {
+      const value = String(formData.get(field) ?? '').trim();
+      return value ? Number(value) : null;
+    };
+    void runMutation(`course-preference-${courseOfferingId}`, () =>
+      apiRequest(`/api/workspaces/${workspaceId}/course-preferences/${courseOfferingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          interestScore: preferenceValue('interestScore'),
+          careerRelevanceScore: preferenceValue('careerRelevanceScore'),
+        }),
+      }),
+    );
+  }
+
+  function resetCoursePreference(courseOfferingId: string) {
+    if (!workspaceId) return;
+    void runMutation(`reset-course-preference-${courseOfferingId}`, () =>
+      apiRequest(`/api/workspaces/${workspaceId}/course-preferences/${courseOfferingId}`, {
+        method: 'DELETE',
+      }),
+    );
+  }
+
   const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
   const activeSelection = selectedCandidate?.selections.find(
     (selection) => selection.courseOfferingId === activeOfferingId,
@@ -918,6 +969,28 @@ export function PlanningPage() {
                   <strong>{formatMinutes(candidateAnalysis.schedule.totalIdleGapMinutes)}</strong>
                   <small>Across separate class blocks</small>
                 </article>
+              </div>
+              <div className="preference-fit-summary">
+                <div>
+                  <span>Interest fit</span>
+                  <strong>
+                    {formatPreferenceFit(candidateAnalysis.coursePreferenceFit.interestFit)}
+                  </strong>
+                  <small>
+                    {candidateAnalysis.coursePreferenceFit.interestKnownCount}/
+                    {candidateAnalysis.coursePreferenceFit.courseCount} courses rated
+                  </small>
+                </div>
+                <div>
+                  <span>Career relevance</span>
+                  <strong>
+                    {formatPreferenceFit(candidateAnalysis.coursePreferenceFit.careerFit)}
+                  </strong>
+                  <small>
+                    {candidateAnalysis.coursePreferenceFit.careerKnownCount}/
+                    {candidateAnalysis.coursePreferenceFit.courseCount} courses rated
+                  </small>
+                </div>
               </div>
               <div className="intelligence-notes">
                 {candidateAnalysis.schedule.longDays.length ? (
@@ -1347,6 +1420,9 @@ export function PlanningPage() {
                           (item) => item.courseOfferingId === selection.courseOfferingId,
                         );
                         const profile = workloadAnalysis?.profile;
+                        const coursePreference = workspace.coursePreferences.find(
+                          (item) => item.courseOfferingId === selection.courseOfferingId,
+                        );
                         return (
                           <article className="selected-course-row" key={selection.id}>
                             <div className="selected-course-main">
@@ -1361,6 +1437,77 @@ export function PlanningPage() {
                                     'Timing TBA'}
                                 </p>
                               </div>
+                              <details className="course-preference-editor">
+                                <summary>
+                                  <span>Course fit · interest and career relevance</span>
+                                  <small>
+                                    {coursePreference?.interestScore === null ||
+                                    coursePreference?.interestScore === undefined
+                                      ? 'Not rated'
+                                      : `Interest ${formatPreferenceFit(coursePreference.interestScore)}`}
+                                  </small>
+                                </summary>
+                                <form
+                                  onSubmit={(event) =>
+                                    saveCoursePreference(selection.courseOfferingId, event)
+                                  }
+                                >
+                                  <p className="workload-editor-help">
+                                    These ratings stay with this course offering across your
+                                    semester options.
+                                  </p>
+                                  <div className="course-preference-field-grid">
+                                    <label>
+                                      Interest
+                                      <select
+                                        defaultValue={coursePreference?.interestScore ?? ''}
+                                        name="interestScore"
+                                      >
+                                        <option value="">Not rated</option>
+                                        <option value="0">Low</option>
+                                        <option value="0.5">Medium</option>
+                                        <option value="1">High</option>
+                                      </select>
+                                    </label>
+                                    <label>
+                                      Career relevance
+                                      <select
+                                        defaultValue={coursePreference?.careerRelevanceScore ?? ''}
+                                        name="careerRelevanceScore"
+                                      >
+                                        <option value="">Not rated</option>
+                                        <option value="0">Low</option>
+                                        <option value="0.5">Medium</option>
+                                        <option value="1">High</option>
+                                      </select>
+                                    </label>
+                                  </div>
+                                  <div className="workload-editor-actions">
+                                    <span>Used in preliminary course-fit analysis.</span>
+                                    <div>
+                                      <button
+                                        className="secondary-button compact-button"
+                                        disabled={Boolean(busyAction)}
+                                        type="submit"
+                                      >
+                                        Save ratings
+                                      </button>
+                                      {coursePreference ? (
+                                        <button
+                                          className="text-button"
+                                          disabled={Boolean(busyAction)}
+                                          onClick={() =>
+                                            resetCoursePreference(selection.courseOfferingId)
+                                          }
+                                          type="button"
+                                        >
+                                          Clear ratings
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </form>
+                              </details>
                               {profile ? (
                                 <details className="workload-editor">
                                   <summary>
