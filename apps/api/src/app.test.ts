@@ -149,11 +149,51 @@ describe('Phase 2 planning foundation', () => {
     expect(renamed.status).toBe(200);
     expect(renamed.body.candidate.name).toBe('Balanced');
 
+    const catalogue = await request(app)
+      .get('/api/catalogue')
+      .query({ term: 'Fall 2026', q: 'CS' })
+      .set('Cookie', ownerCookie);
+    expect(catalogue.status).toBe(200);
+    const courseWithMultipleSections = catalogue.body.courses.find(
+      (course: { sections: unknown[] }) => course.sections.length >= 2,
+    );
+    expect(courseWithMultipleSections).toBeDefined();
+    const firstSectionId = courseWithMultipleSections.sections[0].id as string;
+    const secondSectionId = courseWithMultipleSections.sections[1].id as string;
+
+    const selection = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/selections`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: firstSectionId });
+    expect(selection.status).toBe(201);
+    expect(selection.body.candidate).toMatchObject({ selectionCount: 1, credits: 3 });
+    expect(selection.body.selection.sectionId).toBe(firstSectionId);
+
+    const duplicateCourse = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/selections`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: secondSectionId });
+    expect(duplicateCourse.status).toBe(409);
+    expect(duplicateCourse.body.error).toBe('COURSE_ALREADY_SELECTED');
+
+    const switched = await request(app)
+      .patch(`/api/selections/${selection.body.selection.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: secondSectionId });
+    expect(switched.status).toBe(200);
+    expect(switched.body.selection.sectionId).toBe(secondSectionId);
+
     const duplicated = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
       .set('Cookie', ownerCookie);
     expect(duplicated.status).toBe(201);
-    expect(duplicated.body.candidate).toMatchObject({ name: 'Option A copy', selectionCount: 0 });
+    expect(duplicated.body.candidate).toMatchObject({ name: 'Option A copy', selectionCount: 1 });
+
+    const removed = await request(app)
+      .delete(`/api/selections/${selection.body.selection.id}`)
+      .set('Cookie', ownerCookie);
+    expect(removed.status).toBe(200);
+    expect(removed.body.candidate).toMatchObject({ selectionCount: 0, credits: 0 });
 
     const archived = await request(app)
       .patch(`/api/candidates/${optionB.body.candidate.id}`)
@@ -187,5 +227,11 @@ describe('Phase 2 planning foundation', () => {
       .set('Cookie', intruderCookie)
       .send({ name: 'Stolen option' });
     expect(foreignCandidateUpdate.status).toBe(404);
+
+    const foreignSelectionCreate = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/selections`)
+      .set('Cookie', intruderCookie)
+      .send({ sectionId: firstSectionId });
+    expect(foreignSelectionCreate.status).toBe(404);
   });
 });

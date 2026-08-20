@@ -6,6 +6,46 @@ type Candidate = {
   name: string;
   isArchived: boolean;
   selectionCount: number;
+  credits: number;
+  selections: Selection[];
+};
+
+type Selection = {
+  id: string;
+  sectionId: string;
+  sectionCode: string;
+  capacity: number | null;
+  instructor: string | null;
+  courseOfferingId: string;
+  courseCode: string;
+  title: string;
+  credits: number;
+  meetings: Meeting[];
+};
+
+type Meeting = {
+  day: string;
+  startTime: string;
+  endTime: string;
+  type: string;
+  location: string | null;
+};
+
+type CatalogueCourse = {
+  id: string;
+  courseCode: string;
+  title: string;
+  description: string | null;
+  department: string | null;
+  credits: number;
+  term: string;
+  sections: Array<{
+    id: string;
+    sectionCode: string;
+    capacity: number | null;
+    instructor: string | null;
+    meetings: Meeting[];
+  }>;
 };
 
 type Workspace = {
@@ -34,6 +74,11 @@ type University = {
   }>;
 };
 
+function formatMeeting(meeting: Meeting) {
+  const day = meeting.day.slice(0, 3);
+  return `${day} ${meeting.startTime}–${meeting.endTime}`;
+}
+
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -44,6 +89,12 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     const body = (await response.json().catch(() => undefined)) as { error?: string } | undefined;
     if (response.status === 401) throw new Error('Please sign in again.');
     if (body?.error === 'VALIDATION_ERROR') throw new Error('Check the highlighted information.');
+    if (body?.error === 'COURSE_ALREADY_SELECTED') {
+      throw new Error('This candidate already includes that course. Choose a different section.');
+    }
+    if (body?.error === 'SECTION_MUST_MATCH_COURSE') {
+      throw new Error('Choose another section of the same course when switching sections.');
+    }
     throw new Error('Semora could not save this change. Please try again.');
   }
   return response.json() as Promise<T>;
@@ -150,6 +201,11 @@ export function PlanningPage() {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>();
   const [newCandidateName, setNewCandidateName] = useState('');
   const [editedName, setEditedName] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
+  const [appliedCourseSearch, setAppliedCourseSearch] = useState('');
+  const [catalogueCourses, setCatalogueCourses] = useState<CatalogueCourse[]>([]);
+  const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
+  const [activeOfferingId, setActiveOfferingId] = useState<string>();
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
 
@@ -178,6 +234,33 @@ export function PlanningPage() {
   useEffect(() => {
     setEditedName(selectedCandidate?.name ?? '');
   }, [selectedCandidate?.id, selectedCandidate?.name]);
+
+  useEffect(() => {
+    if (!workspace || !appliedCourseSearch) {
+      setCatalogueCourses([]);
+      setIsCatalogueLoading(false);
+      return;
+    }
+    let isCurrent = true;
+    setIsCatalogueLoading(true);
+    apiRequest<{ courses: CatalogueCourse[] }>(
+      `/api/catalogue?term=${encodeURIComponent(workspace.term.name)}&q=${encodeURIComponent(appliedCourseSearch)}`,
+    )
+      .then((result) => {
+        if (!isCurrent) return;
+        setCatalogueCourses(result.courses);
+      })
+      .catch((reason: unknown) => {
+        if (isCurrent)
+          setError(reason instanceof Error ? reason.message : 'Unable to search courses.');
+      })
+      .finally(() => {
+        if (isCurrent) setIsCatalogueLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [appliedCourseSearch, workspace?.term.name]);
 
   async function runMutation(action: string, mutation: () => Promise<unknown>) {
     setError(undefined);
@@ -216,6 +299,48 @@ export function PlanningPage() {
       }),
     );
   }
+
+  function searchCourses(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAppliedCourseSearch(courseSearch.trim());
+    setActiveOfferingId(undefined);
+  }
+
+  function openOffering(course: CatalogueCourse) {
+    setActiveOfferingId(course.id);
+  }
+
+  function openSelectedCourse(selection: Selection) {
+    setCourseSearch(selection.courseCode);
+    setAppliedCourseSearch(selection.courseCode);
+    setActiveOfferingId(selection.courseOfferingId);
+  }
+
+  function chooseSection(sectionId: string) {
+    if (!selectedCandidate || !activeOfferingId) return;
+    const existing = selectedCandidate.selections.find(
+      (selection) => selection.courseOfferingId === activeOfferingId,
+    );
+    void runMutation('selection', () =>
+      apiRequest(
+        existing
+          ? `/api/selections/${existing.id}`
+          : `/api/candidates/${selectedCandidate.id}/selections`,
+        { method: existing ? 'PATCH' : 'POST', body: JSON.stringify({ sectionId }) },
+      ),
+    ).then(() => setActiveOfferingId(undefined));
+  }
+
+  function removeSelection(selectionId: string) {
+    void runMutation('remove-selection', () =>
+      apiRequest(`/api/selections/${selectionId}`, { method: 'DELETE' }),
+    );
+  }
+
+  const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
+  const activeSelection = selectedCandidate?.selections.find(
+    (selection) => selection.courseOfferingId === activeOfferingId,
+  );
 
   if (!workspace && !error)
     return (
@@ -274,76 +399,233 @@ export function PlanningPage() {
           {error ? <p className="form-error planner-error">{error}</p> : null}
 
           {selectedCandidate ? (
-            <section className="candidate-workbench">
-              <div className="candidate-summary">
-                <p className="eyebrow">CURRENT OPTION</p>
-                <form className="rename-form" onSubmit={renameCandidate}>
-                  <label className="sr-only" htmlFor="selected-candidate-name">
-                    Candidate name
-                  </label>
-                  <input
-                    id="selected-candidate-name"
-                    maxLength={80}
-                    onChange={(event) => setEditedName(event.target.value)}
-                    value={editedName}
-                  />
-                  <button
-                    className="secondary-button compact-button"
-                    disabled={busyAction === 'rename' || !editedName.trim()}
-                    type="submit"
-                  >
-                    Rename
-                  </button>
-                </form>
-                <p>
-                  {selectedCandidate.selectionCount === 0
-                    ? 'No sections selected yet.'
-                    : `${selectedCandidate.selectionCount} selected sections`}
-                </p>
-                <div className="candidate-actions">
-                  <button
-                    className="secondary-button compact-button"
-                    disabled={Boolean(busyAction)}
-                    onClick={() =>
-                      void runMutation('duplicate', () =>
-                        apiRequest(`/api/candidates/${selectedCandidate.id}/duplicate`, {
-                          method: 'POST',
-                        }),
-                      )
-                    }
-                    type="button"
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    className="danger-button compact-button"
-                    disabled={Boolean(busyAction)}
-                    onClick={() => {
-                      if (!window.confirm(`Archive ${selectedCandidate.name}?`)) return;
-                      void runMutation('archive', () =>
-                        apiRequest(`/api/candidates/${selectedCandidate.id}`, {
-                          method: 'PATCH',
-                          body: JSON.stringify({ isArchived: true }),
-                        }),
-                      );
-                    }}
-                    type="button"
-                  >
-                    Archive
-                  </button>
+            <>
+              <section className="candidate-workbench">
+                <div className="candidate-summary">
+                  <p className="eyebrow">CURRENT OPTION</p>
+                  <form className="rename-form" onSubmit={renameCandidate}>
+                    <label className="sr-only" htmlFor="selected-candidate-name">
+                      Candidate name
+                    </label>
+                    <input
+                      id="selected-candidate-name"
+                      maxLength={80}
+                      onChange={(event) => setEditedName(event.target.value)}
+                      value={editedName}
+                    />
+                    <button
+                      className="secondary-button compact-button"
+                      disabled={busyAction === 'rename' || !editedName.trim()}
+                      type="submit"
+                    >
+                      Rename
+                    </button>
+                  </form>
+                  <p>
+                    {selectedCandidate.selectionCount === 0
+                      ? 'No sections selected yet.'
+                      : `${selectedCandidate.selectionCount} selected sections`}
+                  </p>
+                  <p className="credit-total">
+                    <strong>{selectedCandidate.credits}</strong> credits
+                  </p>
+                  <div className="candidate-actions">
+                    <button
+                      className="secondary-button compact-button"
+                      disabled={Boolean(busyAction)}
+                      onClick={() =>
+                        void runMutation('duplicate', () =>
+                          apiRequest(`/api/candidates/${selectedCandidate.id}/duplicate`, {
+                            method: 'POST',
+                          }),
+                        )
+                      }
+                      type="button"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      className="danger-button compact-button"
+                      disabled={Boolean(busyAction)}
+                      onClick={() => {
+                        if (!window.confirm(`Archive ${selectedCandidate.name}?`)) return;
+                        void runMutation('archive', () =>
+                          apiRequest(`/api/candidates/${selectedCandidate.id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ isArchived: true }),
+                          }),
+                        );
+                      }}
+                      type="button"
+                    >
+                      Archive
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="planner-empty-state">
-                <p className="eyebrow">COURSE SELECTION</p>
-                <h2>Build {selectedCandidate.name}</h2>
-                <p>
-                  This planning option is ready for real Fall 2026 course and section selections.
-                </p>
-                <Link className="primary-link" to="/catalogue">
-                  Explore Fall 2026 courses
-                </Link>
-              </div>
-            </section>
+                <div className="selected-courses-panel">
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">SELECTED COURSES</p>
+                      <h2>{selectedCandidate.name}</h2>
+                    </div>
+                    <span className="credit-badge">{selectedCandidate.credits} credits</span>
+                  </div>
+                  {selectedCandidate.selections.length ? (
+                    <div className="selected-course-list">
+                      {selectedCandidate.selections.map((selection) => (
+                        <article className="selected-course-row" key={selection.id}>
+                          <div>
+                            <p className="course-code">{selection.courseCode}</p>
+                            <h3>{selection.title}</h3>
+                            <p className="course-meta">
+                              Section {selection.sectionCode} · {selection.credits} credits
+                            </p>
+                            <p className="meeting-summary">
+                              {selection.meetings.map(formatMeeting).join(' · ') || 'Timing TBA'}
+                            </p>
+                          </div>
+                          <div className="selected-course-actions">
+                            <button
+                              className="secondary-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => openSelectedCourse(selection)}
+                              type="button"
+                            >
+                              Change section
+                            </button>
+                            <button
+                              className="danger-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => removeSelection(selection.id)}
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="selected-courses-empty">
+                      Search the catalogue below to add your first course section.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section className="planner-selection-layout">
+                <section className="planner-course-browser" aria-labelledby="course-browser-title">
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">COURSE CATALOGUE</p>
+                      <h2 id="course-browser-title">Add a section</h2>
+                    </div>
+                    <Link className="back-link" to="/catalogue">
+                      Full catalogue
+                    </Link>
+                  </div>
+                  <form className="planner-search" onSubmit={searchCourses}>
+                    <label className="sr-only" htmlFor="planner-course-search">
+                      Search courses
+                    </label>
+                    <input
+                      id="planner-course-search"
+                      onChange={(event) => setCourseSearch(event.target.value)}
+                      placeholder="Search by code or title"
+                      value={courseSearch}
+                    />
+                    <button disabled={!courseSearch.trim()} type="submit">
+                      Search
+                    </button>
+                  </form>
+                  {isCatalogueLoading ? (
+                    <p className="catalogue-message">Searching courses…</p>
+                  ) : null}
+                  {!isCatalogueLoading && appliedCourseSearch && !catalogueCourses.length ? (
+                    <p className="catalogue-message">No courses match “{appliedCourseSearch}”.</p>
+                  ) : null}
+                  <div className="planner-course-results">
+                    {catalogueCourses.map((course) => (
+                      <button
+                        className={
+                          course.id === activeOfferingId
+                            ? 'planner-course-row active'
+                            : 'planner-course-row'
+                        }
+                        key={course.id}
+                        onClick={() => openOffering(course)}
+                        type="button"
+                      >
+                        <span>
+                          <strong>{course.courseCode}</strong>
+                          <span>{course.title}</span>
+                        </span>
+                        <small>
+                          {course.credits} cr · {course.sections.length} sections
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="section-picker" aria-labelledby="section-picker-title">
+                  {activeOffering ? (
+                    <>
+                      <div className="panel-heading-row">
+                        <div>
+                          <p className="eyebrow">SECTION OPTIONS</p>
+                          <h2 id="section-picker-title">{activeOffering.courseCode}</h2>
+                          <p className="course-meta">{activeOffering.title}</p>
+                        </div>
+                        <span className="credit-badge">{activeOffering.credits} credits</span>
+                      </div>
+                      <div className="section-option-list">
+                        {activeOffering.sections.map((section) => {
+                          const isSelected = activeSelection?.sectionId === section.id;
+                          return (
+                            <article
+                              className={isSelected ? 'section-option selected' : 'section-option'}
+                              key={section.id}
+                            >
+                              <div>
+                                <h3>Section {section.sectionCode}</h3>
+                                <p>{section.instructor ?? 'Instructor not provided'}</p>
+                                <p className="meeting-summary">
+                                  {section.meetings.map(formatMeeting).join(' · ') || 'Timing TBA'}
+                                </p>
+                              </div>
+                              <button
+                                className={
+                                  isSelected ? 'secondary-button compact-button' : 'compact-button'
+                                }
+                                disabled={Boolean(busyAction) || isSelected}
+                                onClick={() => chooseSection(section.id)}
+                                type="button"
+                              >
+                                {isSelected
+                                  ? 'Selected'
+                                  : activeSelection
+                                    ? 'Switch to this section'
+                                    : 'Add section'}
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="planner-empty-state compact-empty">
+                      <p className="eyebrow">SECTION OPTIONS</p>
+                      <h2>Choose a course.</h2>
+                      <p>
+                        Search the catalogue and select a course to see its available sections and
+                        timings.
+                      </p>
+                    </div>
+                  )}
+                </section>
+              </section>
+            </>
           ) : (
             <section className="planner-empty-state standalone-empty">
               <p className="eyebrow">YOUR FIRST OPTION</p>

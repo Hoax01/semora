@@ -2,10 +2,10 @@
 
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 2 — Semester Planning Core (in progress)
-**Next Build Objective:** Phase 2 — Course Selection and Timetable Core
+**Next Build Objective:** Phase 2 — Timetable Clash Detection
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, and the first
-Phase 2 planning-foundation slice is implemented. Phase 2 is not yet complete.
+Phase 2 planning slices are implemented. Phase 2 is not yet complete.
 
 ---
 
@@ -36,6 +36,9 @@ Phase 2 planning-foundation slice is implemented. Phase 2 is not yet complete.
   term and creating the user's term-specific planning workspace.
 - Initial responsive Semester Designer surface with visible candidate tabs,
   candidate empty states, and create, rename, duplicate, and archive actions.
+- Candidate course-selection workbench with catalogue search, section choices,
+  live selected-credit totals, selected-course details, section switching, and
+  removal actions.
 
 ### API and authentication
 
@@ -57,6 +60,10 @@ Phase 2 planning-foundation slice is implemented. Phase 2 is not yet complete.
   and academic term and creates the typed default preference record.
 - Ownership-checked candidate-semester APIs for create, rename, duplicate, and
   archive. Duplication copies persisted section selections when present.
+- Ownership-checked candidate-selection APIs for adding, switching, and
+  removing sections. Selection writes are term-scoped and enforce at most one
+  selected section per course offering; candidate responses derive credits from
+  the persisted section selections.
 
 ### Database
 
@@ -84,8 +91,7 @@ Phase 2 planning-foundation slice is implemented. Phase 2 is not yet complete.
 
 ## Tests and verification
 
-The following baseline suite passes after the current planning-foundation
-implementation:
+The following baseline suite passes after the current Phase 2 implementation:
 
 ```text
 npm run typecheck
@@ -111,6 +117,9 @@ Current API integration coverage verifies:
 - term discovery, idempotent workspace creation, one default preference record,
   candidate validation, candidate create/rename/duplicate/archive behavior,
   and rejection of cross-user workspace/candidate access.
+- candidate course/section selection, live credit totals, alternate-section
+  switching, removal, duplicate preservation, same-offering rejection, and
+  cross-user selection rejection.
 
 ### Phase 2 implementation status
 
@@ -120,12 +129,12 @@ Complete in this phase:
 2.1 Planning Schema
 2.2 Workspace Creation
 2.3 Candidate Semester CRUD
+2.4 Course Selection
 ```
 
 Not yet implemented:
 
 ```text
-2.4 Course Selection
 2.5 Timetable Clash Detection
 2.6 Weekly Schedule UI
 2.7 Commitment CRUD/UI and schedule participation
@@ -201,9 +210,9 @@ product or architecture drift.
 
 The planning schema can persist course preferences and recurring commitments,
 but their APIs and UI are intentionally deferred to their remaining Phase 2
-requirements. Candidate selections can be persisted and duplicated, but the
-selection mutation API and same-offering/alternate-section invariant are part
-of the next Phase 2 slice.
+requirements. Candidate selections support add, switch, remove, duplication,
+and same-offering enforcement; timetable clash detection and schedule
+visualization are the next requirements.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -241,8 +250,6 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Continue Phase 2 with course/section selection inside a candidate: add,
-remove, and switch sections with server-side ownership and one-section-per-
-offering enforcement, then expose live credit totals in the Semester Designer.
-Do not begin timetable intelligence beyond the Phase 2 hard-constraint scope,
-and do not begin Phase 3 scoring or comparison.
+Continue Phase 2 with deterministic timetable clash detection for candidate
+section meetings. Keep the engine/UI boundary explicit, and do not begin Phase
+3 scoring or comparison.

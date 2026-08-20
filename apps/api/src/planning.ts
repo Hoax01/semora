@@ -20,14 +20,52 @@ const updateCandidateSchema = z
   })
   .refine((value) => value.name !== undefined || value.isArchived !== undefined);
 
+const selectionRequestSchema = z.object({
+  sectionId: z.string().trim().min(1),
+});
+
+const selectionInclude = {
+  section: {
+    include: {
+      courseOffering: { include: { course: true } },
+      meetings: true,
+    },
+  },
+} as const;
+
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
   candidates: {
     where: { isArchived: false },
-    include: { _count: { select: { selections: true } } },
+    include: {
+      _count: { select: { selections: true } },
+      selections: { include: selectionInclude },
+    },
     orderBy: { createdAt: 'asc' as const },
   },
 } as const;
+
+type SelectionRecord = {
+  id: string;
+  section: {
+    id: string;
+    sectionCode: string;
+    capacity: number | null;
+    instructorDisplay: string | null;
+    meetings: Array<{
+      dayOfWeek: string;
+      startTime: Date;
+      endTime: Date;
+      meetingType: string;
+      location: string | null;
+    }>;
+    courseOffering: {
+      id: string;
+      creditHours: { toString(): string };
+      course: { courseCode: string; title: string };
+    };
+  };
+};
 
 type CandidateRecord = {
   id: string;
@@ -36,6 +74,7 @@ type CandidateRecord = {
   createdAt: Date;
   updatedAt: Date;
   _count: { selections: number };
+  selections?: SelectionRecord[];
 };
 
 type WorkspaceRecord = {
@@ -54,13 +93,46 @@ type WorkspaceRecord = {
 };
 
 function serializeCandidate(candidate: CandidateRecord) {
+  const selections = candidate.selections ?? [];
+  const credits = selections.reduce(
+    (total, selection) => total + Number(selection.section.courseOffering.creditHours),
+    0,
+  );
+
   return {
     id: candidate.id,
     name: candidate.name,
     isArchived: candidate.isArchived,
     selectionCount: candidate._count.selections,
+    credits,
+    selections: selections.map(serializeSelection),
     createdAt: candidate.createdAt.toISOString(),
     updatedAt: candidate.updatedAt.toISOString(),
+  };
+}
+
+function formatTime(value: Date) {
+  return `${String(value.getUTCHours()).padStart(2, '0')}:${String(value.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function serializeSelection(selection: SelectionRecord) {
+  return {
+    id: selection.id,
+    sectionId: selection.section.id,
+    sectionCode: selection.section.sectionCode,
+    capacity: selection.section.capacity,
+    instructor: selection.section.instructorDisplay,
+    courseOfferingId: selection.section.courseOffering.id,
+    courseCode: selection.section.courseOffering.course.courseCode,
+    title: selection.section.courseOffering.course.title,
+    credits: Number(selection.section.courseOffering.creditHours),
+    meetings: selection.section.meetings.map((meeting) => ({
+      day: meeting.dayOfWeek,
+      startTime: formatTime(meeting.startTime),
+      endTime: formatTime(meeting.endTime),
+      type: meeting.meetingType,
+      location: meeting.location,
+    })),
   };
 }
 
@@ -85,6 +157,10 @@ function validationError(response: express.Response, details: unknown) {
   response.status(400).json({ error: 'VALIDATION_ERROR', details });
 }
 
+function conflictError(response: express.Response, error: string) {
+  response.status(409).json({ error });
+}
+
 async function loadOwnedWorkspace(workspaceId: string, userId: string) {
   return prisma?.semesterWorkspace.findFirst({
     where: { id: workspaceId, userId },
@@ -97,7 +173,27 @@ async function loadOwnedCandidate(candidateId: string, userId: string) {
     where: { id: candidateId, workspace: { userId } },
     include: {
       _count: { select: { selections: true } },
-      selections: { select: { sectionId: true } },
+      selections: { include: selectionInclude },
+    },
+  });
+}
+
+async function loadOwnedSelection(selectionId: string, userId: string) {
+  return prisma?.candidateCourseSelection.findFirst({
+    where: { id: selectionId, candidateSemester: { workspace: { userId } } },
+    include: {
+      candidateSemester: { select: { id: true, workspaceId: true } },
+      ...selectionInclude,
+    },
+  });
+}
+
+async function loadSectionForWorkspace(sectionId: string, academicTermId: string) {
+  return prisma?.section.findFirst({
+    where: { id: sectionId, courseOffering: { academicTermId } },
+    include: {
+      courseOffering: { include: { course: true } },
+      meetings: true,
     },
   });
 }
@@ -243,6 +339,154 @@ export function registerPlanningRoutes(app: express.Express) {
     response.status(201).json({ candidate: serializeCandidate(candidate) });
   });
 
+  app.post('/api/candidates/:candidateId/selections', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = selectionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const candidate = await prisma.candidateSemester.findFirst({
+      where: { id: request.params.candidateId, workspace: { userId } },
+      include: {
+        workspace: { select: { academicTermId: true } },
+        selections: { include: { section: { select: { courseOfferingId: true } } } },
+      },
+    });
+    if (!candidate) {
+      response.status(404).json({ error: 'CANDIDATE_NOT_FOUND' });
+      return;
+    }
+
+    const section = await loadSectionForWorkspace(
+      parsed.data.sectionId,
+      candidate.workspace.academicTermId,
+    );
+    if (!section) {
+      response.status(404).json({ error: 'SECTION_NOT_FOUND' });
+      return;
+    }
+    if (
+      candidate.selections.some(
+        (selection) => selection.section.courseOfferingId === section.courseOfferingId,
+      )
+    ) {
+      conflictError(response, 'COURSE_ALREADY_SELECTED');
+      return;
+    }
+
+    const selection = await prisma.candidateCourseSelection.create({
+      data: { candidateSemesterId: candidate.id, sectionId: section.id },
+      include: selectionInclude,
+    });
+    const workspace = await loadOwnedWorkspace(candidate.workspaceId, userId);
+    const savedCandidate = workspace?.candidates.find((item) => item.id === candidate.id);
+
+    response.status(201).json({
+      selection: serializeSelection(selection),
+      candidate: savedCandidate ? serializeCandidate(savedCandidate) : undefined,
+    });
+  });
+
+  app.patch('/api/selections/:selectionId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = selectionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const existing = await loadOwnedSelection(request.params.selectionId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'SELECTION_NOT_FOUND' });
+      return;
+    }
+    const section = await loadSectionForWorkspace(
+      parsed.data.sectionId,
+      (
+        await prisma.semesterWorkspace.findUniqueOrThrow({
+          where: { id: existing.candidateSemester.workspaceId },
+          select: { academicTermId: true },
+        })
+      ).academicTermId,
+    );
+    if (!section) {
+      response.status(404).json({ error: 'SECTION_NOT_FOUND' });
+      return;
+    }
+    if (section.courseOfferingId !== existing.section.courseOffering.id) {
+      conflictError(response, 'SECTION_MUST_MATCH_COURSE');
+      return;
+    }
+
+    const duplicate = await prisma.candidateCourseSelection.findFirst({
+      where: {
+        candidateSemesterId: existing.candidateSemester.id,
+        id: { not: existing.id },
+        section: { courseOfferingId: section.courseOfferingId },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      conflictError(response, 'COURSE_ALREADY_SELECTED');
+      return;
+    }
+
+    const selection = await prisma.candidateCourseSelection.update({
+      where: { id: existing.id },
+      data: { sectionId: section.id },
+      include: selectionInclude,
+    });
+    const workspace = await loadOwnedWorkspace(existing.candidateSemester.workspaceId, userId);
+    const savedCandidate = workspace?.candidates.find(
+      (candidate) => candidate.id === existing.candidateSemester.id,
+    );
+
+    response.status(200).json({
+      selection: serializeSelection(selection),
+      candidate: savedCandidate ? serializeCandidate(savedCandidate) : undefined,
+    });
+  });
+
+  app.delete('/api/selections/:selectionId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const existing = await loadOwnedSelection(request.params.selectionId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'SELECTION_NOT_FOUND' });
+      return;
+    }
+
+    await prisma.candidateCourseSelection.delete({ where: { id: existing.id } });
+    const workspace = await loadOwnedWorkspace(existing.candidateSemester.workspaceId, userId);
+    const savedCandidate = workspace?.candidates.find(
+      (candidate) => candidate.id === existing.candidateSemester.id,
+    );
+
+    response.status(200).json({
+      selectionId: existing.id,
+      candidate: savedCandidate ? serializeCandidate(savedCandidate) : undefined,
+    });
+  });
+
   app.patch('/api/candidates/:candidateId', async (request, response) => {
     if (!prisma) {
       response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
@@ -271,8 +515,11 @@ export function registerPlanningRoutes(app: express.Express) {
       data: update,
       include: { _count: { select: { selections: true } } },
     });
+    const savedCandidate = await loadOwnedCandidate(candidate.id, userId);
 
-    response.status(200).json({ candidate: serializeCandidate(candidate) });
+    response.status(200).json({
+      candidate: serializeCandidate(savedCandidate ?? candidate),
+    });
   });
 
   app.post('/api/candidates/:candidateId/duplicate', async (request, response) => {
@@ -296,12 +543,15 @@ export function registerPlanningRoutes(app: express.Express) {
         workspaceId: source.workspaceId,
         name,
         selections: {
-          create: source.selections.map((selection) => ({ sectionId: selection.sectionId })),
+          create: source.selections.map((selection) => ({ sectionId: selection.section.id })),
         },
       },
       include: { _count: { select: { selections: true } } },
     });
+    const savedCandidate = await loadOwnedCandidate(candidate.id, userId);
 
-    response.status(201).json({ candidate: serializeCandidate(candidate) });
+    response.status(201).json({
+      candidate: serializeCandidate(savedCandidate ?? candidate),
+    });
   });
 }
