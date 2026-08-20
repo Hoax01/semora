@@ -4,11 +4,13 @@ import {
   calculateCoursePreferenceFit,
   calculateScheduleMetrics,
   calculateTotalCredits,
+  calculateWorkloadInteractionPenalties,
   detectTimetableClashes,
   estimateStructuralWorkloadProfile,
   resolveWorkloadProfile,
   validateWorkloadProfile,
   type CandidateCourseInput,
+  type CourseWorkloadProfile,
   type TimetableCourse,
 } from './index.js';
 
@@ -307,6 +309,70 @@ describe('course preference fit', () => {
       courseCount: 1,
       interestCompleteness: 1,
       careerCompleteness: 1,
+    });
+  });
+});
+
+describe('workload interaction penalties', () => {
+  const profile = (overrides: Partial<CourseWorkloadProfile>): CourseWorkloadProfile => overrides;
+
+  it('keeps one heavy course penalty-free and increases concentration penalties', () => {
+    const oneProjectCourse = calculateWorkloadInteractionPenalties([
+      profile({ projectIntensity: 7 }),
+    ]);
+    const twoProjectCourses = calculateWorkloadInteractionPenalties([
+      profile({ projectIntensity: 7 }),
+      profile({ projectIntensity: 8 }),
+    ]);
+    const threeProjectCourses = calculateWorkloadInteractionPenalties([
+      profile({ projectIntensity: 7 }),
+      profile({ projectIntensity: 8 }),
+      profile({ projectIntensity: 9 }),
+    ]);
+
+    expect(oneProjectCourse.projectConcentration).toMatchObject({
+      heavyCourseCount: 1,
+      penalty: 0,
+    });
+    expect(twoProjectCourses.projectConcentration.penalty).toBe(0.5);
+    expect(threeProjectCourses.projectConcentration.penalty).toBe(1.5);
+  });
+
+  it('calculates continuous-assessment and exam interactions independently', () => {
+    const result = calculateWorkloadInteractionPenalties([
+      profile({ continuousWorkload: 7, examIntensity: 7 }),
+      profile({ continuousWorkload: 8, examIntensity: 8 }),
+      profile({ continuousWorkload: 9, examIntensity: 9 }),
+      profile({ examIntensity: 10 }),
+    ]);
+
+    expect(result).toMatchObject({
+      continuousAssessmentConcentration: {
+        knownCourseCount: 3,
+        heavyCourseCount: 3,
+        penalty: 1.5,
+      },
+      examConcentration: {
+        knownCourseCount: 4,
+        heavyCourseCount: 4,
+        penalty: 3,
+      },
+      totalPenalty: 4.5,
+    });
+  });
+
+  it('does not treat unknown workload dimensions as heavy courses', () => {
+    const result = calculateWorkloadInteractionPenalties([
+      profile({ projectIntensity: 8 }),
+      profile({ projectIntensity: null }),
+      profile({}),
+    ]);
+
+    expect(result.projectConcentration).toEqual({
+      threshold: 7,
+      knownCourseCount: 1,
+      heavyCourseCount: 1,
+      penalty: 0,
     });
   });
 });

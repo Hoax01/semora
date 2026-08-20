@@ -49,6 +49,12 @@ type CandidateAnalysis = {
     interestCompleteness: number;
     careerCompleteness: number;
   };
+  interactionPenalties: {
+    projectConcentration: InteractionPenaltyMetric;
+    continuousAssessmentConcentration: InteractionPenaltyMetric;
+    examConcentration: InteractionPenaltyMetric;
+    totalPenalty: number;
+  };
   schedule: {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
@@ -62,6 +68,13 @@ type CandidateAnalysis = {
     lateClassMinutes: number;
     scheduleFragmentation: number;
   };
+};
+
+type InteractionPenaltyMetric = {
+  threshold: number;
+  knownCourseCount: number;
+  heavyCourseCount: number;
+  penalty: number;
 };
 
 type WorkloadDimension =
@@ -329,6 +342,10 @@ function formatMinutes(minutes: number) {
 
 function formatPreferenceFit(value: number | null) {
   return value === null ? 'Not rated' : `${Math.round(value * 100)}%`;
+}
+
+function formatPenalty(value: number) {
+  return value === 0 ? 'None' : `+${value.toFixed(1)}`;
 }
 
 function formatDay(day: string) {
@@ -992,6 +1009,76 @@ export function PlanningPage() {
                   </small>
                 </div>
               </div>
+              <section
+                className="interaction-pressure-panel"
+                aria-labelledby="interaction-pressure-title"
+              >
+                <div className="interaction-pressure-heading">
+                  <div>
+                    <p className="eyebrow">COURSE COMPOSITION</p>
+                    <h3 id="interaction-pressure-title">Assessment concentration</h3>
+                  </div>
+                  <span className="course-meta">
+                    Total interaction pressure{' '}
+                    {formatPenalty(candidateAnalysis.interactionPenalties.totalPenalty)}
+                  </span>
+                </div>
+                <div className="interaction-pressure-grid">
+                  <article>
+                    <span>Projects</span>
+                    <strong>
+                      {formatPenalty(
+                        candidateAnalysis.interactionPenalties.projectConcentration.penalty,
+                      )}
+                    </strong>
+                    <small>
+                      {candidateAnalysis.interactionPenalties.projectConcentration.heavyCourseCount}{' '}
+                      heavy ·{' '}
+                      {candidateAnalysis.interactionPenalties.projectConcentration.knownCourseCount}{' '}
+                      profiles known
+                    </small>
+                  </article>
+                  <article>
+                    <span>Continuous assessment</span>
+                    <strong>
+                      {formatPenalty(
+                        candidateAnalysis.interactionPenalties.continuousAssessmentConcentration
+                          .penalty,
+                      )}
+                    </strong>
+                    <small>
+                      {
+                        candidateAnalysis.interactionPenalties.continuousAssessmentConcentration
+                          .heavyCourseCount
+                      }{' '}
+                      heavy ·{' '}
+                      {
+                        candidateAnalysis.interactionPenalties.continuousAssessmentConcentration
+                          .knownCourseCount
+                      }{' '}
+                      profiles known
+                    </small>
+                  </article>
+                  <article>
+                    <span>Exams</span>
+                    <strong>
+                      {formatPenalty(
+                        candidateAnalysis.interactionPenalties.examConcentration.penalty,
+                      )}
+                    </strong>
+                    <small>
+                      {candidateAnalysis.interactionPenalties.examConcentration.heavyCourseCount}{' '}
+                      heavy ·{' '}
+                      {candidateAnalysis.interactionPenalties.examConcentration.knownCourseCount}{' '}
+                      profiles known
+                    </small>
+                  </article>
+                </div>
+                <p className="interaction-pressure-help">
+                  Penalties begin when at least two known course profiles cross the configured 7/10
+                  threshold. Unknown dimensions are not treated as heavy.
+                </p>
+              </section>
               <div className="intelligence-notes">
                 {candidateAnalysis.schedule.longDays.length ? (
                   <p>

@@ -193,6 +193,22 @@ export const DEFAULT_STRUCTURAL_WORKLOAD_CONFIG: StructuralWorkloadConfig = {
   labIntensity: 6,
 };
 
+export type WorkloadInteractionConfig = {
+  projectIntensityThreshold: number;
+  continuousWorkloadThreshold: number;
+  examIntensityThreshold: number;
+  penaltyByHeavyCourseCount: readonly number[];
+  additionalHeavyCoursePenalty: number;
+};
+
+export const DEFAULT_WORKLOAD_INTERACTION_CONFIG: WorkloadInteractionConfig = {
+  projectIntensityThreshold: 7,
+  continuousWorkloadThreshold: 7,
+  examIntensityThreshold: 7,
+  penaltyByHeavyCourseCount: [0, 0, 0.5, 1.5, 3, 5],
+  additionalHeavyCoursePenalty: 2,
+};
+
 export type CandidateScheduleAnalysis = {
   candidateId: string | null;
   engineVersion: '0.1';
@@ -205,6 +221,7 @@ export type CandidateScheduleAnalysis = {
     profile: CourseWorkloadProfile;
   }>;
   coursePreferenceFit: CoursePreferenceFit;
+  interactionPenalties: WorkloadInteractionPenalties;
 };
 
 export type CoursePreferenceFit = {
@@ -215,6 +232,20 @@ export type CoursePreferenceFit = {
   courseCount: number;
   interestCompleteness: number;
   careerCompleteness: number;
+};
+
+export type WorkloadInteractionMetric = {
+  threshold: number;
+  knownCourseCount: number;
+  heavyCourseCount: number;
+  penalty: number;
+};
+
+export type WorkloadInteractionPenalties = {
+  projectConcentration: WorkloadInteractionMetric;
+  continuousAssessmentConcentration: WorkloadInteractionMetric;
+  examConcentration: WorkloadInteractionMetric;
+  totalPenalty: number;
 };
 
 export function calculateTotalCredits(credits: readonly number[]) {
@@ -641,6 +672,74 @@ export function resolveWorkloadProfile(
   };
 }
 
+function interactionPenaltyForCount(heavyCourseCount: number, config: WorkloadInteractionConfig) {
+  if (heavyCourseCount < 2) return 0;
+  const configuredPenalty = config.penaltyByHeavyCourseCount[heavyCourseCount];
+  if (configuredPenalty !== undefined) return configuredPenalty;
+
+  const lastConfiguredIndex = config.penaltyByHeavyCourseCount.length - 1;
+  const lastConfiguredPenalty = config.penaltyByHeavyCourseCount[lastConfiguredIndex] ?? 0;
+  return (
+    lastConfiguredPenalty +
+    (heavyCourseCount - lastConfiguredIndex) * config.additionalHeavyCoursePenalty
+  );
+}
+
+function interactionMetric(
+  profiles: readonly CourseWorkloadProfile[],
+  dimension: WorkloadDimension,
+  threshold: number,
+  config: WorkloadInteractionConfig,
+): WorkloadInteractionMetric {
+  const knownProfiles = profiles.filter(
+    (profile) => profile[dimension] !== undefined && profile[dimension] !== null,
+  );
+  const heavyCourseCount = knownProfiles.filter(
+    (profile) => (profile[dimension] ?? 0) >= threshold,
+  ).length;
+
+  return {
+    threshold,
+    knownCourseCount: knownProfiles.length,
+    heavyCourseCount,
+    penalty: interactionPenaltyForCount(heavyCourseCount, config),
+  };
+}
+
+export function calculateWorkloadInteractionPenalties(
+  profiles: readonly CourseWorkloadProfile[],
+  config: WorkloadInteractionConfig = DEFAULT_WORKLOAD_INTERACTION_CONFIG,
+): WorkloadInteractionPenalties {
+  const projectConcentration = interactionMetric(
+    profiles,
+    'projectIntensity',
+    config.projectIntensityThreshold,
+    config,
+  );
+  const continuousAssessmentConcentration = interactionMetric(
+    profiles,
+    'continuousWorkload',
+    config.continuousWorkloadThreshold,
+    config,
+  );
+  const examConcentration = interactionMetric(
+    profiles,
+    'examIntensity',
+    config.examIntensityThreshold,
+    config,
+  );
+
+  return {
+    projectConcentration,
+    continuousAssessmentConcentration,
+    examConcentration,
+    totalPenalty:
+      projectConcentration.penalty +
+      continuousAssessmentConcentration.penalty +
+      examConcentration.penalty,
+  };
+}
+
 export function analyzeCandidateSchedule(
   input: CandidateSemesterInput,
   config: ScheduleMetricsConfig = DEFAULT_SCHEDULE_METRICS_CONFIG,
@@ -656,17 +755,22 @@ export function analyzeCandidateSchedule(
     commitments: input.commitments,
   });
 
+  const workloadProfiles = input.courses.map((course) => ({
+    courseId: course.id,
+    courseOfferingId: course.courseOfferingId,
+    courseCode: course.courseCode,
+    profile: resolveWorkloadProfile(course, course.workloadProfile),
+  }));
+
   return {
     candidateId: input.candidateId ?? null,
     engineVersion: '0.1',
     validity,
     schedule: calculateScheduleMetrics(input.courses, config),
-    workloadProfiles: input.courses.map((course) => ({
-      courseId: course.id,
-      courseOfferingId: course.courseOfferingId,
-      courseCode: course.courseCode,
-      profile: resolveWorkloadProfile(course, course.workloadProfile),
-    })),
+    workloadProfiles,
     coursePreferenceFit: calculateCoursePreferenceFit(input.courses),
+    interactionPenalties: calculateWorkloadInteractionPenalties(
+      workloadProfiles.map((course) => course.profile),
+    ),
   };
 }

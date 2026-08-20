@@ -280,6 +280,16 @@ describe('Phase 2 planning foundation', () => {
         careerKnownCount: 0,
         courseCount: 1,
       },
+      interactionPenalties: {
+        projectConcentration: { knownCourseCount: 0, heavyCourseCount: 0, penalty: 0 },
+        continuousAssessmentConcentration: {
+          knownCourseCount: 0,
+          heavyCourseCount: 0,
+          penalty: 0,
+        },
+        examConcentration: { knownCourseCount: 0, heavyCourseCount: 0, penalty: 0 },
+        totalPenalty: 0,
+      },
     });
 
     const courseOfferingId = selection.body.selection.courseOfferingId as string;
@@ -377,6 +387,11 @@ describe('Phase 2 planning foundation', () => {
         }),
       }),
     ]);
+    expect(overriddenAnalysis.body.interactionPenalties.projectConcentration).toMatchObject({
+      knownCourseCount: 1,
+      heavyCourseCount: 1,
+      penalty: 0,
+    });
 
     const resetWorkloadProfile = await request(app)
       .delete(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
