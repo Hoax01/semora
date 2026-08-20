@@ -410,6 +410,65 @@ h1 {
   font-size: 0.9rem;
 }
 
+.intelligence-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid #9a8fff66;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, #5f54c70f, var(--surface));
+}
+
+.intelligence-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.intelligence-metric {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.intelligence-metric span,
+.intelligence-metric small {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.intelligence-metric strong {
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.intelligence-metric small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intelligence-notes {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.intelligence-notes p {
+  margin: 0;
+}
+
+.intelligence-notes strong {
+  color: var(--text-primary);
+}
+
 .weekly-schedule-panel {
   margin-top: 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
@@ -1303,6 +1362,10 @@ h1 {
 
   .commitment-form-row {
     grid-template-columns: 1fr;
+  }
+
+  .intelligence-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .commitment-meeting-row {

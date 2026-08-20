@@ -16,6 +16,39 @@ type CandidateValidation = {
   clashes: TimetableClash[];
 };
 
+type ScheduleDayMetrics = {
+  dayOfWeek: string;
+  classMinutes: number;
+  campusSpanMinutes: number;
+  idleGapMinutes: number;
+  blockCount: number;
+  earliestStartTime: string | null;
+  latestEndTime: string | null;
+  earlyClassMinutes: number;
+  lateClassMinutes: number;
+  fragmentationScore: number;
+  isLongDay: boolean;
+};
+
+type CandidateAnalysis = {
+  candidateId: string;
+  engineVersion: string;
+  validity: CandidateValidation;
+  schedule: {
+    days: Record<string, ScheduleDayMetrics>;
+    totalClassMinutes: number;
+    totalIdleGapMinutes: number;
+    scheduledDays: string[];
+    freeDays: string[];
+    longestDay: string | null;
+    longestCampusSpanMinutes: number;
+    longDays: string[];
+    earlyClassMinutes: number;
+    lateClassMinutes: number;
+    scheduleFragmentation: number;
+  };
+};
+
 type TimetableClash = {
   type: 'COURSE_COURSE' | 'COURSE_HARD_COMMITMENT';
   dayOfWeek: string;
@@ -225,6 +258,22 @@ function formatMeeting(meeting: Meeting) {
   return `${day} ${meeting.startTime}–${meeting.endTime}`;
 }
 
+function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (!hours) return `${remainingMinutes}m`;
+  if (!remainingMinutes) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function formatDay(day: string) {
+  return day.charAt(0) + day.slice(1).toLowerCase();
+}
+
+function formatDayList(days: string[]) {
+  return days.length ? days.map(formatDay).join(', ') : 'None';
+}
+
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -353,6 +402,7 @@ export function PlanningPage() {
   const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
   const [activeOfferingId, setActiveOfferingId] = useState<string>();
   const [candidateValidation, setCandidateValidation] = useState<CandidateValidation>();
+  const [candidateAnalysis, setCandidateAnalysis] = useState<CandidateAnalysis>();
   const [validationRefresh, setValidationRefresh] = useState(0);
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>(emptyCommitmentDraft);
   const [preferenceDraft, setPreferenceDraft] = useState<PreferenceDraft>(defaultPreferenceDraft);
@@ -393,12 +443,18 @@ export function PlanningPage() {
   useEffect(() => {
     if (!selectedCandidateId) {
       setCandidateValidation(undefined);
+      setCandidateAnalysis(undefined);
       return;
     }
     let isCurrent = true;
-    apiRequest<CandidateValidation>(`/api/candidates/${selectedCandidateId}/validation`)
-      .then((result) => {
-        if (isCurrent) setCandidateValidation(result);
+    Promise.all([
+      apiRequest<CandidateValidation>(`/api/candidates/${selectedCandidateId}/validation`),
+      apiRequest<CandidateAnalysis>(`/api/candidates/${selectedCandidateId}/analysis`),
+    ])
+      .then(([validation, analysis]) => {
+        if (!isCurrent) return;
+        setCandidateValidation(validation);
+        setCandidateAnalysis(analysis);
       })
       .catch((reason: unknown) => {
         if (isCurrent)
@@ -751,6 +807,75 @@ export function PlanningPage() {
                 ))}
               </ul>
             </aside>
+          ) : null}
+
+          {candidateAnalysis ? (
+            <section className="intelligence-panel" aria-labelledby="schedule-intelligence-title">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">SEMESTER INTELLIGENCE</p>
+                  <h2 id="schedule-intelligence-title">The shape of this week</h2>
+                </div>
+                <span className="course-meta">
+                  Preliminary · Engine {candidateAnalysis.engineVersion}
+                </span>
+              </div>
+              <div className="intelligence-summary">
+                <article className="intelligence-metric">
+                  <span>Class time</span>
+                  <strong>{formatMinutes(candidateAnalysis.schedule.totalClassMinutes)}</strong>
+                  <small>{candidateAnalysis.schedule.scheduledDays.length} scheduled days</small>
+                </article>
+                <article className="intelligence-metric">
+                  <span>Free days</span>
+                  <strong>{candidateAnalysis.schedule.freeDays.length}</strong>
+                  <small>{formatDayList(candidateAnalysis.schedule.freeDays)}</small>
+                </article>
+                <article className="intelligence-metric">
+                  <span>Longest campus span</span>
+                  <strong>
+                    {formatMinutes(candidateAnalysis.schedule.longestCampusSpanMinutes)}
+                  </strong>
+                  <small>
+                    {candidateAnalysis.schedule.longestDay
+                      ? formatDay(candidateAnalysis.schedule.longestDay)
+                      : 'No classes yet'}
+                  </small>
+                </article>
+                <article className="intelligence-metric">
+                  <span>Idle gaps</span>
+                  <strong>{formatMinutes(candidateAnalysis.schedule.totalIdleGapMinutes)}</strong>
+                  <small>Across separate class blocks</small>
+                </article>
+              </div>
+              <div className="intelligence-notes">
+                {candidateAnalysis.schedule.longDays.length ? (
+                  <p>
+                    <strong>Long day:</strong> {formatDayList(candidateAnalysis.schedule.longDays)}{' '}
+                    reaches at least six hours of class time.
+                  </p>
+                ) : null}
+                {candidateAnalysis.schedule.earlyClassMinutes ? (
+                  <p>
+                    <strong>Early classes:</strong>{' '}
+                    {formatMinutes(candidateAnalysis.schedule.earlyClassMinutes)} begin before
+                    09:00.
+                  </p>
+                ) : null}
+                {candidateAnalysis.schedule.lateClassMinutes ? (
+                  <p>
+                    <strong>Late classes:</strong>{' '}
+                    {formatMinutes(candidateAnalysis.schedule.lateClassMinutes)} continue after
+                    18:00.
+                  </p>
+                ) : null}
+                {!candidateAnalysis.schedule.longDays.length &&
+                !candidateAnalysis.schedule.earlyClassMinutes &&
+                !candidateAnalysis.schedule.lateClassMinutes ? (
+                  <p>Your fixed class schedule has no detected long, early, or late-day pattern.</p>
+                ) : null}
+              </div>
+            </section>
           ) : null}
 
           {selectedCandidate ? (

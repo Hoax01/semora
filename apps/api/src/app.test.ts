@@ -261,6 +261,20 @@ describe('Phase 2 planning foundation', () => {
     });
     expect(clearValidation.body.clashes).toEqual([]);
 
+    const scheduleAnalysis = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(scheduleAnalysis.status).toBe(200);
+    expect(scheduleAnalysis.body).toMatchObject({
+      candidateId: optionA.body.candidate.id,
+      engineVersion: '0.1',
+      validity: { valid: true, clashes: [] },
+      schedule: {
+        scheduledDays: expect.arrayContaining(['MONDAY']),
+        freeDays: expect.arrayContaining(['TUESDAY', 'FRIDAY']),
+      },
+    });
+
     const selectedMeeting = switched.body.selection.meetings[0] as {
       day: string;
       startTime: string;
@@ -414,6 +428,11 @@ describe('Phase 2 planning foundation', () => {
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
       .set('Cookie', intruderCookie);
     expect(foreignValidation.status).toBe(404);
+
+    const foreignAnalysis = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', intruderCookie);
+    expect(foreignAnalysis.status).toBe(404);
 
     const foreignPreferences = await request(app)
       .patch(`/api/workspaces/${workspaceId}/preferences`)

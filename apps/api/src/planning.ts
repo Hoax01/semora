@@ -1,7 +1,9 @@
 import type express from 'express';
 import {
+  analyzeCandidateSchedule,
   calculateTotalCredits,
   detectTimetableClashes,
+  type CandidateSemesterInput,
   type MeetingDay,
 } from '@semora/semester-engine';
 import { z } from 'zod';
@@ -368,6 +370,7 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
       selections: { include: selectionInclude },
       workspace: {
         select: {
+          preferences: true,
           commitments: {
             include: { meetings: true },
             orderBy: { createdAt: 'asc' },
@@ -378,14 +381,19 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
   });
 }
 
-function analyzeCandidateTimetable(
+function candidateSemesterInput(
   candidate: NonNullable<Awaited<ReturnType<typeof loadOwnedCandidateForValidation>>>,
-) {
-  return detectTimetableClashes({
+): CandidateSemesterInput {
+  const preferences = candidate.workspace.preferences;
+
+  return {
+    candidateId: candidate.id,
     courses: candidate.selections.map((selection) => ({
       id: selection.id,
       courseOfferingId: selection.section.courseOffering.id,
       courseCode: selection.section.courseOffering.course.courseCode,
+      courseTitle: selection.section.courseOffering.course.title,
+      creditHours: Number(selection.section.courseOffering.creditHours),
       sectionCode: selection.section.sectionCode,
       meetings: selection.section.meetings.map((meeting) => ({
         dayOfWeek: meeting.dayOfWeek as MeetingDay,
@@ -397,13 +405,38 @@ function analyzeCandidateTimetable(
       id: commitment.id,
       name: commitment.name,
       flexibility: commitment.flexibility,
+      weeklyEffortHours: Number(commitment.weeklyEffortHours),
       meetings: commitment.meetings.map((meeting) => ({
         dayOfWeek: meeting.dayOfWeek as MeetingDay,
         startTime: formatTime(meeting.startTime),
         endTime: formatTime(meeting.endTime),
       })),
     })),
-  });
+    ...(preferences
+      ? {
+          preferences: {
+            workloadPriority: Number(preferences.workloadPriority),
+            schedulePriority: Number(preferences.schedulePriority),
+            careerPriority: Number(preferences.careerPriority),
+            interestPriority: Number(preferences.interestPriority),
+            gradeSafetyPriority: Number(preferences.gradeSafetyPriority),
+            projectPreference: Number(preferences.projectPreference),
+            examPreference: Number(preferences.examPreference),
+            continuousAssessmentPreference: Number(preferences.continuousAssessmentPreference),
+            freeDayPriority: Number(preferences.freeDayPriority),
+            earlyClassAversion: Number(preferences.earlyClassAversion),
+            lateClassAversion: Number(preferences.lateClassAversion),
+            maxPreferredHardCourses: preferences.maxPreferredHardCourses,
+          },
+        }
+      : {}),
+  };
+}
+
+function analyzeCandidateTimetable(
+  candidate: NonNullable<Awaited<ReturnType<typeof loadOwnedCandidateForValidation>>>,
+) {
+  return detectTimetableClashes(candidateSemesterInput(candidate));
 }
 
 export function registerPlanningRoutes(app: express.Express) {
@@ -698,6 +731,23 @@ export function registerPlanningRoutes(app: express.Express) {
       candidateId: candidate.id,
       ...analyzeCandidateTimetable(candidate),
     });
+  });
+
+  app.get('/api/candidates/:candidateId/analysis', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const candidate = await loadOwnedCandidateForValidation(request.params.candidateId, userId);
+    if (!candidate) {
+      response.status(404).json({ error: 'CANDIDATE_NOT_FOUND' });
+      return;
+    }
+
+    response.status(200).json(analyzeCandidateSchedule(candidateSemesterInput(candidate)));
   });
 
   app.post('/api/workspaces/:workspaceId/candidates', async (request, response) => {

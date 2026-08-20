@@ -1,12 +1,13 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 2 — Semester Planning Core (complete and audited)
-**Next Build Objective:** Phase 3 — Semester Intelligence (not started)
+**Current Phase:** Phase 3 — Semester Intelligence (in progress)
+**Next Build Objective:** Phase 3.4 — Preliminary Workload Profiles
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
-checkpoint is complete. Phase 3 has not started.
+checkpoint is complete. Phase 3 schedule analysis foundations are now
+implemented; workload profiles, scoring, findings, and comparison remain.
 
 ---
 
@@ -53,6 +54,9 @@ checkpoint is complete. Phase 3 has not started.
 - Concise per-semester preferences form using normalized low/medium/high
   choices for workload, schedule, career, interest, assessment style, free-day,
   and early/late-class priorities.
+- Preliminary Semester Intelligence panel on the planner showing deterministic
+  class time, scheduled/free days, campus span, idle gaps, early/late class
+  exposure, and long-day indicators for the selected candidate.
 
 ### API and authentication
 
@@ -90,6 +94,10 @@ checkpoint is complete. Phase 3 has not started.
   Semester Engine. It checks selected course meetings against one another and
   against persisted HARD commitment meetings; SOFT and FLEXIBLE commitments do
   not invalidate a candidate.
+- Ownership-checked `GET /api/candidates/:candidateId/analysis` endpoint maps
+  persisted candidate data, commitments, and preferences into the typed
+  Semester Engine input contract and returns deterministic schedule analysis
+  alongside hard-constraint validity.
 - Workspace responses include owned commitment names, categories, flexibility,
   weekly effort, and recurring meeting blocks for schedule rendering. No
   one-off event model is exposed in this phase.
@@ -116,9 +124,10 @@ checkpoint is complete. Phase 3 has not started.
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
   cascade/restrict boundaries.
 - The `@semora/semester-engine` package contains deterministic timetable
-  interval validation and credit arithmetic with a unit-test matrix; it
-  validates even isolated meeting intervals and has no database or HTTP
-  dependencies.
+  interval validation, credit arithmetic, typed candidate analysis inputs, and
+  schedule metrics for daily class duration, campus span, idle gaps,
+  fragmentation, free days, early/late exposure, and long-day detection. It
+  has no database, HTTP, React, or LLM dependencies.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
   on port 5432: 520 course offerings, 823 section/component records, and 1,441
   day-specific meetings.
@@ -169,6 +178,12 @@ Current API integration coverage verifies:
   and hard-versus-soft/flexible commitments), isolated malformed-interval
   rejection, stable decimal credit totals, and the authorized candidate
   validation endpoint.
+- Semester Engine schedule metrics cover merged overlapping blocks, class
+  duration, campus span, meaningful gaps, free days, configurable long-day and
+  early/late thresholds, malformed intervals, and combined candidate validity.
+- The authorized candidate analysis endpoint returns the selected candidate's
+  deterministic schedule metrics and was exercised through the API integration
+  suite.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
@@ -201,7 +216,37 @@ Phase 2 acceptance status:
 SATISFIED
 ```
 
-Phase 3 has not started. Checkpoint A, the Sol architecture review described in
+### Phase 3 implementation status
+
+Implemented in this phase so far:
+
+```text
+3.1 Semester Engine Package foundation
+3.2 Typed CandidateSemesterInput contract
+3.3 Deterministic Schedule Metrics
+```
+
+Not yet implemented:
+
+```text
+3.4 Preliminary Workload Profiles
+3.5 User Course Preferences consumed by analysis
+3.6 Interaction Penalties
+3.7 Candidate Metrics
+3.8 Findings
+3.9 Candidate Comparison UI
+3.10 Recommendation Tags
+3.11 Scenario Exploration
+```
+
+Phase 3 acceptance status:
+
+```text
+IN PROGRESS — schedule analysis is available for one selected candidate;
+meaningful workload comparison is not yet implemented.
+```
+
+Checkpoint A, the Sol architecture review described in
 `BUILDPLAN.md`, is complete. It found and corrected high-value Phase 0–2 issues
 without adding Phase 3 behavior: destructive development seeding, unstable
 selected-section identities during catalogue re-import, ambiguous term-name
@@ -285,11 +330,12 @@ product or architecture drift.
 
 The planning schema can persist course preferences and recurring commitments.
 Candidate selections support add, switch, remove, duplication, and
-same-offering enforcement. Timetable validation runs deterministically through
-the Semester Engine, the weekly schedule renders persisted course and
-commitment blocks, commitment CRUD updates both the schedule and clash
-analysis, and normalized preferences are editable per workspace. Preference
-values are stored now but are not consumed by scoring until Phase 3.
+same-offering enforcement. Timetable validation and the initial schedule
+analysis run deterministically through the Semester Engine, the weekly schedule
+renders persisted course and commitment blocks, commitment CRUD updates both
+the schedule and clash analysis, and normalized preferences are editable per
+workspace. Preference values are mapped into the Phase 3 input contract but are
+not consumed by workload scoring until the remaining Phase 3 engine work.
 
 `packages/domain` remains an intentionally empty workspace package. Current
 Phase 2 calculations are isolated in `packages/semester-engine`, while API and
@@ -337,5 +383,8 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3 is
-the next objective; no Phase 3 scoring or comparison has been started.
+Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
+has started with the schedule-analysis foundation. The next objective is to add
+preliminary workload profiles, then use them with persisted course preferences
+to produce explainable candidate metrics without implementing later LOCK or
+NAVIGATE behavior.
