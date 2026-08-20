@@ -2,14 +2,14 @@
 
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 3 — Semester Intelligence (in progress)
-**Next Build Objective:** Phase 3.8 — Findings
+**Next Build Objective:** Phase 3.9 — Candidate Comparison UI
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
 checkpoint is complete. Phase 3 schedule analysis foundations are now
 implemented; preliminary workload profiles, course-preference fit summaries,
-workload interaction penalties, and preliminary candidate metrics are now
-implemented, while structured findings and comparison remain.
+workload interaction penalties, preliminary candidate metrics, and structured
+findings are now implemented, while comparison remains.
 
 ---
 
@@ -73,6 +73,10 @@ implemented, while structured findings and comparison remain.
 - The intelligence panel shows preliminary 0–10 candidate metrics for workload,
   schedule quality, commitment compatibility, course fit, balance, analysis
   confidence, and data completeness. Unknown metric inputs remain explicit.
+- The intelligence panel shows deterministic structured findings with severity,
+  stable message keys, related course or commitment IDs, and concise UI copy
+  for clashes, concentration, schedule patterns, commitments, free days, and
+  low data completeness.
 
 ### API and authentication
 
@@ -114,8 +118,8 @@ implemented, while structured findings and comparison remain.
   persisted candidate data, commitments, and preferences into the typed
   Semester Engine input contract and returns deterministic schedule analysis,
   resolved preliminary workload profiles, course-preference fit summaries,
-  workload interaction penalties, preliminary candidate metrics, and
-  hard-constraint validity.
+  workload interaction penalties, preliminary candidate metrics, structured
+  findings, and hard-constraint validity.
 - Ownership-checked workload-profile PATCH/DELETE APIs persist per-workspace
   user estimates for a course offering, validate 0–10 dimensions and weekly
   hours, and restore structural estimates when reset.
@@ -221,6 +225,10 @@ Current API integration coverage verifies:
   dimensions. Candidate metric tests cover weighted workload, schedule and
   commitment compatibility, course fit scaling, balance, confidence, and
   completeness; the API analysis contract exercises the metrics payload.
+- Structured finding tests cover critical timetable conflicts, workload
+  concentration severity, long campus days, early/late patterns, fixed
+  commitments, free days, and low-data findings; the API analysis contract
+  exercises the findings payload.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
@@ -265,12 +273,12 @@ Implemented in this phase so far:
 3.5 User Course Preferences in analysis
 3.6 Interaction Penalties
 3.7 Candidate Metrics
+3.8 Findings
 ```
 
 Not yet implemented:
 
 ```text
-3.8 Findings
 3.9 Candidate Comparison UI
 3.10 Recommendation Tags
 3.11 Scenario Exploration
@@ -280,8 +288,8 @@ Phase 3 acceptance status:
 
 ```text
 IN PROGRESS — one candidate now has preliminary schedule, workload,
-course-preference fit, interaction-pressure, and candidate-metric
-intelligence; structured findings and comparison are not yet implemented.
+course-preference fit, interaction-pressure, candidate-metric, and structured
+finding intelligence; candidate comparison is not yet implemented.
 ```
 
 Checkpoint A, the Sol architecture review described in
@@ -379,8 +387,8 @@ user overrides. Course ratings now produce a deterministic credit-weighted fit
 summary with explicit completeness. Centralized interaction heuristics now
 measure concentration among known project, continuous-assessment, and exam
 profiles; candidate metrics now combine those inputs with schedule and
-commitment compatibility. Structured findings and comparison remain later
-Phase 3 work.
+commitment compatibility. Structured findings now expose deterministic causes,
+severity, and related IDs. Candidate comparison remains later Phase 3 work.
 
 `packages/domain` remains an intentionally empty workspace package. Current
 Phase 2 calculations are isolated in `packages/semester-engine`, while API and
@@ -430,6 +438,6 @@ docs/CATALOGUE_IMPORT.md
 
 Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
 has implemented its schedule-analysis, preliminary-profile,
-course-preference, interaction-penalty, and candidate-metric foundations. The
-next objective is Phase 3.8 structured findings, without implementing later
-LOCK or NAVIGATE behavior.
+course-preference, interaction-penalty, candidate-metric, and structured-
+finding foundations. The next objective is Phase 3.9 candidate comparison,
+without implementing later LOCK or NAVIGATE behavior.

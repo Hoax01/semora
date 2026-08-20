@@ -231,6 +231,24 @@ export const DEFAULT_CANDIDATE_METRICS_CONFIG: CandidateMetricsConfig = {
   commitmentFixedHourPenalty: 0.25,
 };
 
+export type CandidateFindingConfig = {
+  longCampusSpanMinutes: number;
+  heavyFixedCommitmentHours: number;
+  earlyClassPatternMinutes: number;
+  lateClassPatternMinutes: number;
+  lowDataCompleteness: number;
+  veryLowDataCompleteness: number;
+};
+
+export const DEFAULT_CANDIDATE_FINDING_CONFIG: CandidateFindingConfig = {
+  longCampusSpanMinutes: 8 * 60,
+  heavyFixedCommitmentHours: 8,
+  earlyClassPatternMinutes: 30,
+  lateClassPatternMinutes: 30,
+  lowDataCompleteness: 0.5,
+  veryLowDataCompleteness: 0.3,
+};
+
 export type ResolvedCourseWorkloadProfile = {
   courseId: string;
   courseOfferingId: string;
@@ -247,6 +265,7 @@ export type CandidateScheduleAnalysis = {
   coursePreferenceFit: CoursePreferenceFit;
   interactionPenalties: WorkloadInteractionPenalties;
   metrics: CandidateMetrics;
+  findings: CandidateFinding[];
 };
 
 export type CoursePreferenceFit = {
@@ -286,6 +305,36 @@ export type CandidateMetrics = {
   balance: number | null;
   analysisConfidence: number;
   dataCompleteness: number;
+};
+
+export type CandidateFindingType =
+  | 'TIMETABLE_CLASH'
+  | 'COMMITMENT_CLASH'
+  | 'PROJECT_CONCENTRATION'
+  | 'CONTINUOUS_ASSESSMENT_CONCENTRATION'
+  | 'HIGH_EXAM_CONCENTRATION'
+  | 'LONG_CAMPUS_DAY'
+  | 'FREE_DAY'
+  | 'EARLY_CLASS_PATTERN'
+  | 'LATE_CLASS_PATTERN'
+  | 'HEAVY_FIXED_COMMITMENTS'
+  | 'LOW_DATA_COMPLETENESS';
+
+export type CandidateFindingSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type CandidateFinding = {
+  type: CandidateFindingType;
+  severity: CandidateFindingSeverity;
+  messageKey: string;
+  relatedCourseIds: string[];
+  relatedCommitmentIds: string[];
+  heavyCourseCount?: number;
+  dayOfWeek?: MeetingDay;
+  days?: MeetingDay[];
+  campusSpanMinutes?: number;
+  fixedHours?: number;
+  totalMinutes?: number;
+  dataCompleteness?: number;
 };
 
 export function calculateTotalCredits(credits: readonly number[]) {
@@ -841,6 +890,14 @@ function meetingMinutes(meetings: readonly TimetableMeeting[]) {
   }, 0);
 }
 
+function calculateFixedCommitmentHours(commitments: readonly CandidateCommitmentInput[]) {
+  return commitments.reduce(
+    (total, commitment) =>
+      total + (commitment.weeklyEffortHours ?? 0) + meetingMinutes(commitment.meetings) / 60,
+    0,
+  );
+}
+
 function calculateCommitmentCompatibility(
   courses: readonly CandidateCourseInput[],
   commitments: readonly CandidateCommitmentInput[],
@@ -850,11 +907,7 @@ function calculateCommitmentCompatibility(
   if (!courses.length) return null;
   if (validity.clashes.some((clash) => clash.type === 'COURSE_HARD_COMMITMENT')) return 0;
 
-  const fixedHours = commitments.reduce(
-    (total, commitment) =>
-      total + (commitment.weeklyEffortHours ?? 0) + meetingMinutes(commitment.meetings) / 60,
-    0,
-  );
+  const fixedHours = calculateFixedCommitmentHours(commitments);
   return roundMetric(clamp(10 - fixedHours * config.commitmentFixedHourPenalty, 0, 10));
 }
 
@@ -948,6 +1001,10 @@ export type CandidateMetricsInput = {
   interactionPenalties: WorkloadInteractionPenalties;
 };
 
+export type CandidateFindingInput = CandidateMetricsInput & {
+  metrics: CandidateMetrics;
+};
+
 export function calculateCandidateMetrics(
   input: CandidateMetricsInput,
   config: CandidateMetricsConfig = DEFAULT_CANDIDATE_METRICS_CONFIG,
@@ -1007,6 +1064,187 @@ export function calculateCandidateMetrics(
   };
 }
 
+function relatedCourseIdsForDimension(
+  profiles: readonly ResolvedCourseWorkloadProfile[],
+  dimension: WorkloadDimension,
+  threshold: number,
+) {
+  return profiles
+    .filter((resolved) => (resolved.profile[dimension] ?? -1) >= threshold)
+    .map((resolved) => resolved.courseId);
+}
+
+function concentrationFinding(
+  type: CandidateFindingType,
+  messageKey: string,
+  relatedCourseIds: string[],
+  heavyCourseCount: number,
+  highSeverityCount = 3,
+): CandidateFinding {
+  return {
+    type,
+    severity: heavyCourseCount >= highSeverityCount ? 'HIGH' : 'MEDIUM',
+    messageKey,
+    relatedCourseIds,
+    relatedCommitmentIds: [],
+    heavyCourseCount,
+  };
+}
+
+export function calculateCandidateFindings(
+  input: CandidateFindingInput,
+  config: CandidateFindingConfig = DEFAULT_CANDIDATE_FINDING_CONFIG,
+): CandidateFinding[] {
+  const findings: CandidateFinding[] = [];
+
+  for (const clash of input.validity.clashes) {
+    const relatedCourseIds = [clash.first, clash.second]
+      .filter((party) => party.kind === 'COURSE')
+      .map((party) => party.id);
+    const relatedCommitmentIds = [clash.first, clash.second]
+      .filter((party) => party.kind === 'COMMITMENT')
+      .map((party) => party.id);
+    findings.push({
+      type: clash.type === 'COURSE_COURSE' ? 'TIMETABLE_CLASH' : 'COMMITMENT_CLASH',
+      severity: 'CRITICAL',
+      messageKey:
+        clash.type === 'COURSE_COURSE' ? 'course_timetable_clash' : 'course_hard_commitment_clash',
+      relatedCourseIds,
+      relatedCommitmentIds,
+      totalMinutes:
+        Number(clash.endTime.slice(0, 2)) * 60 +
+        Number(clash.endTime.slice(3)) -
+        (Number(clash.startTime.slice(0, 2)) * 60 + Number(clash.startTime.slice(3))),
+    });
+  }
+
+  const projectCount = input.interactionPenalties.projectConcentration.heavyCourseCount;
+  if (projectCount >= 2) {
+    findings.push(
+      concentrationFinding(
+        'PROJECT_CONCENTRATION',
+        projectCount >= 3 ? 'three_project_heavy_courses' : 'multiple_project_heavy_courses',
+        relatedCourseIdsForDimension(
+          input.workloadProfiles,
+          'projectIntensity',
+          input.interactionPenalties.projectConcentration.threshold,
+        ),
+        projectCount,
+      ),
+    );
+  }
+
+  const continuousCount =
+    input.interactionPenalties.continuousAssessmentConcentration.heavyCourseCount;
+  if (continuousCount >= 2) {
+    findings.push(
+      concentrationFinding(
+        'CONTINUOUS_ASSESSMENT_CONCENTRATION',
+        continuousCount >= 3
+          ? 'multiple_continuous_assessment_heavy_courses'
+          : 'continuous_assessment_concentration',
+        relatedCourseIdsForDimension(
+          input.workloadProfiles,
+          'continuousWorkload',
+          input.interactionPenalties.continuousAssessmentConcentration.threshold,
+        ),
+        continuousCount,
+        4,
+      ),
+    );
+  }
+
+  const examCount = input.interactionPenalties.examConcentration.heavyCourseCount;
+  if (examCount >= 2) {
+    findings.push(
+      concentrationFinding(
+        'HIGH_EXAM_CONCENTRATION',
+        examCount >= 3 ? 'multiple_exam_heavy_courses' : 'exam_concentration',
+        relatedCourseIdsForDimension(
+          input.workloadProfiles,
+          'examIntensity',
+          input.interactionPenalties.examConcentration.threshold,
+        ),
+        examCount,
+        4,
+      ),
+    );
+  }
+
+  if (
+    input.schedule.longestDay &&
+    input.schedule.longestCampusSpanMinutes >= config.longCampusSpanMinutes
+  ) {
+    findings.push({
+      type: 'LONG_CAMPUS_DAY',
+      severity: 'MEDIUM',
+      messageKey: 'long_campus_day',
+      relatedCourseIds: [],
+      relatedCommitmentIds: [],
+      dayOfWeek: input.schedule.longestDay,
+      campusSpanMinutes: input.schedule.longestCampusSpanMinutes,
+    });
+  }
+
+  if (input.schedule.earlyClassMinutes >= config.earlyClassPatternMinutes) {
+    findings.push({
+      type: 'EARLY_CLASS_PATTERN',
+      severity: input.schedule.earlyClassMinutes >= 60 ? 'MEDIUM' : 'LOW',
+      messageKey: 'early_class_pattern',
+      relatedCourseIds: [],
+      relatedCommitmentIds: [],
+      totalMinutes: input.schedule.earlyClassMinutes,
+    });
+  }
+
+  if (input.schedule.lateClassMinutes >= config.lateClassPatternMinutes) {
+    findings.push({
+      type: 'LATE_CLASS_PATTERN',
+      severity: input.schedule.lateClassMinutes >= 60 ? 'MEDIUM' : 'LOW',
+      messageKey: 'late_class_pattern',
+      relatedCourseIds: [],
+      relatedCommitmentIds: [],
+      totalMinutes: input.schedule.lateClassMinutes,
+    });
+  }
+
+  const fixedHours = calculateFixedCommitmentHours(input.commitments);
+  if (fixedHours >= config.heavyFixedCommitmentHours) {
+    findings.push({
+      type: 'HEAVY_FIXED_COMMITMENTS',
+      severity: fixedHours >= config.heavyFixedCommitmentHours * 1.5 ? 'HIGH' : 'MEDIUM',
+      messageKey: 'heavy_fixed_commitments',
+      relatedCourseIds: [],
+      relatedCommitmentIds: input.commitments.map((commitment) => commitment.id),
+      fixedHours: roundMetric(fixedHours),
+    });
+  }
+
+  if (input.schedule.freeDays.length) {
+    findings.push({
+      type: 'FREE_DAY',
+      severity: 'INFO',
+      messageKey: 'free_day',
+      relatedCourseIds: [],
+      relatedCommitmentIds: [],
+      days: input.schedule.freeDays,
+    });
+  }
+
+  if (input.metrics.dataCompleteness < config.lowDataCompleteness) {
+    findings.push({
+      type: 'LOW_DATA_COMPLETENESS',
+      severity: input.metrics.dataCompleteness < config.veryLowDataCompleteness ? 'MEDIUM' : 'LOW',
+      messageKey: 'low_data_completeness',
+      relatedCourseIds: [],
+      relatedCommitmentIds: [],
+      dataCompleteness: input.metrics.dataCompleteness,
+    });
+  }
+
+  return findings;
+}
+
 export function analyzeCandidateSchedule(
   input: CandidateSemesterInput,
   config: ScheduleMetricsConfig = DEFAULT_SCHEDULE_METRICS_CONFIG,
@@ -1034,6 +1272,16 @@ export function analyzeCandidateSchedule(
     workloadProfiles.map((course) => course.profile),
   );
   const schedule = calculateScheduleMetrics(input.courses, config);
+  const metrics = calculateCandidateMetrics({
+    courses: input.courses,
+    commitments: input.commitments,
+    preferences: input.preferences,
+    validity,
+    schedule,
+    workloadProfiles,
+    coursePreferenceFit,
+    interactionPenalties,
+  });
 
   return {
     candidateId: input.candidateId ?? null,
@@ -1043,7 +1291,8 @@ export function analyzeCandidateSchedule(
     workloadProfiles,
     coursePreferenceFit,
     interactionPenalties,
-    metrics: calculateCandidateMetrics({
+    metrics,
+    findings: calculateCandidateFindings({
       courses: input.courses,
       commitments: input.commitments,
       preferences: input.preferences,
@@ -1052,6 +1301,7 @@ export function analyzeCandidateSchedule(
       workloadProfiles,
       coursePreferenceFit,
       interactionPenalties,
+      metrics,
     }),
   };
 }

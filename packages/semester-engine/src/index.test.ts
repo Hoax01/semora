@@ -242,6 +242,11 @@ describe('analyzeCandidateSchedule', () => {
       schedule: { scheduledDays: ['TUESDAY'] },
     });
     expect(result.validity.clashes).toHaveLength(1);
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'TIMETABLE_CLASH', severity: 'CRITICAL' }),
+      ]),
+    );
   });
 });
 
@@ -443,6 +448,77 @@ describe('candidate metrics', () => {
       scheduleQuality: expect.any(Number),
       dataCompleteness: expect.any(Number),
     });
+    expect(result.findings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'LOW_DATA_COMPLETENESS' })]),
+    );
+  });
+});
+
+describe('structured candidate findings', () => {
+  it('reports explainable workload and schedule patterns with stable severities', () => {
+    const workloadProfile: CourseWorkloadProfile = {
+      overallIntensity: 6,
+      continuousWorkload: 8,
+      projectIntensity: 8,
+      examIntensity: 8,
+      assessmentFragmentation: 6,
+      readingIntensity: 5,
+      labIntensity: 5,
+      scheduleBurden: 5,
+      confidence: 0.8,
+    };
+    const result = analyzeCandidateSchedule({
+      courses: [
+        scheduleCourse({
+          id: 'course-1',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '08:00', endTime: '09:00' }],
+          workloadProfile,
+        }),
+        scheduleCourse({
+          id: 'course-2',
+          meetings: [{ dayOfWeek: 'TUESDAY', startTime: '10:00', endTime: '11:00' }],
+          workloadProfile,
+        }),
+        scheduleCourse({
+          id: 'course-3',
+          meetings: [{ dayOfWeek: 'WEDNESDAY', startTime: '10:00', endTime: '19:00' }],
+          workloadProfile,
+        }),
+      ],
+      commitments: [
+        {
+          id: 'work-1',
+          name: 'Work',
+          flexibility: 'SOFT',
+          weeklyEffortHours: 8,
+          meetings: [],
+        },
+      ],
+    });
+
+    expect(result.findings.map((finding) => finding.type)).toEqual(
+      expect.arrayContaining([
+        'PROJECT_CONCENTRATION',
+        'CONTINUOUS_ASSESSMENT_CONCENTRATION',
+        'HIGH_EXAM_CONCENTRATION',
+        'LONG_CAMPUS_DAY',
+        'EARLY_CLASS_PATTERN',
+        'LATE_CLASS_PATTERN',
+        'HEAVY_FIXED_COMMITMENTS',
+        'FREE_DAY',
+      ]),
+    );
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'PROJECT_CONCENTRATION',
+          severity: 'HIGH',
+          heavyCourseCount: 3,
+          messageKey: 'three_project_heavy_courses',
+          relatedCourseIds: ['course-1', 'course-2', 'course-3'],
+        }),
+      ]),
+    );
   });
 });
 

@@ -299,6 +299,7 @@ describe('Phase 2 planning foundation', () => {
         analysisConfidence: expect.any(Number),
         dataCompleteness: expect.any(Number),
       },
+      findings: expect.any(Array),
     });
 
     const courseOfferingId = selection.body.selection.courseOfferingId as string;

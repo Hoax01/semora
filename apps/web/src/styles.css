@@ -570,6 +570,74 @@ h1 {
   font-size: 1rem;
 }
 
+.findings-panel {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.finding-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finding-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.55rem;
+  background: var(--surface);
+}
+
+.finding-list strong {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.finding-list p {
+  margin: 0.2rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.finding-severity {
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.finding-severity-critical,
+.finding-severity-high {
+  color: #ffd7d7;
+  background: #8f3f4f66;
+}
+
+.finding-severity-medium {
+  color: #ffe4ad;
+  background: #9b6e2b66;
+}
+
+.finding-severity-low {
+  color: #cbd3ff;
+  background: #4c5ab066;
+}
+
+.finding-severity-info {
+  color: #b6f0da;
+  background: #28785e66;
+}
+
 .intelligence-notes {
   display: grid;
   gap: 0.35rem;

@@ -69,6 +69,7 @@ type CandidateAnalysis = {
     analysisConfidence: number;
     dataCompleteness: number;
   };
+  findings: CandidateFinding[];
   schedule: {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
@@ -89,6 +90,21 @@ type InteractionPenaltyMetric = {
   knownCourseCount: number;
   heavyCourseCount: number;
   penalty: number;
+};
+
+type CandidateFinding = {
+  type: string;
+  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  messageKey: string;
+  relatedCourseIds: string[];
+  relatedCommitmentIds: string[];
+  heavyCourseCount?: number;
+  dayOfWeek?: string;
+  days?: string[];
+  campusSpanMinutes?: number;
+  fixedHours?: number;
+  totalMinutes?: number;
+  dataCompleteness?: number;
 };
 
 type WorkloadDimension =
@@ -368,6 +384,57 @@ function formatMetric(value: number | null) {
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function findingTitle(type: string) {
+  const titles: Record<string, string> = {
+    TIMETABLE_CLASH: 'Timetable clash',
+    COMMITMENT_CLASH: 'Hard commitment clash',
+    PROJECT_CONCENTRATION: 'Project concentration',
+    CONTINUOUS_ASSESSMENT_CONCENTRATION: 'Continuous assessment concentration',
+    HIGH_EXAM_CONCENTRATION: 'Exam concentration',
+    LONG_CAMPUS_DAY: 'Long campus day',
+    FREE_DAY: 'Free day',
+    EARLY_CLASS_PATTERN: 'Early class pattern',
+    LATE_CLASS_PATTERN: 'Late class pattern',
+    HEAVY_FIXED_COMMITMENTS: 'Heavy fixed commitments',
+    LOW_DATA_COMPLETENESS: 'Low data completeness',
+  };
+  return titles[type] ?? 'Semester observation';
+}
+
+function findingDescription(finding: CandidateFinding, selections: Selection[]) {
+  const courseCodes = finding.relatedCourseIds
+    .map((id) => selections.find((selection) => selection.id === id)?.courseCode)
+    .filter((code): code is string => Boolean(code));
+  const courseSuffix = courseCodes.length ? ` (${courseCodes.join(', ')})` : '';
+
+  switch (finding.type) {
+    case 'TIMETABLE_CLASH':
+      return `Selected course meetings overlap${courseSuffix}.`;
+    case 'COMMITMENT_CLASH':
+      return `A selected course overlaps a hard commitment${courseSuffix}.`;
+    case 'PROJECT_CONCENTRATION':
+      return `${finding.heavyCourseCount ?? courseCodes.length} selected courses appear project-heavy${courseSuffix}.`;
+    case 'CONTINUOUS_ASSESSMENT_CONCENTRATION':
+      return `${finding.heavyCourseCount ?? courseCodes.length} selected courses appear continuous-assessment-heavy${courseSuffix}.`;
+    case 'HIGH_EXAM_CONCENTRATION':
+      return `${finding.heavyCourseCount ?? courseCodes.length} selected courses appear exam-heavy${courseSuffix}.`;
+    case 'LONG_CAMPUS_DAY':
+      return `${finding.dayOfWeek ? formatDay(finding.dayOfWeek) : 'One day'} spans ${formatMinutes(finding.campusSpanMinutes ?? 0)} across campus.`;
+    case 'FREE_DAY':
+      return `No selected classes fall on ${finding.days?.map(formatDay).join(', ') ?? 'one or more days'}.`;
+    case 'EARLY_CLASS_PATTERN':
+      return `${formatMinutes(finding.totalMinutes ?? 0)} of class time begins before 09:00.`;
+    case 'LATE_CLASS_PATTERN':
+      return `${formatMinutes(finding.totalMinutes ?? 0)} of class time continues after 18:00.`;
+    case 'HEAVY_FIXED_COMMITMENTS':
+      return `${finding.fixedHours?.toFixed(1) ?? 'Several'} fixed commitment hours are already allocated each week.`;
+    case 'LOW_DATA_COMPLETENESS':
+      return `Only ${formatPercent(finding.dataCompleteness ?? 0)} of the current analysis inputs are complete.`;
+    default:
+      return 'This option contains a structured observation from the current analysis inputs.';
+  }
 }
 
 function formatDay(day: string) {
@@ -1165,6 +1232,41 @@ export function PlanningPage() {
                   Metrics are preliminary and reflect the currently known schedule, workload
                   profiles, commitments, and course ratings.
                 </p>
+              </section>
+              <section className="findings-panel" aria-labelledby="findings-title">
+                <div className="interaction-pressure-heading">
+                  <div>
+                    <p className="eyebrow">STRUCTURED FINDINGS</p>
+                    <h3 id="findings-title">What stands out</h3>
+                  </div>
+                  <span className="course-meta">
+                    {candidateAnalysis.findings.length
+                      ? `${candidateAnalysis.findings.length} observation${candidateAnalysis.findings.length === 1 ? '' : 's'}`
+                      : 'No flagged patterns'}
+                  </span>
+                </div>
+                {candidateAnalysis.findings.length ? (
+                  <ul className="finding-list">
+                    {candidateAnalysis.findings.map((finding, index) => (
+                      <li key={`${finding.type}-${index}`}>
+                        <span
+                          className={`finding-severity finding-severity-${finding.severity.toLowerCase()}`}
+                        >
+                          {finding.severity}
+                        </span>
+                        <div>
+                          <strong>{findingTitle(finding.type)}</strong>
+                          <p>{findingDescription(finding, selectedCandidate?.selections ?? [])}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="interaction-pressure-help">
+                    No configured timetable, workload, commitment, or completeness patterns were
+                    detected.
+                  </p>
+                )}
               </section>
               <div className="intelligence-notes">
                 {candidateAnalysis.schedule.longDays.length ? (
