@@ -103,6 +103,44 @@ enum ExtractionVerificationState {
   REJECTED
 }
 
+enum AcademicSourceType {
+  VERIFIED_OUTLINE
+}
+
+enum GradeAggregationRule {
+  EQUAL_MEAN
+  POINTS_WEIGHTED_MEAN
+  EXPLICIT_WEIGHTS
+  BEST_N
+  DROP_LOWEST_N
+}
+
+enum AssessmentType {
+  ASSIGNMENT
+  QUIZ
+  PROJECT
+  PRESENTATION
+  MIDTERM
+  FINAL
+  PARTICIPATION
+  OTHER
+}
+
+enum AssessmentDatePrecision {
+  EXACT
+  UNKNOWN
+}
+
+enum AssessmentStatus {
+  UPCOMING
+  SUBMITTED
+  GRADED
+  MISSING
+  EXCUSED
+  DROPPED
+  CANCELLED
+}
+
 model User {
   id                      String                   @id @default(cuid())
   name                    String                   @map("display_name")
@@ -311,28 +349,35 @@ model ActiveCourseState {
   updatedAt               DateTime              @updatedAt @map("updated_at")
   activeCourseSelection   ActiveCourseSelection @relation(fields: [activeCourseSelectionId], references: [id], onDelete: Cascade)
   outlineDocument         Document?             @relation("ActiveCourseOutline", fields: [outlineDocumentId], references: [id], onDelete: SetNull)
+  gradingScheme           GradingScheme?
+  assessments             Assessment[]
+  workloadSignals         WorkloadSignal[]
 
   @@map("active_course_states")
 }
 
 model Document {
-  id                String             @id @default(cuid())
-  userId            String             @map("user_id")
-  workspaceId       String?            @map("workspace_id")
-  courseOfferingId  String?            @map("course_offering_id")
-  documentType      DocumentType       @default(COURSE_OUTLINE) @map("document_type")
-  originalFilename  String             @map("original_filename")
-  storageKey        String             @unique @map("storage_key")
-  mimeType          String             @map("mime_type")
-  fileSize          Int                @map("file_size")
-  fileHash          String             @map("file_hash")
-  uploadedAt        DateTime           @default(now()) @map("uploaded_at")
-  deletedAt         DateTime?          @map("deleted_at")
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace         SemesterWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  courseOffering    CourseOffering?    @relation(fields: [courseOfferingId], references: [id], onDelete: SetNull)
-  activeCourseState ActiveCourseState? @relation("ActiveCourseOutline")
-  extractionJobs    ExtractionJob[]
+  id                    String             @id @default(cuid())
+  userId                String             @map("user_id")
+  workspaceId           String?            @map("workspace_id")
+  courseOfferingId      String?            @map("course_offering_id")
+  documentType          DocumentType       @default(COURSE_OUTLINE) @map("document_type")
+  originalFilename      String             @map("original_filename")
+  storageKey            String             @unique @map("storage_key")
+  mimeType              String             @map("mime_type")
+  fileSize              Int                @map("file_size")
+  fileHash              String             @map("file_hash")
+  uploadedAt            DateTime           @default(now()) @map("uploaded_at")
+  deletedAt             DateTime?          @map("deleted_at")
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace             SemesterWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  courseOffering        CourseOffering?    @relation(fields: [courseOfferingId], references: [id], onDelete: SetNull)
+  activeCourseState     ActiveCourseState? @relation("ActiveCourseOutline")
+  extractionJobs        ExtractionJob[]
+  gradingSchemeSources  GradingScheme[]    @relation("GradingSchemeSource")
+  gradeThresholdSources GradeThreshold[]   @relation("GradeThresholdSource")
+  assessmentSources     Assessment[]       @relation("AssessmentSource")
+  workloadSignalSources WorkloadSignal[]   @relation("WorkloadSignalSource")
 
   @@index([userId, uploadedAt])
   @@index([workspaceId, courseOfferingId])
@@ -382,6 +427,97 @@ model ExtractionVerification {
 
   @@index([verifiedByUserId, verifiedAt])
   @@map("extraction_verifications")
+}
+
+model GradingScheme {
+  id                  String             @id @default(cuid())
+  activeCourseStateId String             @unique @map("active_course_state_id")
+  gradingMode         GradingMode        @map("grading_mode")
+  totalExpectedWeight Decimal?           @map("total_expected_weight") @db.Decimal(6, 3)
+  roundingPolicy      String?            @map("rounding_policy")
+  sourceType          AcademicSourceType @map("source_type")
+  sourceDocumentId    String             @map("source_document_id")
+  verified            Boolean            @default(true)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  activeCourseState   ActiveCourseState  @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
+  sourceDocument      Document           @relation("GradingSchemeSource", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  categories          GradeCategory[]
+  thresholds          GradeThreshold[]
+
+  @@map("grading_schemes")
+}
+
+model GradeCategory {
+  id               String               @id @default(cuid())
+  gradingSchemeId  String               @map("grading_scheme_id")
+  name             String
+  weightPercentage Decimal?             @map("weight_percentage") @db.Decimal(6, 3)
+  aggregationRule  GradeAggregationRule @default(EXPLICIT_WEIGHTS) @map("aggregation_rule")
+  ruleParameterN   Int?                 @map("rule_parameter_n")
+  displayOrder     Int                  @map("display_order")
+  gradingScheme    GradingScheme        @relation(fields: [gradingSchemeId], references: [id], onDelete: Cascade)
+  assessments      Assessment[]
+
+  @@index([gradingSchemeId, displayOrder])
+  @@map("grade_categories")
+}
+
+model GradeThreshold {
+  id                String             @id @default(cuid())
+  gradingSchemeId   String             @map("grading_scheme_id")
+  letterGrade       String             @map("letter_grade")
+  minimumPercentage Decimal            @map("minimum_percentage") @db.Decimal(6, 3)
+  inclusive         Boolean            @default(true)
+  sourceType        AcademicSourceType @map("source_type")
+  sourceDocumentId  String             @map("source_document_id")
+  gradingScheme     GradingScheme      @relation(fields: [gradingSchemeId], references: [id], onDelete: Cascade)
+  sourceDocument    Document           @relation("GradeThresholdSource", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+
+  @@index([gradingSchemeId, minimumPercentage])
+  @@map("grade_thresholds")
+}
+
+model Assessment {
+  id                   String                  @id @default(cuid())
+  activeCourseStateId  String                  @map("active_course_state_id")
+  gradeCategoryId      String?                 @map("grade_category_id")
+  title                String
+  assessmentType       AssessmentType          @map("assessment_type")
+  weightPercentage     Decimal?                @map("weight_percentage") @db.Decimal(6, 3)
+  pointsPossible       Decimal?                @map("points_possible") @db.Decimal(8, 3)
+  dueAt                DateTime?               @map("due_at") @db.Date
+  datePrecision        AssessmentDatePrecision @map("date_precision")
+  status               AssessmentStatus        @default(UPCOMING)
+  estimatedEffortHours Decimal?                @map("estimated_effort_hours") @db.Decimal(5, 2)
+  effortConfidence     Decimal?                @map("effort_confidence") @db.Decimal(3, 2)
+  isGroupAssessment    Boolean                 @default(false) @map("is_group_assessment")
+  sourceType           AcademicSourceType      @map("source_type")
+  sourceDocumentId     String?                 @map("source_document_id")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+  activeCourseState    ActiveCourseState       @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
+  gradeCategory        GradeCategory?          @relation(fields: [gradeCategoryId], references: [id], onDelete: SetNull)
+  sourceDocument       Document?               @relation("AssessmentSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([activeCourseStateId, dueAt])
+  @@index([gradeCategoryId])
+  @@map("assessments")
+}
+
+model WorkloadSignal {
+  id                  String             @id @default(cuid())
+  activeCourseStateId String             @map("active_course_state_id")
+  signalType          String             @map("signal_type")
+  value               Decimal?           @db.Decimal(8, 3)
+  sourceDocumentId    String             @map("source_document_id")
+  confidence          Decimal?           @db.Decimal(3, 2)
+  sourceType          AcademicSourceType @map("source_type")
+  activeCourseState   ActiveCourseState  @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
+  sourceDocument      Document           @relation("WorkloadSignalSource", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([activeCourseStateId, signalType])
+  @@map("workload_signals")
 }
 
 model CandidateCourseSelection {

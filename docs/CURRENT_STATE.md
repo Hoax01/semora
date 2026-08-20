@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 5 — Course Outline Extraction (in progress)
-**Next Build Objective:** Phase 5.9 — Canonical Persistence after Verification
+**Next Build Objective:** Phase 5.10 — Extraction Benchmark
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -13,9 +13,9 @@ comparison, recommendation tags, and bounded what-if exploration are
 implemented and regression-covered. Phase 4 lock, Add/Drop, and
 active-semester UI requirements are now implemented. The deterministic Phase 5
 document-normalization foundation, private outline upload/storage, extraction
-job state, a free local deterministic provider, deterministic validation, and
-the mandatory review/verification flow are now implemented; canonical
-persistence and benchmark coverage remain incomplete.
+job state, a free local deterministic provider, deterministic validation, the
+mandatory review/verification flow, and canonical persistence are now
+implemented; benchmark coverage remains incomplete.
 
 ---
 
@@ -227,8 +227,13 @@ persistence and benchmark coverage remain incomplete.
 - The protected review API allows an owner to edit and save a schema-valid
   draft, resolve review conflicts, confirm it as `VERIFIED` or
   `VERIFIED_WITH_GAPS`, or reject it. Verification records capture the user,
-  time, and outcome. The web active-semester course cards provide outline
-  upload, processing, and a two-column evidence-backed review workspace.
+  time, and outcome. Successful verification transactionally replaces the
+  active course state's canonical `GradingScheme`, `GradeCategory`,
+  `GradeThreshold`, `Assessment`, and structural `WorkloadSignal` records,
+  preserving verified-outline provenance and updating state completeness and
+  confidence. Engines consume those typed records rather than draft JSON. The
+  web active-semester course cards provide outline upload, processing, and a
+  two-column evidence-backed review workspace.
 - Every successful extraction intentionally enters review. The fraction that
   needs human correction is not yet a measured product percentage; it requires
   the Phase 5 benchmark against a ground-truth outline sample. Current tests
@@ -251,6 +256,7 @@ persistence and benchmark coverage remain incomplete.
   - `20260821130000_phase5_documents`
   - `20260821140000_phase5_extraction_jobs`
   - `20260821150000_phase5_extraction_verification`
+  - `20260821160000_phase5_canonical_academic_data`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -282,8 +288,8 @@ persistence and benchmark coverage remain incomplete.
   academic terms untouched.
 - Optional Docker Compose PostgreSQL remains available on host port 5433.
 - Phase 5 migrations now persist document metadata, extraction jobs, temporary
-  extraction drafts, and verification events; canonical academic structure
-  migrations remain intentionally pending.
+  extraction drafts, verification events, and verified-outline-derived
+  canonical academic structure scoped to each active course state.
 
 ---
 
@@ -367,9 +373,11 @@ Current API integration coverage verifies:
   authorized status/process access, parser failure isolation, and explicit
   failed-job state, plus successful local processing into `REVIEW_REQUIRED`
   with a draft, owner-only draft editing, verification, and the persisted
-  verification event. Provider unit coverage verifies schema-constrained
-  output, rejection of malformed confidence values, local extraction evidence,
-  and deterministic validation conflicts.
+  verification event. Canonical persistence coverage verifies typed
+  grading/assessment/workload records, verified-outline provenance, and active
+  course completeness/confidence updates. Provider unit coverage verifies
+  schema-constrained output, rejection of malformed confidence values, local
+  extraction evidence, and deterministic validation conflicts.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
@@ -386,8 +394,8 @@ Current API integration coverage verifies:
 - catalogue imports reject malformed or duplicate source records and preserve a
   selected section's stable identity across a repeated import while updating
   its meetings.
-- Prisma migration status reports all eight checked-in migrations applied and
-  the local database schema up to date after the Phase 5 extraction-job
+- Prisma migration status reports all ten checked-in migrations applied and the
+  local database schema up to date after the Phase 5 canonical academic-data
   migration.
 - Lock workflow integration coverage verifies critical-conflict rejection
   without mutation, active selection/state creation, workspace transition,
@@ -476,12 +484,12 @@ Implemented in this phase so far:
 5.5 Local Deterministic Provider (free baseline)
 5.7 Deterministic Validation foundation
 5.8 Mandatory Review UI and Verification
+5.9 Canonical Persistence after Verification
 ```
 
 Still incomplete in this phase:
 
 ```text
-5.9 Canonical Persistence after verification
 5.10 Extraction Benchmark
 ```
 
@@ -490,9 +498,9 @@ Phase 5 acceptance status:
 ```text
 IN PROGRESS — deterministic normalization, private user-owned storage,
 persisted extraction jobs, a free local course-structure draft provider,
-deterministic validation, and mandatory evidence-backed review/verification
-work for PDF, DOCX, and plain text, including a real LUMS outline smoke check.
-Canonical persistence and benchmark coverage remain.
+deterministic validation, mandatory evidence-backed review/verification, and
+transactional canonical persistence for PDF, DOCX, and plain text, including a
+real LUMS outline smoke check. The extraction benchmark remains.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -620,8 +628,9 @@ no external AI adapter is configured or needed for the baseline workflow.
 
 The review-rate percentage is not yet known. `REVIEW_REQUIRED` is a deliberate
 state for every successful extraction, not a measure of extraction failure;
-the benchmark must separately measure correction rate and blocking-conflict
-rate across representative outlines.
+canonical persistence now occurs only after confirmation, while the benchmark
+must separately measure correction rate and blocking-conflict rate across
+representative outlines.
 
 The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
 DOCX page references are therefore unavailable, and complex layout semantics
@@ -683,6 +692,7 @@ apps/api/src/documents.test.ts
 apps/api/src/extraction-jobs.ts
 apps/web/src/features/extraction-review.tsx
 prisma/migrations/20260821150000_phase5_extraction_verification/
+prisma/migrations/20260821160000_phase5_canonical_academic_data/
 prisma/migrations/20260821130000_phase5_documents/
 prisma/migrations/20260821140000_phase5_extraction_jobs/
 ```
@@ -700,8 +710,8 @@ and the basic active-semester UI are now complete. Phase 5 Course Outline
 Extraction is in progress. Document metadata, private local development
 storage, and the authenticated active-course upload boundary are complete. The
 extraction-job/provider boundary, the schema-constrained draft contract, a free
-local deterministic provider, deterministic validation, and mandatory review/
-verification are now in place. The next objective is canonical persistence
-from verified drafts. Course-outline-derived workload enrichment and later
-NAVIGATE intelligence remain out of scope until the documented Phase 5
-verification path exists.
+local deterministic provider, deterministic validation, mandatory review/
+verification, and canonical persistence from verified drafts are now in place.
+The next objective is the Phase 5.10 extraction benchmark. Course-outline-
+derived workload enrichment and later NAVIGATE intelligence remain out of
+scope until the documented Phase 5 verification path exists.

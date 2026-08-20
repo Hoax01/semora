@@ -165,6 +165,33 @@ describe('Phase 5 document storage', () => {
       verification: { state: 'VERIFIED' },
     });
 
+    const canonical = await prisma?.activeCourseState.findUnique({
+      where: { activeCourseSelectionId: activeSelection.id },
+      include: {
+        gradingScheme: { include: { categories: true, thresholds: true } },
+        assessments: true,
+        workloadSignals: true,
+      },
+    });
+    expect(canonical?.gradingScheme).toMatchObject({
+      gradingMode: 'ABSOLUTE',
+      sourceType: 'VERIFIED_OUTLINE',
+      sourceDocumentId: textUpload.body.document.id,
+      verified: true,
+    });
+    expect(canonical?.gradingScheme?.categories.map((category) => category.name)).toContain(
+      'Coursework',
+    );
+    expect(canonical?.assessments.length).toBeGreaterThan(0);
+    expect(
+      canonical?.assessments.every((assessment) => assessment.sourceType === 'VERIFIED_OUTLINE'),
+    ).toBe(true);
+    expect(
+      canonical?.workloadSignals.some((signal) => signal.signalType === 'ASSESSMENT_COUNT'),
+    ).toBe(true);
+    expect(Number(canonical?.dataConfidence)).toBeGreaterThan(0);
+    expect(Number(canonical?.dataCompleteness)).toBeGreaterThan(0);
+
     const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
       name: 'Document Intruder',
       email: intruderEmail,

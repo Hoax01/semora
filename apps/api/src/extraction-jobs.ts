@@ -33,6 +33,7 @@ type ExtractionJobRecord = {
     storageKey: string;
     mimeType: string;
     userId: string;
+    activeCourseState: { id: string } | null;
     courseOffering: {
       course: { courseCode: string; title: string };
     } | null;
@@ -53,7 +54,10 @@ type ExtractionJobRecord = {
 
 const extractionJobInclude = {
   document: {
-    include: { courseOffering: { include: { course: true } } },
+    include: {
+      activeCourseState: true,
+      courseOffering: { include: { course: true } },
+    },
   },
   draft: true,
   verification: true,
@@ -138,6 +142,175 @@ async function saveReviewedDraft(job: ExtractionJobRecord, extraction: CourseDoc
     });
   });
   return { job: saved as unknown as ExtractionJobRecord, validation: validated };
+}
+
+function normalizedLabel(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function categoryForAssessment(
+  assessment: CourseDocumentExtraction['assessments'][number],
+  categories: CourseDocumentExtraction['gradingScheme']['categories'],
+) {
+  if (categories.length === 1) return categories[0];
+  const title = normalizedLabel(assessment.title);
+  const type = normalizedLabel(assessment.type);
+  return categories.find((category) => {
+    const label = normalizedLabel(category.name);
+    return (
+      title.includes(label) ||
+      label.includes(type) ||
+      (assessment.type === 'ASSIGNMENT' && /assignment|coursework|homework|lab/.test(label)) ||
+      (assessment.type === 'QUIZ' && label.includes('quiz')) ||
+      (assessment.type === 'PROJECT' && label.includes('project')) ||
+      (assessment.type === 'PRESENTATION' && label.includes('presentation')) ||
+      (assessment.type === 'MIDTERM' && /midterm|mid term/.test(label)) ||
+      (assessment.type === 'FINAL' && /final|exam/.test(label)) ||
+      (assessment.type === 'PARTICIPATION' && label.includes('participation'))
+    );
+  });
+}
+
+async function persistCanonicalAcademicData(
+  job: ExtractionJobRecord,
+  userId: string,
+  extraction: CourseDocumentExtraction,
+  verificationState: 'VERIFIED' | 'VERIFIED_WITH_GAPS',
+) {
+  if (!prisma || !job.document.activeCourseState) return null;
+
+  const activeCourseStateId = job.document.activeCourseState.id;
+  const sourceDocumentId = job.document.id;
+  const categoryWeights = extraction.gradingScheme.categories.map(
+    (category) => category.weightPercentage,
+  );
+  const totalExpectedWeight = categoryWeights.every((weight) => weight !== null)
+    ? categoryWeights.reduce((total, weight) => total + (weight ?? 0), 0)
+    : null;
+  const completenessFields = [
+    Boolean(extraction.courseIdentity.courseCode),
+    Boolean(extraction.courseIdentity.title),
+    extraction.gradingScheme.categories.length > 0,
+    extraction.assessments.length > 0,
+    extraction.gradingScheme.gradingMode !== 'UNKNOWN',
+  ];
+  const dataCompleteness = completenessFields.filter(Boolean).length / completenessFields.length;
+
+  return prisma.$transaction(async (transaction) => {
+    await transaction.assessment.deleteMany({ where: { activeCourseStateId } });
+    await transaction.workloadSignal.deleteMany({ where: { activeCourseStateId } });
+    await transaction.gradingScheme.deleteMany({ where: { activeCourseStateId } });
+
+    const gradingScheme = await transaction.gradingScheme.create({
+      data: {
+        activeCourseStateId,
+        gradingMode: extraction.gradingScheme.gradingMode,
+        totalExpectedWeight,
+        sourceType: 'VERIFIED_OUTLINE',
+        sourceDocumentId,
+        verified: true,
+      },
+    });
+
+    const categoryIds = new Map<string, string>();
+    for (const [displayOrder, category] of extraction.gradingScheme.categories.entries()) {
+      const savedCategory = await transaction.gradeCategory.create({
+        data: {
+          gradingSchemeId: gradingScheme.id,
+          name: category.name,
+          weightPercentage: category.weightPercentage,
+          aggregationRule: 'EXPLICIT_WEIGHTS',
+          displayOrder,
+        },
+      });
+      categoryIds.set(normalizedLabel(category.name), savedCategory.id);
+    }
+
+    if (extraction.gradingScheme.thresholds.length > 0) {
+      await transaction.gradeThreshold.createMany({
+        data: extraction.gradingScheme.thresholds.map((threshold) => ({
+          gradingSchemeId: gradingScheme.id,
+          letterGrade: threshold.label,
+          minimumPercentage: threshold.minimumPercentage,
+          inclusive: true,
+          sourceType: 'VERIFIED_OUTLINE' as const,
+          sourceDocumentId,
+        })),
+      });
+    }
+
+    if (extraction.assessments.length > 0) {
+      await transaction.assessment.createMany({
+        data: extraction.assessments.map((assessment) => {
+          const category = categoryForAssessment(assessment, extraction.gradingScheme.categories);
+          return {
+            activeCourseStateId,
+            gradeCategoryId: category
+              ? (categoryIds.get(normalizedLabel(category.name)) ?? null)
+              : null,
+            title: assessment.title,
+            assessmentType: assessment.type,
+            weightPercentage: assessment.weightPercentage,
+            dueAt: assessment.dueDate ? new Date(`${assessment.dueDate}T00:00:00.000Z`) : null,
+            datePrecision: assessment.dueDate ? ('EXACT' as const) : ('UNKNOWN' as const),
+            sourceType: 'VERIFIED_OUTLINE' as const,
+            sourceDocumentId,
+          };
+        }),
+      });
+    }
+
+    const typeCounts = new Map<string, number>();
+    for (const assessment of extraction.assessments) {
+      typeCounts.set(assessment.type, (typeCounts.get(assessment.type) ?? 0) + 1);
+    }
+    const workloadSignals = [
+      { signalType: 'ASSESSMENT_COUNT', value: extraction.assessments.length },
+      ...Array.from(typeCounts, ([type, count]) => ({
+        signalType: `ASSESSMENT_TYPE_${type}_COUNT`,
+        value: count,
+      })),
+    ];
+    await transaction.workloadSignal.createMany({
+      data: workloadSignals.map((signal) => ({
+        activeCourseStateId,
+        signalType: signal.signalType,
+        value: signal.value,
+        confidence: extraction.overallConfidence,
+        sourceDocumentId,
+        sourceType: 'VERIFIED_OUTLINE' as const,
+      })),
+    });
+
+    await transaction.activeCourseState.update({
+      where: { id: activeCourseStateId },
+      data: {
+        dataCompleteness,
+        dataConfidence: extraction.overallConfidence,
+      },
+    });
+    await transaction.extractionVerification.upsert({
+      where: { extractionJobId: job.id },
+      create: {
+        extractionJobId: job.id,
+        verifiedByUserId: userId,
+        verificationState,
+      },
+      update: {
+        verifiedByUserId: userId,
+        verifiedAt: new Date(),
+        verificationState,
+      },
+    });
+    return transaction.extractionJob.update({
+      where: { id: job.id },
+      data: { status: 'VERIFIED', failureReason: null, completedAt: new Date() },
+      include: extractionJobInclude,
+    });
+  });
 }
 
 async function ownedJob(jobId: string, userId: string) {
@@ -309,6 +482,10 @@ export function registerExtractionJobRoutes(app: express.Application) {
       response.status(409).json({ error: 'EXTRACTION_REVIEW_NOT_AVAILABLE' });
       return;
     }
+    if (!job.document.activeCourseState) {
+      response.status(409).json({ error: 'ACTIVE_COURSE_STATE_NOT_FOUND' });
+      return;
+    }
     const parsed = parseReviewPayload(request.body?.payload);
     if ('error' in parsed) {
       response.status(400).json(parsed);
@@ -327,26 +504,16 @@ export function registerExtractionJobRoutes(app: express.Application) {
     const verificationState = saved.validation.extraction.warnings.length
       ? 'VERIFIED_WITH_GAPS'
       : 'VERIFIED';
-    const verified = await prisma.$transaction(async (transaction) => {
-      await transaction.extractionVerification.upsert({
-        where: { extractionJobId: job.id },
-        create: {
-          extractionJobId: job.id,
-          verifiedByUserId: userId,
-          verificationState,
-        },
-        update: {
-          verifiedByUserId: userId,
-          verifiedAt: new Date(),
-          verificationState,
-        },
-      });
-      return transaction.extractionJob.update({
-        where: { id: job.id },
-        data: { status: 'VERIFIED', failureReason: null, completedAt: new Date() },
-        include: extractionJobInclude,
-      });
-    });
+    const verified = await persistCanonicalAcademicData(
+      job,
+      userId,
+      saved.validation.extraction,
+      verificationState,
+    );
+    if (!verified) {
+      response.status(409).json({ error: 'ACTIVE_COURSE_STATE_NOT_FOUND' });
+      return;
+    }
     response
       .status(200)
       .json({ extractionJob: serializeExtractionJob(verified as unknown as ExtractionJobRecord) });
