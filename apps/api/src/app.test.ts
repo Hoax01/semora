@@ -495,6 +495,17 @@ describe('Phase 2 planning foundation', () => {
       type: 'COURSE_HARD_COMMITMENT',
       second: { kind: 'COMMITMENT', label: 'TAship' },
     });
+    const blockedLock = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/lock`)
+      .set('Cookie', ownerCookie);
+    expect(blockedLock.status).toBe(409);
+    expect(blockedLock.body.error).toBe('CANDIDATE_HAS_CRITICAL_CONFLICTS');
+    expect(
+      await prisma?.semesterWorkspace.findUnique({ where: { id: workspaceId } }),
+    ).toMatchObject({
+      state: 'PLANNING',
+      lockedCandidateSemesterId: null,
+    });
     const workspaceWithCommitment = await request(app)
       .get(`/api/workspaces/${workspaceId}`)
       .set('Cookie', ownerCookie);
@@ -531,6 +542,36 @@ describe('Phase 2 planning foundation', () => {
       .delete(`/api/commitments/${hardCommitment.body.commitment.id}`)
       .set('Cookie', ownerCookie);
     expect(deletedCommitment.status).toBe(200);
+
+    const locked = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/lock`)
+      .set('Cookie', ownerCookie);
+    expect(locked.status).toBe(200);
+    expect(locked.body).toMatchObject({
+      alreadyLocked: false,
+      workspace: {
+        state: 'ACTIVE',
+        lockedCandidateSemesterId: optionA.body.candidate.id,
+        activeCourseSelections: [
+          {
+            courseCode: expect.any(String),
+            status: 'ACTIVE',
+            state: { dataCompleteness: 0, dataConfidence: 0 },
+          },
+        ],
+      },
+    });
+    expect(await prisma?.activeCourseSelection.count({ where: { workspaceId } })).toBe(1);
+    expect(
+      await prisma?.activeCourseState.count({ where: { activeCourseSelection: { workspaceId } } }),
+    ).toBe(1);
+
+    const repeatedLock = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/lock`)
+      .set('Cookie', ownerCookie);
+    expect(repeatedLock.status).toBe(200);
+    expect(repeatedLock.body.alreadyLocked).toBe(true);
+    expect(await prisma?.activeCourseSelection.count({ where: { workspaceId } })).toBe(1);
 
     const duplicated = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
@@ -599,6 +640,11 @@ describe('Phase 2 planning foundation', () => {
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
       .set('Cookie', intruderCookie);
     expect(foreignValidation.status).toBe(404);
+
+    const foreignLock = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/lock`)
+      .set('Cookie', intruderCookie);
+    expect(foreignLock.status).toBe(404);
 
     const foreignAnalysis = await request(app)
       .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)

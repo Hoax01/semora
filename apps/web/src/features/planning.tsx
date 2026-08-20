@@ -193,6 +193,17 @@ type Selection = {
   meetings: Meeting[];
 };
 
+type ActiveCourseSelection = Selection & {
+  status: 'ACTIVE' | 'DROPPED';
+  addedAt: string;
+  droppedAt: string | null;
+  state: {
+    id: string;
+    dataCompleteness: number;
+    dataConfidence: number;
+  } | null;
+};
+
 type Meeting = {
   day: string;
   startTime: string;
@@ -221,6 +232,8 @@ type CatalogueCourse = {
 type Workspace = {
   id: string;
   state: string;
+  lockedCandidateSemesterId: string | null;
+  lockedAt: string | null;
   term: {
     id: string;
     name: string;
@@ -238,6 +251,7 @@ type Workspace = {
   }>;
   commitments: Commitment[];
   candidates: Candidate[];
+  activeCourseSelections: ActiveCourseSelection[];
 };
 
 type CoursePreference = {
@@ -563,6 +577,18 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     if (body?.error === 'SECTION_MUST_MATCH_COURSE') {
       throw new Error('Choose another section of the same course when switching sections.');
     }
+    if (body?.error === 'CANDIDATE_HAS_CRITICAL_CONFLICTS') {
+      throw new Error('Resolve the critical timetable conflicts before locking this semester.');
+    }
+    if (body?.error === 'CANDIDATE_EMPTY') {
+      throw new Error('Add at least one course before locking this semester.');
+    }
+    if (body?.error === 'WORKSPACE_ALREADY_ACTIVE') {
+      throw new Error('This semester is already active.');
+    }
+    if (body?.error === 'CANDIDATE_ARCHIVED') {
+      throw new Error('Archived candidates cannot be locked.');
+    }
     throw new Error('Semora could not save this change. Please try again.');
   }
   return response.json() as Promise<T>;
@@ -707,6 +733,9 @@ export function PlanningPage() {
 
   const selectedCandidate = workspace?.candidates.find(
     (candidate) => candidate.id === selectedCandidateId,
+  );
+  const lockedCandidate = workspace?.candidates.find(
+    (candidate) => candidate.id === workspace?.lockedCandidateSemesterId,
   );
 
   useEffect(() => {
@@ -881,6 +910,13 @@ export function PlanningPage() {
         method: 'PATCH',
         body: JSON.stringify({ name: editedName.trim() }),
       }),
+    );
+  }
+
+  function lockCandidate() {
+    if (!selectedCandidate || workspace?.state !== 'PLANNING') return;
+    void runMutation('lock', () =>
+      apiRequest(`/api/candidates/${selectedCandidate.id}/lock`, { method: 'POST' }),
     );
   }
 
@@ -1111,6 +1147,12 @@ export function PlanningPage() {
   const conflictIds = new Set(
     candidateValidation?.clashes.flatMap((clash) => [clash.first.id, clash.second.id]) ?? [],
   );
+  const canLock = Boolean(
+    workspace?.state === 'PLANNING' &&
+    selectedCandidate?.selectionCount &&
+    candidateValidation?.candidateId === selectedCandidate?.id &&
+    candidateValidation.valid,
+  );
   const scheduleEntries: ScheduleEntry[] = [
     ...(selectedCandidate?.selections.flatMap((selection) =>
       selection.meetings.map((meeting, index) => ({
@@ -1193,6 +1235,47 @@ export function PlanningPage() {
               </button>
             </form>
           </section>
+
+          {workspace.state === 'ACTIVE' ? (
+            <section className="lock-panel locked" aria-labelledby="active-semester-title">
+              <div>
+                <p className="eyebrow">SEMESTER ACTIVE</p>
+                <h2 id="active-semester-title">
+                  {lockedCandidate?.name ?? 'Your selected semester'} is now active.
+                </h2>
+                <p>
+                  Planning options remain available. Add/Drop changes will be supported from the
+                  active-semester workflow.
+                </p>
+              </div>
+              <span className="lock-status-label">Locked</span>
+            </section>
+          ) : selectedCandidate ? (
+            <section className="lock-panel" aria-labelledby="lock-semester-title">
+              <div>
+                <p className="eyebrow">READY TO LOCK?</p>
+                <h2 id="lock-semester-title">
+                  Make {selectedCandidate.name} your active semester.
+                </h2>
+                <p>
+                  Semora will copy these selected sections into your active semester. Your planning
+                  options stay available, and Add/Drop changes can be made later.
+                </p>
+                {!selectedCandidate.selectionCount ? (
+                  <p className="lock-help">Add at least one course before locking.</p>
+                ) : candidateValidation && !candidateValidation.valid ? (
+                  <p className="lock-help">Resolve the critical timetable conflicts above first.</p>
+                ) : null}
+              </div>
+              <button
+                disabled={!canLock || Boolean(busyAction)}
+                onClick={lockCandidate}
+                type="button"
+              >
+                {busyAction === 'lock' ? 'Locking semester…' : 'Lock Semester'}
+              </button>
+            </section>
+          ) : null}
 
           {candidateComparison && candidateComparison.candidates.length > 1 ? (
             <section className="comparison-panel" aria-labelledby="comparison-title">

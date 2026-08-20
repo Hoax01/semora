@@ -410,6 +410,59 @@ h1 {
   font-size: 0.9rem;
 }
 
+.lock-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #9a8fff66;
+  border-radius: 0.9rem;
+  background: #5f54c70f;
+}
+
+.lock-panel h2,
+.lock-panel p {
+  margin: 0;
+}
+
+.lock-panel h2 {
+  margin-top: 0.3rem;
+  font-size: 1.15rem;
+}
+
+.lock-panel p:not(.eyebrow) {
+  max-width: 48rem;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.lock-panel button {
+  flex-shrink: 0;
+}
+
+.lock-panel.locked {
+  border-color: #63d39a66;
+  background: #28785e12;
+}
+
+.lock-status-label {
+  flex-shrink: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #63d39a66;
+  border-radius: 999px;
+  color: #b6f0da;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.lock-help {
+  color: #ffe4ad !important;
+}
+
 .intelligence-panel {
   margin-top: 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
@@ -1865,6 +1918,11 @@ h1 {
 
   .candidate-strip {
     display: flex;
+  }
+
+  .lock-panel {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .new-candidate-form input {

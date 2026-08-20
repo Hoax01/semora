@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 4 — Lock Semester (in progress)
-**Next Build Objective:** Phase 4.2 — Lock Workflow
+**Next Build Objective:** Phase 4.3 — Add/Drop Support
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -151,6 +151,15 @@ implemented and regression-covered.
 - Ownership-checked preferences update API validates normalized 0–1 values and
   upserts the typed `SemesterPreferences` record, so a legacy workspace missing
   its preference row is repaired with defaults during the update.
+- Ownership-checked `POST /api/candidates/:candidateId/lock` validates that the
+  candidate is non-empty and has no critical timetable conflicts, then
+  transactionally copies its sections into active selections, creates empty
+  active course states, marks the workspace ACTIVE, and records the locked
+  candidate. Repeated locks of the same candidate are idempotent; other lock
+  attempts on an active workspace are rejected.
+- The planner exposes a deliberate Lock Semester panel, active-state summary,
+  and error guidance for empty or conflicting candidates. Add/Drop controls and
+  the dedicated active-semester dashboard remain out of scope for this step.
 
 ### Database
 
@@ -200,7 +209,7 @@ implemented and regression-covered.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 4.1 schema change:
+The following quality suite passes after the Phase 4.2 lock workflow change:
 
 ```text
 npm run typecheck
@@ -276,6 +285,9 @@ Current API integration coverage verifies:
   its meetings.
 - Prisma migration status reports the six checked-in migrations applied and the
   local database schema up to date after the Phase 4.1 migration.
+- Lock workflow integration coverage verifies critical-conflict rejection
+  without mutation, active selection/state creation, workspace transition,
+  repeated-lock idempotency, and cross-user rejection.
 
 ### Phase 2 implementation status
 
@@ -316,12 +328,6 @@ Implemented in this phase so far:
 3.11 Scenario Exploration
 ```
 
-Not yet implemented:
-
-```text
-4.2 Lock Workflow
-```
-
 Phase 3 acceptance status:
 
 ```text
@@ -337,12 +343,12 @@ Implemented in this phase so far:
 
 ```text
 4.1 Active Semester Schema
+4.2 Lock Workflow
 ```
 
 Not yet implemented:
 
 ```text
-4.2 Lock Workflow
 4.3 Add/Drop Support
 4.4 Active Semester UI
 ```
@@ -350,8 +356,9 @@ Not yet implemented:
 Phase 4 acceptance status:
 
 ```text
-IN PROGRESS — the active-semester persistence boundary exists, but candidate
-locking and active-semester operation are not yet exposed through the API or UI.
+IN PROGRESS — candidates can now be locked transactionally and the planner
+shows the active state, while Add/Drop operation and the dedicated active-
+semester UI remain incomplete.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -518,6 +525,6 @@ Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
 is complete through schedule analysis, preliminary profiles,
 course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
-Phase 4.1 active-semester schema is now complete. The next objective is the
-transactional Phase 4.2 lock workflow; Add/Drop and active-semester UI remain
-after that objective.
+Phase 4.1 active-semester schema and the transactional Phase 4.2 lock workflow
+are now complete. The next objective is Phase 4.3 Add/Drop support; the
+dedicated active-semester UI remains after that objective.
