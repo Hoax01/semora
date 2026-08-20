@@ -167,6 +167,7 @@ describe('calculateScheduleMetrics', () => {
       classMinutes: 180,
       campusSpanMinutes: 210,
       idleGapMinutes: 30,
+      idleGapPenaltyMinutes: 10,
       blockCount: 2,
       earliestStartTime: '08:30',
       latestEndTime: '12:00',
@@ -179,9 +180,10 @@ describe('calculateScheduleMetrics', () => {
       blockCount: 1,
     });
     expect(result.scheduledDays).toEqual(['MONDAY', 'WEDNESDAY']);
-    expect(result.freeDays).toEqual(['TUESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']);
+    expect(result.freeDays).toEqual(['TUESDAY', 'THURSDAY', 'FRIDAY']);
     expect(result.totalClassMinutes).toBe(240);
     expect(result.totalIdleGapMinutes).toBe(30);
+    expect(result.totalIdleGapPenaltyMinutes).toBe(10);
     expect(result.longestDay).toBe('MONDAY');
   });
 
@@ -217,6 +219,17 @@ describe('calculateScheduleMetrics', () => {
       ]),
     ).toThrow('Timetable meetings must end after they start.');
   });
+
+  it('counts free days only across the planning week', () => {
+    const result = calculateScheduleMetrics([
+      scheduleCourse({
+        meetings: [{ dayOfWeek: 'SATURDAY', startTime: '10:00', endTime: '11:00' }],
+      }),
+    ]);
+
+    expect(result.scheduledDays).toEqual(['SATURDAY']);
+    expect(result.freeDays).toEqual(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
+  });
 });
 
 describe('analyzeCandidateSchedule', () => {
@@ -240,6 +253,7 @@ describe('analyzeCandidateSchedule', () => {
     expect(result).toMatchObject({
       candidateId: 'candidate-1',
       engineVersion: '0.1',
+      totalCredits: 6,
       validity: { valid: false },
       schedule: { scheduledDays: ['TUESDAY'] },
     });
@@ -249,6 +263,71 @@ describe('analyzeCandidateSchedule', () => {
         expect.objectContaining({ type: 'TIMETABLE_CLASH', severity: 'CRITICAL' }),
       ]),
     );
+  });
+
+  it('enforces the candidate constraints that can be evaluated from Phase 3 inputs', () => {
+    const result = analyzeCandidateSchedule({
+      courses: [
+        scheduleCourse({
+          id: 'course-1',
+          courseOfferingId: 'offering-1',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '08:00', endTime: '19:00' }],
+        }),
+        scheduleCourse({
+          id: 'course-2',
+          courseOfferingId: 'offering-1',
+          meetings: [{ dayOfWeek: 'TUESDAY', startTime: '10:00', endTime: '11:00' }],
+        }),
+      ],
+      commitments: [],
+      constraints: {
+        minimumCredits: 7,
+        requiredFreeDays: ['MONDAY'],
+        earliestClassTime: '09:00',
+        latestClassTime: '18:00',
+      },
+    });
+
+    expect(result.validity.valid).toBe(false);
+    expect(result.validity.constraintViolations.map((violation) => violation.type)).toEqual(
+      expect.arrayContaining([
+        'DUPLICATE_COURSE',
+        'MINIMUM_CREDITS',
+        'REQUIRED_FREE_DAY',
+        'EARLIEST_CLASS_TIME',
+        'LATEST_CLASS_TIME',
+      ]),
+    );
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'CONSTRAINT_VIOLATION', severity: 'CRITICAL' }),
+      ]),
+    );
+
+    const aboveMaximum = analyzeCandidateSchedule({
+      courses: result.workloadProfiles.map((profile, index) =>
+        scheduleCourse({
+          id: profile.courseId,
+          courseOfferingId: `distinct-${index}`,
+          meetings: [],
+        }),
+      ),
+      commitments: [],
+      constraints: { maximumCredits: 5 },
+    });
+    expect(aboveMaximum.validity.constraintViolations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'MAXIMUM_CREDITS' })]),
+    );
+  });
+
+  it('rejects hard-course constraints until course hardness exists in the input model', () => {
+    expect(() =>
+      analyzeCandidateSchedule({
+        courses: [scheduleCourse({})],
+        commitments: [],
+        constraints: { maximumHardCourses: 2 },
+      }),
+    ).toThrow('Maximum hard-course constraints require course hardness data');
   });
 });
 
@@ -454,6 +533,45 @@ describe('candidate metrics', () => {
       expect.arrayContaining([expect.objectContaining({ type: 'LOW_DATA_COMPLETENESS' })]),
     );
   });
+
+  it('penalizes overlapping soft commitments but ignores flexible overlaps', () => {
+    const candidate = {
+      courses: [
+        scheduleCourse({
+          meetings: [{ dayOfWeek: 'MONDAY' as const, startTime: '10:00', endTime: '12:00' }],
+        }),
+      ],
+      commitments: [
+        {
+          id: 'work-1',
+          name: 'Work',
+          weeklyEffortHours: 0,
+          flexibility: 'SOFT' as const,
+          meetings: [{ dayOfWeek: 'MONDAY' as const, startTime: '11:00', endTime: '12:00' }],
+        },
+      ],
+    };
+    const soft = analyzeCandidateSchedule(candidate);
+    const flexible = analyzeCandidateSchedule({
+      ...candidate,
+      commitments: candidate.commitments.map((commitment) => ({
+        ...commitment,
+        flexibility: 'FLEXIBLE' as const,
+      })),
+    });
+
+    expect(soft.metrics.commitmentCompatibility).toBe(8.75);
+    expect(flexible.metrics.commitmentCompatibility).toBe(9.75);
+    expect(soft.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'SOFT_COMMITMENT_PRESSURE',
+          totalMinutes: 60,
+          relatedCommitmentIds: ['work-1'],
+        }),
+      ]),
+    );
+  });
 });
 
 describe('structured candidate findings', () => {
@@ -637,8 +755,171 @@ describe('candidate comparison and scenarios', () => {
     const scenario = analyzeCandidateScenario(base, { courses: [base.courses[0]] });
 
     expect(base.courses).toHaveLength(2);
-    expect(scenario.validity).toEqual({ valid: true, clashes: [] });
+    expect(scenario.validity).toEqual({ valid: true, clashes: [], constraintViolations: [] });
+    expect(scenario.totalCredits).toBe(3);
     expect(scenario.schedule.totalClassMinutes).toBe(60);
+  });
+
+  it('keeps negligible differences neutral and excludes invalid candidates from tags', () => {
+    const valid = analyzeCandidateSchedule({
+      candidateId: 'valid',
+      courses: [
+        scheduleCourse({
+          id: 'valid-course',
+          workloadProfile: { overallIntensity: 5 },
+        }),
+      ],
+      commitments: [],
+    });
+    const nearlySame = analyzeCandidateSchedule({
+      candidateId: 'near',
+      courses: [
+        scheduleCourse({
+          id: 'near-course',
+          workloadProfile: { overallIntensity: 5.4 },
+        }),
+      ],
+      commitments: [],
+    });
+    const invalid = analyzeCandidateSchedule({
+      candidateId: 'invalid',
+      courses: [
+        scheduleCourse({
+          id: 'duplicate-1',
+          courseOfferingId: 'duplicate',
+          workloadProfile: { overallIntensity: 5.2 },
+        }),
+        scheduleCourse({
+          id: 'duplicate-2',
+          courseOfferingId: 'duplicate',
+          workloadProfile: { overallIntensity: 5.2 },
+        }),
+      ],
+      commitments: [],
+    });
+    const comparison = calculateCandidateComparison([
+      { candidateId: 'valid', name: 'Valid', analysis: valid },
+      { candidateId: 'near', name: 'Near', analysis: nearlySame },
+      { candidateId: 'invalid', name: 'Invalid', analysis: invalid },
+    ]);
+
+    const intensity = comparison.metricDifferences.find(
+      (difference) => difference.metric === 'academicIntensity',
+    );
+    expect(intensity).toMatchObject({ meaningful: false });
+    expect(comparison.tradeoffs.some((tradeoff) => tradeoff.metric === 'academicIntensity')).toBe(
+      false,
+    );
+    expect(
+      comparison.candidates.find((candidate) => candidate.candidateId === 'invalid')
+        ?.recommendationTags,
+    ).toEqual([]);
+  });
+
+  it('uses preference direction and compares the true best and worst candidates', () => {
+    const makeAnalysis = (
+      candidateId: string,
+      overallIntensity: number,
+      projectIntensity: number,
+    ) =>
+      analyzeCandidateSchedule({
+        candidateId,
+        courses: [
+          scheduleCourse({
+            id: `${candidateId}-course`,
+            workloadProfile: { overallIntensity, projectIntensity },
+          }),
+        ],
+        commitments: [],
+      });
+    const low = makeAnalysis('low', 3, 2);
+    const middle = makeAnalysis('middle', 6, 5);
+    const high = makeAnalysis('high', 9, 8);
+    const comparison = calculateCandidateComparison([
+      {
+        candidateId: 'middle',
+        name: 'Middle',
+        analysis: middle,
+        preferences: { projectPreference: 0 },
+      },
+      {
+        candidateId: 'high',
+        name: 'High',
+        analysis: high,
+        preferences: { projectPreference: 0 },
+      },
+      {
+        candidateId: 'low',
+        name: 'Low',
+        analysis: low,
+        preferences: { projectPreference: 0 },
+      },
+    ]);
+
+    expect(
+      comparison.candidates.find((candidate) => candidate.candidateId === 'low')
+        ?.recommendationTags,
+    ).toContain('BEST_MATCH_FOR_PREFERENCES');
+    expect(comparison.tradeoffs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'academicIntensity',
+          betterCandidateId: 'low',
+          worseCandidateId: 'high',
+        }),
+      ]),
+    );
+  });
+
+  it('changes the best preference match when the user changes priorities', () => {
+    const lowWorkload = analyzeCandidateSchedule({
+      candidateId: 'low-workload',
+      courses: [
+        scheduleCourse({
+          id: 'low-workload-course',
+          workloadProfile: { overallIntensity: 2 },
+          careerRelevanceScore: 0.2,
+        }),
+      ],
+      commitments: [],
+    });
+    const careerHeavy = analyzeCandidateSchedule({
+      candidateId: 'career-heavy',
+      courses: [
+        scheduleCourse({
+          id: 'career-heavy-course',
+          workloadProfile: { overallIntensity: 8 },
+          careerRelevanceScore: 1,
+        }),
+      ],
+      commitments: [],
+    });
+    const compareWith = (preferences: { workloadPriority?: number; careerPriority?: number }) =>
+      calculateCandidateComparison([
+        {
+          candidateId: 'low-workload',
+          name: 'Low workload',
+          analysis: lowWorkload,
+          preferences,
+        },
+        {
+          candidateId: 'career-heavy',
+          name: 'Career heavy',
+          analysis: careerHeavy,
+          preferences,
+        },
+      ]);
+
+    const workloadFirst = compareWith({ workloadPriority: 1 });
+    const careerFirst = compareWith({ careerPriority: 1 });
+    expect(
+      workloadFirst.candidates.find((candidate) => candidate.candidateId === 'low-workload')
+        ?.recommendationTags,
+    ).toContain('BEST_MATCH_FOR_PREFERENCES');
+    expect(
+      careerFirst.candidates.find((candidate) => candidate.candidateId === 'career-heavy')
+        ?.recommendationTags,
+    ).toContain('BEST_MATCH_FOR_PREFERENCES');
   });
 });
 

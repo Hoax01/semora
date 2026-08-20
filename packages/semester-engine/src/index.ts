@@ -8,6 +8,8 @@ export const MEETING_DAYS = [
   'SUNDAY',
 ] as const;
 
+export const PLANNING_WEEKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
+
 export type MeetingDay = (typeof MEETING_DAYS)[number];
 export type CommitmentFlexibility = 'HARD' | 'SOFT' | 'FLEXIBLE';
 
@@ -138,6 +140,7 @@ export type ScheduleDayMetrics = {
   classMinutes: number;
   campusSpanMinutes: number;
   idleGapMinutes: number;
+  idleGapPenaltyMinutes: number;
   blockCount: number;
   earliestStartTime: string | null;
   latestEndTime: string | null;
@@ -151,6 +154,7 @@ export type ScheduleMetrics = {
   days: Record<MeetingDay, ScheduleDayMetrics>;
   totalClassMinutes: number;
   totalIdleGapMinutes: number;
+  totalIdleGapPenaltyMinutes: number;
   scheduledDays: MeetingDay[];
   freeDays: MeetingDay[];
   longestDay: MeetingDay | null;
@@ -218,6 +222,7 @@ export type CandidateMetricsConfig = {
   scheduleFreeDayBonus: number;
   scheduleFragmentationPenalty: number;
   commitmentFixedHourPenalty: number;
+  commitmentSoftOverlapPenaltyPerHour: number;
 };
 
 export const DEFAULT_CANDIDATE_METRICS_CONFIG: CandidateMetricsConfig = {
@@ -229,6 +234,7 @@ export const DEFAULT_CANDIDATE_METRICS_CONFIG: CandidateMetricsConfig = {
   scheduleFreeDayBonus: 0.5,
   scheduleFragmentationPenalty: 0.15,
   commitmentFixedHourPenalty: 0.25,
+  commitmentSoftOverlapPenaltyPerHour: 1,
 };
 
 export type CandidateFindingConfig = {
@@ -259,7 +265,8 @@ export type ResolvedCourseWorkloadProfile = {
 export type CandidateScheduleAnalysis = {
   candidateId: string | null;
   engineVersion: '0.1';
-  validity: TimetableAnalysis;
+  totalCredits: number;
+  validity: CandidateValidity;
   schedule: ScheduleMetrics;
   workloadProfiles: ResolvedCourseWorkloadProfile[];
   coursePreferenceFit: CoursePreferenceFit;
@@ -310,6 +317,8 @@ export type CandidateMetrics = {
 export type CandidateFindingType =
   | 'TIMETABLE_CLASH'
   | 'COMMITMENT_CLASH'
+  | 'SOFT_COMMITMENT_PRESSURE'
+  | 'CONSTRAINT_VIOLATION'
   | 'PROJECT_CONCENTRATION'
   | 'CONTINUOUS_ASSESSMENT_CONCENTRATION'
   | 'HIGH_EXAM_CONCENTRATION'
@@ -335,6 +344,30 @@ export type CandidateFinding = {
   fixedHours?: number;
   totalMinutes?: number;
   dataCompleteness?: number;
+  constraintType?: CandidateConstraintViolationType;
+  actualValue?: number | string;
+  expectedValue?: number | string;
+};
+
+export type CandidateConstraintViolationType =
+  | 'DUPLICATE_COURSE'
+  | 'MINIMUM_CREDITS'
+  | 'MAXIMUM_CREDITS'
+  | 'REQUIRED_FREE_DAY'
+  | 'EARLIEST_CLASS_TIME'
+  | 'LATEST_CLASS_TIME';
+
+export type CandidateConstraintViolation = {
+  type: CandidateConstraintViolationType;
+  messageKey: string;
+  relatedCourseIds: string[];
+  dayOfWeek?: MeetingDay;
+  actualValue?: number | string;
+  expectedValue?: number | string;
+};
+
+export type CandidateValidity = TimetableAnalysis & {
+  constraintViolations: CandidateConstraintViolation[];
 };
 
 export type CandidateRecommendationTag =
@@ -634,8 +667,10 @@ export function calculateScheduleMetrics(
     const blocks = mergeScheduleEvents(eventsByDay.get(day) ?? []);
     const firstBlock = blocks[0];
     const lastBlock = blocks.at(-1);
-    const idleGapMinutes = blocks.reduce(
-      (total, block, index) => (index === 0 ? total : total + block.start - blocks[index - 1]!.end),
+    const idleGaps = blocks.slice(1).map((block, index) => block.start - blocks[index]!.end);
+    const idleGapMinutes = idleGaps.reduce((total, gap) => total + gap, 0);
+    const idleGapPenaltyMinutes = idleGaps.reduce(
+      (total, gap) => total + Math.max(0, gap - config.meaningfulGapMinutes),
       0,
     );
     const classMinutes = blocks.reduce((total, block) => total + block.end - block.start, 0);
@@ -650,22 +685,14 @@ export function calculateScheduleMetrics(
         total + Math.max(0, block.end - Math.max(block.start, config.lateClassThresholdMinutes)),
       0,
     );
-    const fragmentationScore =
-      blocks.length +
-      blocks
-        .slice(1)
-        .reduce(
-          (total, block, index) =>
-            total +
-            Math.max(0, block.start - blocks[index]!.end - config.meaningfulGapMinutes) / 60,
-          0,
-        );
+    const fragmentationScore = blocks.length + idleGapPenaltyMinutes / 60;
 
     days[day] = {
       dayOfWeek: day,
       classMinutes,
       campusSpanMinutes,
       idleGapMinutes,
+      idleGapPenaltyMinutes,
       blockCount: blocks.length,
       earliestStartTime: firstBlock ? formatTime(firstBlock.start) : null,
       latestEndTime: lastBlock ? formatTime(lastBlock.end) : null,
@@ -677,7 +704,7 @@ export function calculateScheduleMetrics(
   }
 
   const scheduledDays = MEETING_DAYS.filter((day) => days[day].blockCount > 0);
-  const freeDays = MEETING_DAYS.filter((day) => days[day].blockCount === 0);
+  const freeDays = PLANNING_WEEKDAYS.filter((day) => days[day].blockCount === 0);
   const longestDay = scheduledDays.reduce<MeetingDay | null>(
     (longest, day) =>
       !longest || days[day].campusSpanMinutes > days[longest].campusSpanMinutes ? day : longest,
@@ -686,6 +713,10 @@ export function calculateScheduleMetrics(
   const totalClassMinutes = scheduledDays.reduce((total, day) => total + days[day].classMinutes, 0);
   const totalIdleGapMinutes = scheduledDays.reduce(
     (total, day) => total + days[day].idleGapMinutes,
+    0,
+  );
+  const totalIdleGapPenaltyMinutes = scheduledDays.reduce(
+    (total, day) => total + days[day].idleGapPenaltyMinutes,
     0,
   );
   const earlyClassMinutes = scheduledDays.reduce(
@@ -701,6 +732,7 @@ export function calculateScheduleMetrics(
     days,
     totalClassMinutes,
     totalIdleGapMinutes,
+    totalIdleGapPenaltyMinutes,
     scheduledDays,
     freeDays,
     longestDay,
@@ -715,6 +747,117 @@ export function calculateScheduleMetrics(
         : 0,
     ),
   };
+}
+
+export function calculateCandidateConstraintViolations(
+  input: CandidateSemesterInput,
+  schedule: ScheduleMetrics,
+  totalCredits = calculateTotalCredits(input.courses.map((course) => course.creditHours)),
+): CandidateConstraintViolation[] {
+  const violations: CandidateConstraintViolation[] = [];
+  const constraints = input.constraints;
+  const coursesByOffering = new Map<string, CandidateCourseInput[]>();
+
+  for (const course of input.courses) {
+    const matchingCourses = coursesByOffering.get(course.courseOfferingId) ?? [];
+    matchingCourses.push(course);
+    coursesByOffering.set(course.courseOfferingId, matchingCourses);
+  }
+  for (const duplicateCourses of coursesByOffering.values()) {
+    if (duplicateCourses.length < 2) continue;
+    violations.push({
+      type: 'DUPLICATE_COURSE',
+      messageKey: 'duplicate_course_offering',
+      relatedCourseIds: duplicateCourses.map((course) => course.id),
+    });
+  }
+
+  if (!constraints) return violations;
+  const minimumCredits = constraints.minimumCredits;
+  const maximumCredits = constraints.maximumCredits;
+  if (
+    (minimumCredits !== undefined && (!Number.isFinite(minimumCredits) || minimumCredits < 0)) ||
+    (maximumCredits !== undefined && (!Number.isFinite(maximumCredits) || maximumCredits < 0)) ||
+    (minimumCredits !== undefined &&
+      maximumCredits !== undefined &&
+      minimumCredits > maximumCredits)
+  ) {
+    throw new Error('Candidate credit constraints contain invalid values.');
+  }
+  if (constraints.maximumHardCourses !== undefined) {
+    throw new Error(
+      'Maximum hard-course constraints require course hardness data and cannot be evaluated.',
+    );
+  }
+
+  if (minimumCredits !== undefined && totalCredits < minimumCredits) {
+    violations.push({
+      type: 'MINIMUM_CREDITS',
+      messageKey: 'below_minimum_credits',
+      relatedCourseIds: input.courses.map((course) => course.id),
+      actualValue: totalCredits,
+      expectedValue: minimumCredits,
+    });
+  }
+  if (maximumCredits !== undefined && totalCredits > maximumCredits) {
+    violations.push({
+      type: 'MAXIMUM_CREDITS',
+      messageKey: 'above_maximum_credits',
+      relatedCourseIds: input.courses.map((course) => course.id),
+      actualValue: totalCredits,
+      expectedValue: maximumCredits,
+    });
+  }
+
+  for (const day of new Set(constraints.requiredFreeDays ?? [])) {
+    if (!MEETING_DAYS.includes(day)) throw new Error(`Invalid required free day: ${day}`);
+    if (schedule.days[day].blockCount === 0) continue;
+    violations.push({
+      type: 'REQUIRED_FREE_DAY',
+      messageKey: 'required_free_day_unavailable',
+      relatedCourseIds: input.courses
+        .filter((course) => course.meetings.some((meeting) => meeting.dayOfWeek === day))
+        .map((course) => course.id),
+      dayOfWeek: day,
+      actualValue: schedule.days[day].classMinutes,
+      expectedValue: 0,
+    });
+  }
+
+  const earliestClassMinutes =
+    constraints.earliestClassTime === undefined
+      ? undefined
+      : parseTime(constraints.earliestClassTime);
+  const latestClassMinutes =
+    constraints.latestClassTime === undefined ? undefined : parseTime(constraints.latestClassTime);
+  for (const course of input.courses) {
+    for (const meeting of course.meetings) {
+      const start = parseTime(meeting.startTime);
+      const end = parseTime(meeting.endTime);
+      if (earliestClassMinutes !== undefined && start < earliestClassMinutes) {
+        violations.push({
+          type: 'EARLIEST_CLASS_TIME',
+          messageKey: 'class_starts_before_constraint',
+          relatedCourseIds: [course.id],
+          dayOfWeek: meeting.dayOfWeek,
+          actualValue: meeting.startTime,
+          expectedValue: formatTime(earliestClassMinutes),
+        });
+      }
+      if (latestClassMinutes !== undefined && end > latestClassMinutes) {
+        violations.push({
+          type: 'LATEST_CLASS_TIME',
+          messageKey: 'class_ends_after_constraint',
+          relatedCourseIds: [course.id],
+          dayOfWeek: meeting.dayOfWeek,
+          actualValue: meeting.endTime,
+          expectedValue: formatTime(latestClassMinutes),
+        });
+      }
+    }
+  }
+
+  return violations;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -927,6 +1070,58 @@ function addPenalty(value: number | null, penalty: number) {
   return value === null ? null : roundMetric(clamp(value + penalty, 0, 10));
 }
 
+const normalizedPreferenceKeys = [
+  'workloadPriority',
+  'schedulePriority',
+  'careerPriority',
+  'interestPriority',
+  'gradeSafetyPriority',
+  'projectPreference',
+  'examPreference',
+  'continuousAssessmentPreference',
+  'freeDayPriority',
+  'earlyClassAversion',
+  'lateClassAversion',
+] as const satisfies readonly (keyof CandidatePreferencesInput)[];
+
+function validateCandidatePreferences(preferences: CandidatePreferencesInput | undefined) {
+  if (!preferences) return;
+  for (const key of normalizedPreferenceKeys) {
+    const value = preferences[key];
+    if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 1)) {
+      throw new Error(`Candidate preference ${key} must be between 0 and 1.`);
+    }
+  }
+  if (
+    preferences.maxPreferredHardCourses !== undefined &&
+    preferences.maxPreferredHardCourses !== null &&
+    (!Number.isInteger(preferences.maxPreferredHardCourses) ||
+      preferences.maxPreferredHardCourses < 0)
+  ) {
+    throw new Error('Maximum preferred hard courses must be a non-negative integer.');
+  }
+}
+
+function validateCandidateMetricsConfig(config: CandidateMetricsConfig) {
+  const nonNegativeValues = [
+    config.scheduleIdleGapPenaltyPerHour,
+    config.scheduleEarlyClassPenaltyPerHour,
+    config.scheduleLateClassPenaltyPerHour,
+    config.scheduleLongDayPenalty,
+    config.scheduleFreeDayBonus,
+    config.scheduleFragmentationPenalty,
+    config.commitmentFixedHourPenalty,
+    config.commitmentSoftOverlapPenaltyPerHour,
+  ];
+  if (
+    !Number.isFinite(config.referenceCreditHours) ||
+    config.referenceCreditHours <= 0 ||
+    nonNegativeValues.some((value) => !Number.isFinite(value) || value < 0)
+  ) {
+    throw new Error('Candidate metrics configuration contains invalid values.');
+  }
+}
+
 function calculateScheduleQuality(
   schedule: ScheduleMetrics,
   preferences: CandidatePreferencesInput | undefined,
@@ -936,7 +1131,7 @@ function calculateScheduleQuality(
   const lateClassAversion = preferences?.lateClassAversion ?? 0.5;
   const freeDayPriority = preferences?.freeDayPriority ?? 0.5;
   const penalty =
-    (schedule.totalIdleGapMinutes / 60) * config.scheduleIdleGapPenaltyPerHour +
+    (schedule.totalIdleGapPenaltyMinutes / 60) * config.scheduleIdleGapPenaltyPerHour +
     (schedule.earlyClassMinutes / 60) *
       config.scheduleEarlyClassPenaltyPerHour *
       (0.5 + earlyClassAversion) +
@@ -967,6 +1162,36 @@ function calculateFixedCommitmentHours(commitments: readonly CandidateCommitment
   );
 }
 
+function calculateSoftCommitmentOverlap(
+  courses: readonly CandidateCourseInput[],
+  commitments: readonly CandidateCommitmentInput[],
+) {
+  let totalMinutes = 0;
+  const relatedCourseIds = new Set<string>();
+  const relatedCommitmentIds = new Set<string>();
+
+  for (const course of courses) {
+    for (const commitment of commitments) {
+      if (commitment.flexibility !== 'SOFT') continue;
+      for (const courseMeeting of course.meetings) {
+        for (const commitmentMeeting of commitment.meetings) {
+          const interval = overlap(courseMeeting, commitmentMeeting);
+          if (!interval) continue;
+          totalMinutes += interval.end - interval.start;
+          relatedCourseIds.add(course.id);
+          relatedCommitmentIds.add(commitment.id);
+        }
+      }
+    }
+  }
+
+  return {
+    totalMinutes,
+    relatedCourseIds: [...relatedCourseIds],
+    relatedCommitmentIds: [...relatedCommitmentIds],
+  };
+}
+
 function calculateCommitmentCompatibility(
   courses: readonly CandidateCourseInput[],
   commitments: readonly CandidateCommitmentInput[],
@@ -977,7 +1202,16 @@ function calculateCommitmentCompatibility(
   if (validity.clashes.some((clash) => clash.type === 'COURSE_HARD_COMMITMENT')) return 0;
 
   const fixedHours = calculateFixedCommitmentHours(commitments);
-  return roundMetric(clamp(10 - fixedHours * config.commitmentFixedHourPenalty, 0, 10));
+  const softOverlapHours = calculateSoftCommitmentOverlap(courses, commitments).totalMinutes / 60;
+  return roundMetric(
+    clamp(
+      10 -
+        fixedHours * config.commitmentFixedHourPenalty -
+        softOverlapHours * config.commitmentSoftOverlapPenaltyPerHour,
+      0,
+      10,
+    ),
+  );
 }
 
 function calculateBalance(
@@ -1063,7 +1297,7 @@ export type CandidateMetricsInput = {
   courses: readonly CandidateCourseInput[];
   commitments: readonly CandidateCommitmentInput[];
   preferences?: CandidatePreferencesInput | undefined;
-  validity: TimetableAnalysis;
+  validity: CandidateValidity;
   schedule: ScheduleMetrics;
   workloadProfiles: readonly ResolvedCourseWorkloadProfile[];
   coursePreferenceFit: CoursePreferenceFit;
@@ -1078,6 +1312,8 @@ export function calculateCandidateMetrics(
   input: CandidateMetricsInput,
   config: CandidateMetricsConfig = DEFAULT_CANDIDATE_METRICS_CONFIG,
 ): CandidateMetrics {
+  validateCandidateMetricsConfig(config);
+  validateCandidatePreferences(input.preferences);
   const academicIntensity = addPenalty(
     weightedProfileMean(input.courses, input.workloadProfiles, 'overallIntensity', config),
     input.interactionPenalties.totalPenalty,
@@ -1184,6 +1420,32 @@ export function calculateCandidateFindings(
         Number(clash.endTime.slice(0, 2)) * 60 +
         Number(clash.endTime.slice(3)) -
         (Number(clash.startTime.slice(0, 2)) * 60 + Number(clash.startTime.slice(3))),
+    });
+  }
+
+  for (const violation of input.validity.constraintViolations) {
+    findings.push({
+      type: 'CONSTRAINT_VIOLATION',
+      severity: 'CRITICAL',
+      messageKey: violation.messageKey,
+      relatedCourseIds: violation.relatedCourseIds,
+      relatedCommitmentIds: [],
+      constraintType: violation.type,
+      ...(violation.dayOfWeek ? { dayOfWeek: violation.dayOfWeek } : {}),
+      ...(violation.actualValue !== undefined ? { actualValue: violation.actualValue } : {}),
+      ...(violation.expectedValue !== undefined ? { expectedValue: violation.expectedValue } : {}),
+    });
+  }
+
+  const softCommitmentOverlap = calculateSoftCommitmentOverlap(input.courses, input.commitments);
+  if (softCommitmentOverlap.totalMinutes > 0) {
+    findings.push({
+      type: 'SOFT_COMMITMENT_PRESSURE',
+      severity: softCommitmentOverlap.totalMinutes >= 120 ? 'MEDIUM' : 'LOW',
+      messageKey: 'soft_commitment_overlap',
+      relatedCourseIds: softCommitmentOverlap.relatedCourseIds,
+      relatedCommitmentIds: softCommitmentOverlap.relatedCommitmentIds,
+      totalMinutes: softCommitmentOverlap.totalMinutes,
     });
   }
 
@@ -1318,7 +1580,8 @@ export function analyzeCandidateSchedule(
   input: CandidateSemesterInput,
   config: ScheduleMetricsConfig = DEFAULT_SCHEDULE_METRICS_CONFIG,
 ): CandidateScheduleAnalysis {
-  const validity = detectTimetableClashes({
+  validateCandidatePreferences(input.preferences);
+  const timetableValidity = detectTimetableClashes({
     courses: input.courses.map((course) => ({
       id: course.id,
       courseOfferingId: course.courseOfferingId,
@@ -1328,6 +1591,18 @@ export function analyzeCandidateSchedule(
     })),
     commitments: input.commitments,
   });
+  const totalCredits = calculateTotalCredits(input.courses.map((course) => course.creditHours));
+  const schedule = calculateScheduleMetrics(input.courses, config);
+  const constraintViolations = calculateCandidateConstraintViolations(
+    input,
+    schedule,
+    totalCredits,
+  );
+  const validity: CandidateValidity = {
+    ...timetableValidity,
+    valid: timetableValidity.clashes.length === 0 && constraintViolations.length === 0,
+    constraintViolations,
+  };
 
   const workloadProfiles = input.courses.map((course) => ({
     courseId: course.id,
@@ -1340,7 +1615,6 @@ export function analyzeCandidateSchedule(
   const interactionPenalties = calculateWorkloadInteractionPenalties(
     workloadProfiles.map((course) => course.profile),
   );
-  const schedule = calculateScheduleMetrics(input.courses, config);
   const metrics = calculateCandidateMetrics({
     courses: input.courses,
     commitments: input.commitments,
@@ -1355,6 +1629,7 @@ export function analyzeCandidateSchedule(
   return {
     candidateId: input.candidateId ?? null,
     engineVersion: '0.1',
+    totalCredits,
     validity,
     schedule,
     workloadProfiles,
@@ -1408,13 +1683,17 @@ function candidateMetricValue(
 function bestKnownCandidateIds(
   values: Array<{ candidateId: string; value: number }>,
   lowerIsBetter: boolean,
+  equivalentThreshold: number,
 ) {
   if (!values.length) return [];
+  const tolerance = equivalentThreshold || Number.EPSILON;
   const bestValue = lowerIsBetter
     ? Math.min(...values.map((entry) => entry.value))
     : Math.max(...values.map((entry) => entry.value));
   return values
-    .filter((entry) => Math.abs(entry.value - bestValue) < 0.05)
+    .filter((entry) =>
+      lowerIsBetter ? entry.value - bestValue < tolerance : bestValue - entry.value < tolerance,
+    )
     .map((entry) => entry.candidateId);
 }
 
@@ -1422,23 +1701,32 @@ function preferenceMatchScore(
   analysis: CandidateScheduleAnalysis,
   preferences: CandidatePreferencesInput | undefined,
 ) {
+  validateCandidatePreferences(preferences);
   const priorities = preferences ?? {};
   const measures: Array<[number, number | null]> = [
     [priorities.workloadPriority ?? 0, inverseMetric(analysis.metrics.academicIntensity)],
     [priorities.schedulePriority ?? 0, normalizeMetric(analysis.metrics.scheduleQuality)],
-    [priorities.freeDayPriority ?? 0, normalizeMetric(analysis.metrics.scheduleQuality)],
+    [priorities.freeDayPriority ?? 0, analysis.schedule.freeDays.length / PLANNING_WEEKDAYS.length],
+    [
+      priorities.earlyClassAversion ?? 0,
+      clamp(1 - analysis.schedule.earlyClassMinutes / (PLANNING_WEEKDAYS.length * 60), 0, 1),
+    ],
+    [
+      priorities.lateClassAversion ?? 0,
+      clamp(1 - analysis.schedule.lateClassMinutes / (PLANNING_WEEKDAYS.length * 60), 0, 1),
+    ],
     [priorities.careerPriority ?? 0, normalizeMetric(analysis.metrics.careerFit)],
     [priorities.interestPriority ?? 0, normalizeMetric(analysis.metrics.interestFit)],
     [
-      priorities.projectPreference ?? 0,
+      stylePreferenceWeight(priorities.projectPreference),
       styleFit(analysis.metrics.projectLoad, priorities.projectPreference),
     ],
     [
-      priorities.examPreference ?? 0,
+      stylePreferenceWeight(priorities.examPreference),
       styleFit(analysis.metrics.examLoad, priorities.examPreference),
     ],
     [
-      priorities.continuousAssessmentPreference ?? 0,
+      stylePreferenceWeight(priorities.continuousAssessmentPreference),
       styleFit(analysis.metrics.continuousLoad, priorities.continuousAssessmentPreference),
     ],
   ];
@@ -1451,6 +1739,10 @@ function preferenceMatchScore(
     (knownMeasures.reduce((total, [weight, value]) => total + weight * value, 0) / totalWeight) *
       10,
   );
+}
+
+function stylePreferenceWeight(preference: number | undefined) {
+  return preference === undefined ? 0 : 0.5 + Math.abs(preference - 0.5);
 }
 
 function normalizeMetric(value: number | null) {
@@ -1517,7 +1809,11 @@ export function calculateCandidateComparison(
       values,
       delta,
       meaningful: delta !== null && knownValues.length > 1 && delta >= config.meaningfulDifference,
-      betterCandidateIds: bestKnownCandidateIds(knownValues, definition.lowerIsBetter),
+      betterCandidateIds: bestKnownCandidateIds(
+        knownValues,
+        definition.lowerIsBetter,
+        config.meaningfulDifference,
+      ),
       lowerIsBetter: definition.lowerIsBetter,
     };
   });
@@ -1542,26 +1838,38 @@ export function calculateCandidateComparison(
     const bestScore = Math.max(
       ...eligibleForPreferenceTag.map((candidate) => candidate.preferenceMatchScore ?? 0),
     );
-    for (const candidate of eligibleForPreferenceTag) {
-      if (Math.abs((candidate.preferenceMatchScore ?? 0) - bestScore) < 0.05) {
-        candidate.recommendationTags.push('BEST_MATCH_FOR_PREFERENCES');
+    const worstScore = Math.min(
+      ...eligibleForPreferenceTag.map((candidate) => candidate.preferenceMatchScore ?? 0),
+    );
+    if (
+      eligibleForPreferenceTag.length === 1 ||
+      bestScore - worstScore >= config.meaningfulDifference
+    ) {
+      for (const candidate of eligibleForPreferenceTag) {
+        if (bestScore - (candidate.preferenceMatchScore ?? 0) < config.meaningfulDifference) {
+          candidate.recommendationTags.push('BEST_MATCH_FOR_PREFERENCES');
+        }
       }
     }
   }
 
   const tradeoffs = metricDifferences.flatMap((difference) => {
-    if (!difference.meaningful || difference.betterCandidateIds.length !== 1) return [];
-    const betterCandidateId = difference.betterCandidateIds[0];
-    if (!betterCandidateId) return [];
-    const worseCandidate = difference.values.find(
-      (entry) => entry.value !== null && entry.candidateId !== betterCandidateId,
+    if (!difference.meaningful) return [];
+    const knownValues = difference.values.filter(
+      (entry): entry is { candidateId: string; value: number } => entry.value !== null,
     );
-    if (!worseCandidate) return [];
+    if (knownValues.length < 2) return [];
+    const orderedValues = [...knownValues].sort((first, second) =>
+      difference.lowerIsBetter ? first.value - second.value : second.value - first.value,
+    );
+    const betterCandidate = orderedValues[0];
+    const worseCandidate = orderedValues.at(-1);
+    if (!betterCandidate || !worseCandidate) return [];
     return [
       {
         metric: difference.metric,
         messageKey: `comparison_${difference.metric}`,
-        betterCandidateId,
+        betterCandidateId: betterCandidate.candidateId,
         worseCandidateId: worseCandidate.candidateId,
         delta: difference.delta ?? 0,
       },

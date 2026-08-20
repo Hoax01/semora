@@ -1317,6 +1317,38 @@ h1 {
   font-size: 1rem;
 }
 
+.comparison-credit-count {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.comparison-findings {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comparison-findings li,
+.comparison-findings span {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.comparison-findings strong {
+  color: var(--text-primary);
+  font-size: 0.72rem;
+}
+
+.comparison-findings span {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .valid-label,
 .invalid-label {
   display: inline-block;
@@ -1443,7 +1475,7 @@ h1 {
 
 .scenario-metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
 }
 

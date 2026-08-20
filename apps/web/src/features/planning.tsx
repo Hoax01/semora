@@ -21,6 +21,7 @@ type ScheduleDayMetrics = {
   classMinutes: number;
   campusSpanMinutes: number;
   idleGapMinutes: number;
+  idleGapPenaltyMinutes: number;
   blockCount: number;
   earliestStartTime: string | null;
   latestEndTime: string | null;
@@ -33,6 +34,7 @@ type ScheduleDayMetrics = {
 type CandidateAnalysis = {
   candidateId: string;
   engineVersion: string;
+  totalCredits: number;
   validity: CandidateValidation;
   workloadProfiles: Array<{
     courseId: string;
@@ -74,6 +76,7 @@ type CandidateAnalysis = {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
     totalIdleGapMinutes: number;
+    totalIdleGapPenaltyMinutes: number;
     scheduledDays: string[];
     freeDays: string[];
     longestDay: string | null;
@@ -105,6 +108,9 @@ type CandidateFinding = {
   fixedHours?: number;
   totalMinutes?: number;
   dataCompleteness?: number;
+  constraintType?: string;
+  actualValue?: number | string;
+  expectedValue?: number | string;
 };
 
 type CandidateComparisonMetricKey =
@@ -430,6 +436,8 @@ function findingTitle(type: string) {
   const titles: Record<string, string> = {
     TIMETABLE_CLASH: 'Timetable clash',
     COMMITMENT_CLASH: 'Hard commitment clash',
+    SOFT_COMMITMENT_PRESSURE: 'Soft commitment pressure',
+    CONSTRAINT_VIOLATION: 'Candidate constraint violation',
     PROJECT_CONCENTRATION: 'Project concentration',
     CONTINUOUS_ASSESSMENT_CONCENTRATION: 'Continuous assessment concentration',
     HIGH_EXAM_CONCENTRATION: 'Exam concentration',
@@ -454,6 +462,22 @@ function findingDescription(finding: CandidateFinding, selections: Selection[]) 
       return `Selected course meetings overlap${courseSuffix}.`;
     case 'COMMITMENT_CLASH':
       return `A selected course overlaps a hard commitment${courseSuffix}.`;
+    case 'SOFT_COMMITMENT_PRESSURE':
+      return `${formatMinutes(finding.totalMinutes ?? 0)} of selected class time overlaps a soft commitment${courseSuffix}.`;
+    case 'CONSTRAINT_VIOLATION': {
+      const constraintDescriptions: Record<string, string> = {
+        DUPLICATE_COURSE: `More than one section of the same course is selected${courseSuffix}.`,
+        MINIMUM_CREDITS: `This option has ${finding.actualValue ?? 'fewer'} credits; at least ${finding.expectedValue ?? 'more'} are required.`,
+        MAXIMUM_CREDITS: `This option has ${finding.actualValue ?? 'too many'} credits; the limit is ${finding.expectedValue ?? 'lower'}.`,
+        REQUIRED_FREE_DAY: `${finding.dayOfWeek ? formatDay(finding.dayOfWeek) : 'A required day'} is not free${courseSuffix}.`,
+        EARLIEST_CLASS_TIME: `A class starts at ${finding.actualValue ?? 'an earlier time'}, before the ${finding.expectedValue ?? 'configured'} limit${courseSuffix}.`,
+        LATEST_CLASS_TIME: `A class ends at ${finding.actualValue ?? 'a later time'}, after the ${finding.expectedValue ?? 'configured'} limit${courseSuffix}.`,
+      };
+      return (
+        constraintDescriptions[finding.constraintType ?? ''] ??
+        'A configured candidate constraint is not satisfied.'
+      );
+    }
     case 'PROJECT_CONCENTRATION':
       return `${finding.heavyCourseCount ?? courseCodes.length} selected courses appear project-heavy${courseSuffix}.`;
     case 'CONTINUOUS_ASSESSMENT_CONCENTRATION':
@@ -508,7 +532,11 @@ function comparisonTradeoffText(
   )?.name;
   const metric = comparison.metricDifferences.find((item) => item.metric === tradeoff.metric);
   if (!better || !worse || !metric) return 'This comparison contains a meaningful trade-off.';
-  return `${better} has ${metric.label.toLowerCase()} ${formatMetric(tradeoff.delta)} better than ${worse}.`;
+  const formattedDelta =
+    tradeoff.metric === 'analysisConfidence' || tradeoff.metric === 'dataCompleteness'
+      ? `${Math.round(tradeoff.delta * 100)} percentage points`
+      : `${tradeoff.delta.toFixed(1)} points`;
+  return `${better} has ${formattedDelta} ${metric.lowerIsBetter ? 'lower' : 'higher'} ${metric.label.toLowerCase()} than ${worse}.`;
 }
 
 function formatDay(day: string) {
@@ -1176,31 +1204,52 @@ export function PlanningPage() {
                 <span className="course-meta">Differences under 0.5 stay neutral</span>
               </div>
               <div className="comparison-candidate-grid">
-                {candidateComparison.candidates.map((candidate) => (
-                  <article className="comparison-candidate" key={candidate.candidateId}>
-                    <div>
-                      <h3>{candidate.name}</h3>
-                      <span
-                        className={
-                          candidate.analysis.validity.valid ? 'valid-label' : 'invalid-label'
-                        }
-                      >
-                        {candidate.analysis.validity.valid
-                          ? 'Valid timetable'
-                          : 'Needs timetable fixes'}
-                      </span>
-                    </div>
-                    {candidate.recommendationTags.length ? (
-                      <div className="recommendation-tags">
-                        {candidate.recommendationTags.map((tag) => (
-                          <span className="recommendation-tag" key={tag}>
-                            {recommendationTagTitle(tag)}
-                          </span>
-                        ))}
+                {candidateComparison.candidates.map((candidate) => {
+                  const selections =
+                    workspace.candidates.find((item) => item.id === candidate.candidateId)
+                      ?.selections ?? [];
+                  const meaningfulFindings = candidate.analysis.findings
+                    .filter((finding) => finding.severity !== 'INFO')
+                    .slice(0, 2);
+                  return (
+                    <article className="comparison-candidate" key={candidate.candidateId}>
+                      <div>
+                        <h3>{candidate.name}</h3>
+                        <span className="comparison-credit-count">
+                          {candidate.analysis.totalCredits} credits
+                        </span>
+                        <span
+                          className={
+                            candidate.analysis.validity.valid ? 'valid-label' : 'invalid-label'
+                          }
+                        >
+                          {candidate.analysis.validity.valid
+                            ? 'Valid option'
+                            : 'Needs constraint fixes'}
+                        </span>
                       </div>
-                    ) : null}
-                  </article>
-                ))}
+                      {candidate.recommendationTags.length ? (
+                        <div className="recommendation-tags">
+                          {candidate.recommendationTags.map((tag) => (
+                            <span className="recommendation-tag" key={tag}>
+                              {recommendationTagTitle(tag)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {meaningfulFindings.length ? (
+                        <ul className="comparison-findings">
+                          {meaningfulFindings.map((finding, index) => (
+                            <li key={`${finding.type}-${index}`}>
+                              <strong>{findingTitle(finding.type)}</strong>
+                              <span>{findingDescription(finding, selections)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
               <div className="comparison-table-wrap">
                 <table className="comparison-table">
@@ -1585,6 +1634,9 @@ export function PlanningPage() {
                       </button>
                     </div>
                     <div className="scenario-metric-grid">
+                      <span>
+                        Credits <strong>{scenarioAnalysis.totalCredits}</strong>
+                      </span>
                       <span>
                         Intensity{' '}
                         <strong>{formatMetric(scenarioAnalysis.metrics.academicIntensity)}</strong>

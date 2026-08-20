@@ -6,11 +6,11 @@
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
-checkpoint is complete. Phase 3 schedule analysis foundations are now
+checkpoint is complete. Phase 3 and its optional Sol behavior audit are now
 complete; preliminary workload profiles, course-preference fit summaries,
-workload interaction penalties, preliminary candidate metrics, structured
-findings, comparison, recommendation tags, and bounded what-if exploration are
-now implemented.
+workload interaction penalties, candidate metrics, structured findings,
+comparison, recommendation tags, and bounded what-if exploration are
+implemented and regression-covered.
 
 ---
 
@@ -79,13 +79,15 @@ now implemented.
   for clashes, concentration, schedule patterns, commitments, free days, and
   low data completeness.
 - The planner compares all active candidates side-by-side with aligned metrics,
-  meaningful-difference highlighting, validity status, trade-off explanations,
+  credits, meaningful findings, meaningful-difference highlighting, validity
+  status, directionally correct trade-off explanations,
   confidence/completeness values, and deterministic context-sensitive
-  recommendation tags.
+  recommendation tags. Differences below the configured significance threshold
+  remain neutral.
 - The planner provides non-persistent what-if exploration for alternate
   sections, adding/removing courses, removing commitments, and changing
   workload priority. Scenario analysis is recalculated by the Semester Engine
-  and never mutates the saved candidate.
+  including its credit total and never mutates the saved candidate.
 
 ### API and authentication
 
@@ -171,8 +173,11 @@ now implemented.
 - The `@semora/semester-engine` package contains deterministic timetable
   interval validation, credit arithmetic, typed candidate analysis inputs,
   structural workload estimation, user-profile resolution, and schedule
-  metrics for daily class duration, campus span, idle gaps, fragmentation, free
-  days, early/late exposure, and long-day detection. It has no database, HTTP,
+  metrics for daily class duration, campus span, raw and thresholded idle gaps,
+  fragmentation, Monday-to-Friday free days, early/late exposure, and long-day
+  detection. Candidate analysis also evaluates duplicate-course, credit,
+  required-free-day, and class-time constraints when supplied, and treats soft
+  commitment overlap as a compatibility penalty. It has no database, HTTP,
   React, or LLM dependencies.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
   on port 5432: 520 course offerings, 823 section/component records, and 1,441
@@ -189,7 +194,7 @@ now implemented.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 2 architecture audit:
+The following quality suite passes after the Phase 3 behavior audit:
 
 ```text
 npm run typecheck
@@ -225,8 +230,9 @@ Current API integration coverage verifies:
   rejection, stable decimal credit totals, and the authorized candidate
   validation endpoint.
 - Semester Engine schedule metrics cover merged overlapping blocks, class
-  duration, campus span, meaningful gaps, free days, configurable long-day and
-  early/late thresholds, malformed intervals, and combined candidate validity.
+  duration, campus span, raw and thresholded gaps, weekday-only free days,
+  configurable long-day and early/late thresholds, malformed intervals, and
+  combined timetable/constraint validity.
 - The authorized candidate analysis endpoint returns the selected candidate's
   deterministic schedule metrics and resolved workload profiles and was
   exercised through the API integration suite.
@@ -244,9 +250,14 @@ Current API integration coverage verifies:
   commitments, free days, and low-data findings; the API analysis contract
   exercises the findings payload.
 - Candidate comparison tests cover meaningful-difference thresholds,
-  preference-sensitive tags, reproducible trade-offs, and API comparison
-  ownership. Scenario tests cover non-persistent course removal and preference
-  overrides.
+  low-style preference direction, invalid-candidate tag exclusion, true
+  best/worst selection across three options, preference-sensitive tags,
+  reproducible trade-offs, and API comparison ownership. Scenario tests cover
+  credit recalculation, non-persistent course removal, preference overrides,
+  and cross-user rejection.
+- Commitment metric tests cover the deterministic compatibility penalty and
+  structured finding for SOFT overlaps while FLEXIBLE overlaps remain
+  non-invalidating.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
@@ -312,6 +323,14 @@ compare multiple active candidates, see explainable preference-sensitive tags,
 and explore bounded unsaved scenarios. Automatic generation, Pareto UI, ML,
 community intelligence, and LLM recommendations remain out of scope.
 ```
+
+The optional Phase 3 Sol behavior audit is complete. It corrected weekend
+inflation in free-day scoring, meaningful-gap threshold handling, missing soft
+commitment overlap penalties, omitted scenario/comparison credits and findings,
+non-directional trade-off copy, arbitrary two-option assumptions in multi-
+candidate trade-offs, and recommendation emphasis for negligible differences.
+It also made the evaluable fields in the typed constraint contract explicit in
+candidate validity instead of silently ignoring them.
 
 Checkpoint A, the Sol architecture review described in
 `BUILDPLAN.md`, is complete. It found and corrected high-value Phase 0–2 issues
@@ -412,11 +431,18 @@ commitment compatibility. Structured findings now expose deterministic causes,
 severity, and related IDs. Candidate comparison, recommendation tags, and
 bounded scenario analysis now remain derived and non-persistent, as intended.
 
-`packages/domain` remains an intentionally empty workspace package. Current
-Phase 2 calculations are isolated in `packages/semester-engine`, while API and
-UI transport shapes remain local to their consumers. Phase 3 should introduce
-shared domain contracts only where its stable engine inputs make them genuinely
-reusable; the checkpoint did not invent those later-phase contracts early.
+`packages/domain` remains an intentionally empty workspace package. Semester
+calculations and their stable contracts are isolated in
+`packages/semester-engine`, while API and UI transport shapes remain local to
+their consumers. The Phase 3 audit did not add an unnecessary second contract
+layer.
+
+Course hardness and predictive grade-risk data do not exist in the current
+Phase 3 input model. Therefore `maximumHardCourses`,
+`maxPreferredHardCourses`, and `gradeSafetyPriority` cannot yet influence
+analysis. The engine explicitly rejects a supplied `maximumHardCourses`
+constraint rather than incorrectly reporting it as satisfied; the two
+preference fields remain persisted for later data-backed behavior.
 
 API integration runs currently emit a `pg` deprecation warning about concurrent
 queries on one client. The exercised requests and assertions pass, but the

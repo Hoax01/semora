@@ -369,9 +369,16 @@ describe('Phase 2 planning foundation', () => {
     expect(scenarioWithoutCourse.body.changes).toEqual(['course_removed']);
     expect(scenarioWithoutCourse.body.analysis).toMatchObject({
       candidateId: optionA.body.candidate.id,
+      totalCredits: 0,
       validity: { valid: true, clashes: [] },
       schedule: { totalClassMinutes: 0, scheduledDays: [], freeDays: expect.any(Array) },
     });
+
+    const analysisAfterScenario = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
+      .set('Cookie', ownerCookie);
+    expect(analysisAfterScenario.status).toBe(200);
+    expect(analysisAfterScenario.body.totalCredits).toBe(3);
 
     const preferenceScenario = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/scenario`)
@@ -597,6 +604,17 @@ describe('Phase 2 planning foundation', () => {
       .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)
       .set('Cookie', intruderCookie);
     expect(foreignAnalysis.status).toBe(404);
+
+    const foreignComparison = await request(app)
+      .get(`/api/workspaces/${workspaceId}/comparison`)
+      .set('Cookie', intruderCookie);
+    expect(foreignComparison.status).toBe(404);
+
+    const foreignScenario = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/scenario`)
+      .set('Cookie', intruderCookie)
+      .send({ preferences: { workloadPriority: 1 } });
+    expect(foreignScenario.status).toBe(404);
 
     const foreignProfileUpdate = await request(app)
       .patch(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
