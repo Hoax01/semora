@@ -1,11 +1,11 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 1 — Academic Catalogue (complete)
-**Next Build Phase:** Phase 2 — Semester Planning Core
+**Current Phase:** Phase 2 — Semester Planning Core (in progress)
+**Next Build Objective:** Phase 2 — Course Selection and Timetable Core
 **Product Status:** Product and technical design are complete. Phase 0 is
-complete, and the Phase 1 catalogue acceptance audit is complete. Phase 2 has
-not started.
+complete, the Phase 1 catalogue acceptance audit is complete, and the first
+Phase 2 planning-foundation slice is implemented. Phase 2 is not yet complete.
 
 ---
 
@@ -26,12 +26,16 @@ not started.
 - React, TypeScript, and Vite application in `apps/web`.
 - Dark-neutral design tokens with restrained indigo interaction styling.
 - Email/password sign-up and sign-in screens.
-- Session-aware protected root route, loading state, authenticated identity
-  display, and sign-out action.
+- Session-aware protected root route, loading state, authenticated application
+  shell, and sign-out action.
 - Vite development proxy routes `/api` requests to the API.
 - Protected Fall 2026 catalogue screen with search, course rows, and course
   detail views showing sections, credits, instructors, capacities, and meeting
   times.
+- First-time semester setup for selecting an available university/academic
+  term and creating the user's term-specific planning workspace.
+- Initial responsive Semester Designer surface with visible candidate tabs,
+  candidate empty states, and create, rename, duplicate, and archive actions.
 
 ### API and authentication
 
@@ -49,6 +53,10 @@ not started.
 - LUMS class-schedule PDF adapter at `catalogue:convert-lums`; the adapter
   preserves cross-listed aliases, expands compact day codes, and resolves
   duplicate official section labels without dropping schedule rows.
+- Protected term and workspace APIs. Workspace creation is idempotent per user
+  and academic term and creates the typed default preference record.
+- Ownership-checked candidate-semester APIs for create, rename, duplicate, and
+  archive. Duplication copies persisted section selections when present.
 
 ### Database
 
@@ -60,6 +68,11 @@ not started.
   - `20260819210243_init_phase0`
   - `20260819212143_add_auth_tables`
   - `20260819212415_add_auth_account_issuer`
+  - `20260820105904_phase2_planning_foundation`
+- Phase 2 planning persistence now includes `SemesterPreferences`,
+  `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
+  `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
+  cascade/restrict boundaries.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
   on port 5432: 520 course offerings, 823 section/component records, and 1,441
   day-specific meetings.
@@ -71,7 +84,8 @@ not started.
 
 ## Tests and verification
 
-The following all pass after the authentication implementation:
+The following baseline suite passes after the current planning-foundation
+implementation:
 
 ```text
 npm run typecheck
@@ -94,6 +108,35 @@ Current API integration coverage verifies:
   823 sections, and 1,441 meetings.
 - LUMS schedule parsing covers wrapped titles, cross-listed aliases, compact
   day codes, and duplicate source section labels.
+- term discovery, idempotent workspace creation, one default preference record,
+  candidate validation, candidate create/rename/duplicate/archive behavior,
+  and rejection of cross-user workspace/candidate access.
+
+### Phase 2 implementation status
+
+Complete in this phase:
+
+```text
+2.1 Planning Schema
+2.2 Workspace Creation
+2.3 Candidate Semester CRUD
+```
+
+Not yet implemented:
+
+```text
+2.4 Course Selection
+2.5 Timetable Clash Detection
+2.6 Weekly Schedule UI
+2.7 Commitment CRUD/UI and schedule participation
+2.8 Preferences onboarding/editing
+```
+
+The Phase 2 acceptance criteria are therefore not yet satisfied.
+
+- Browser verification covered the first-time setup, workspace transition,
+  empty candidate state, create and rename actions, duplication, desktop
+  layout, and a 390-pixel mobile layout against the local Fall 2026 data.
 
 ### Phase 1 acceptance audit
 
@@ -149,6 +192,18 @@ The local outline audit found 392 readable PDFs, six byte-identical duplicate
 pairs, and 92 primary timetable codes without a matching outline filename. A
 non-destructive cleaned folder contains 386 unique PDFs. `LUMS_data/` is ignored
 by Git because these are locally obtained institutional source documents.
+
+`ARCHITECTURE.md` sections 124–126 retain an older phase numbering in which
+candidate planning is called Phase 1. `BUILDPLAN.md` explicitly governs current
+phase sequencing and defines candidate planning as Phase 2, which is also
+consistent with this file. Implementation follows `BUILDPLAN.md` to avoid
+product or architecture drift.
+
+The planning schema can persist course preferences and recurring commitments,
+but their APIs and UI are intentionally deferred to their remaining Phase 2
+requirements. Candidate selections can be persisted and duplicated, but the
+selection mutation API and same-offering/alternate-section invariant are part
+of the next Phase 2 slice.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -166,10 +221,13 @@ apps/api/src/auth.ts
 apps/api/src/app.test.ts
 apps/api/src/catalogue/importer.ts
 apps/api/src/catalogue/lums-schedule.ts
+apps/api/src/planning.ts
+apps/api/src/session.ts
 apps/api/src/import-catalogue.ts
 apps/api/src/convert-lums-schedule.ts
 apps/web/src/App.tsx
 apps/web/src/auth-client.ts
+apps/web/src/features/planning.tsx
 apps/web/src/styles.css
 prisma/schema.prisma
 prisma/seed.ts
@@ -183,6 +241,8 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Begin Phase 2 — Semester Planning Core only when explicitly instructed. Do not
-silently expand the Phase 1 catalogue with guessed descriptions, capacities,
-locations, or component relationships.
+Continue Phase 2 with course/section selection inside a candidate: add,
+remove, and switch sections with server-side ownership and one-section-per-
+offering enforcement, then expose live credit totals in the Semester Designer.
+Do not begin timetable intelligence beyond the Phase 2 hard-constraint scope,
+and do not begin Phase 3 scoring or comparison.

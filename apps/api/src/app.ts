@@ -1,7 +1,9 @@
 import express from 'express';
-import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
+import { toNodeHandler } from 'better-auth/node';
 import { auth } from './auth.js';
 import { checkDatabaseConnection, prisma } from './db.js';
+import { registerPlanningRoutes } from './planning.js';
+import { requireUserId } from './session.js';
 
 export const app = express();
 
@@ -34,17 +36,6 @@ app.get('/api/health/db', async (_request, response) => {
 
 function formatTime(value: Date) {
   return `${String(value.getUTCHours()).padStart(2, '0')}:${String(value.getUTCMinutes()).padStart(2, '0')}`;
-}
-
-async function requireSession(request: express.Request, response: express.Response) {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(request.headers),
-  });
-  if (!session) {
-    response.status(401).json({ error: 'UNAUTHORIZED' });
-    return undefined;
-  }
-  return session;
 }
 
 type CatalogueOffering = {
@@ -109,7 +100,7 @@ app.get('/api/catalogue', async (request, response) => {
     response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
     return;
   }
-  if (!(await requireSession(request, response))) return;
+  if (!(await requireUserId(request, response))) return;
 
   const query = String(request.query.q ?? '').trim();
   const termName = String(request.query.term ?? '').trim();
@@ -150,7 +141,7 @@ app.get('/api/catalogue/:offeringId', async (request, response) => {
     response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
     return;
   }
-  if (!(await requireSession(request, response))) return;
+  if (!(await requireUserId(request, response))) return;
   const offering = await prisma.courseOffering.findUnique({
     where: { id: request.params.offeringId },
     include: catalogueInclude,
@@ -163,14 +154,13 @@ app.get('/api/catalogue/:offeringId', async (request, response) => {
 });
 
 app.get('/api/me', async (request, response) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(request.headers),
+  const userId = await requireUserId(request, response);
+  if (!userId) return;
+  const user = await prisma?.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, email: true, image: true },
   });
-
-  if (!session) {
-    response.status(401).json({ error: 'UNAUTHORIZED' });
-    return;
-  }
-
-  response.status(200).json({ user: session.user });
+  response.status(200).json({ user });
 });
+
+registerPlanningRoutes(app);

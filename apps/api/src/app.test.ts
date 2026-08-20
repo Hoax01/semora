@@ -77,3 +77,115 @@ describe('email/password authentication', () => {
     expect(signedOutUser.status).toBe(401);
   });
 });
+
+describe('Phase 2 planning foundation', () => {
+  const ownerEmail = `planning-owner-${Date.now()}@example.test`;
+  const intruderEmail = `planning-intruder-${Date.now()}@example.test`;
+  const password = 'semora-test-password';
+
+  afterAll(async () => {
+    await prisma?.user
+      .deleteMany({ where: { email: { in: [ownerEmail, intruderEmail] } } })
+      .catch(() => undefined);
+  });
+
+  it('creates a workspace and manages independently owned candidate options', async () => {
+    const ownerSignUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Planning Owner',
+      email: ownerEmail,
+      password,
+    });
+    const ownerCookie = ownerSignUp.headers['set-cookie'];
+
+    const terms = await request(app).get('/api/terms').set('Cookie', ownerCookie);
+    expect(terms.status).toBe(200);
+    const fall2026 = terms.body.universities
+      .flatMap((university: { terms: Array<{ id: string; name: string }> }) => university.terms)
+      .find((term: { name: string }) => term.name === 'Fall 2026');
+    expect(fall2026).toBeDefined();
+
+    const firstWorkspaceRequest = await request(app)
+      .post('/api/workspaces')
+      .set('Cookie', ownerCookie)
+      .send({ academicTermId: fall2026.id });
+    expect(firstWorkspaceRequest.status).toBe(200);
+    expect(firstWorkspaceRequest.body.workspace).toMatchObject({
+      state: 'PLANNING',
+      term: { name: 'Fall 2026', university: { shortName: 'LUMS' } },
+      candidates: [],
+    });
+    const workspaceId = firstWorkspaceRequest.body.workspace.id as string;
+
+    const repeatedWorkspaceRequest = await request(app)
+      .post('/api/workspaces')
+      .set('Cookie', ownerCookie)
+      .send({ academicTermId: fall2026.id });
+    expect(repeatedWorkspaceRequest.status).toBe(200);
+    expect(repeatedWorkspaceRequest.body.workspace.id).toBe(workspaceId);
+    expect(await prisma?.semesterPreferences.count({ where: { workspaceId } })).toBe(1);
+
+    const invalidCandidate = await request(app)
+      .post(`/api/workspaces/${workspaceId}/candidates`)
+      .set('Cookie', ownerCookie)
+      .send({ name: '   ' });
+    expect(invalidCandidate.status).toBe(400);
+    expect(invalidCandidate.body.error).toBe('VALIDATION_ERROR');
+
+    const optionA = await request(app)
+      .post(`/api/workspaces/${workspaceId}/candidates`)
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Option A' });
+    const optionB = await request(app)
+      .post(`/api/workspaces/${workspaceId}/candidates`)
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Option B' });
+    expect(optionA.status).toBe(201);
+    expect(optionB.status).toBe(201);
+
+    const renamed = await request(app)
+      .patch(`/api/candidates/${optionB.body.candidate.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Balanced' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.candidate.name).toBe('Balanced');
+
+    const duplicated = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
+      .set('Cookie', ownerCookie);
+    expect(duplicated.status).toBe(201);
+    expect(duplicated.body.candidate).toMatchObject({ name: 'Option A copy', selectionCount: 0 });
+
+    const archived = await request(app)
+      .patch(`/api/candidates/${optionB.body.candidate.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ isArchived: true });
+    expect(archived.status).toBe(200);
+    expect(archived.body.candidate.isArchived).toBe(true);
+
+    const workspace = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', ownerCookie);
+    expect(workspace.status).toBe(200);
+    expect(
+      workspace.body.workspace.candidates.map((candidate: { name: string }) => candidate.name),
+    ).toEqual(['Option A', 'Option A copy']);
+
+    const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Planning Intruder',
+      email: intruderEmail,
+      password,
+    });
+    const intruderCookie = intruderSignUp.headers['set-cookie'];
+
+    const foreignWorkspace = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', intruderCookie);
+    expect(foreignWorkspace.status).toBe(404);
+
+    const foreignCandidateUpdate = await request(app)
+      .patch(`/api/candidates/${optionA.body.candidate.id}`)
+      .set('Cookie', intruderCookie)
+      .send({ name: 'Stolen option' });
+    expect(foreignCandidateUpdate.status).toBe(404);
+  });
+});

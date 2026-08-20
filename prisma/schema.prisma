@@ -53,6 +53,23 @@ enum WorkspaceState {
   ARCHIVED
 }
 
+enum CommitmentCategory {
+  TASHIP
+  SOCIETY
+  WORK
+  RESEARCH
+  GYM
+  COMMUTE
+  PERSONAL
+  OTHER
+}
+
+enum CommitmentFlexibility {
+  HARD
+  SOFT
+  FLEXIBLE
+}
+
 model User {
   id            String              @id @default(cuid())
   name          String              @map("display_name")
@@ -120,33 +137,35 @@ model Course {
 }
 
 model CourseOffering {
-  id                  String       @id @default(cuid())
-  courseId            String       @map("course_id")
-  academicTermId      String       @map("academic_term_id")
-  creditHours         Decimal      @map("credit_hours") @db.Decimal(4, 1)
-  descriptionOverride String?      @map("description_override")
-  gradingMode         GradingMode  @default(UNKNOWN) @map("grading_mode")
-  sourceConfidence    String       @default("OFFICIAL_IMPORT") @map("source_confidence")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  course              Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  academicTerm        AcademicTerm @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  id                  String                 @id @default(cuid())
+  courseId            String                 @map("course_id")
+  academicTermId      String                 @map("academic_term_id")
+  creditHours         Decimal                @map("credit_hours") @db.Decimal(4, 1)
+  descriptionOverride String?                @map("description_override")
+  gradingMode         GradingMode            @default(UNKNOWN) @map("grading_mode")
+  sourceConfidence    String                 @default("OFFICIAL_IMPORT") @map("source_confidence")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  course              Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicTerm        AcademicTerm           @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
   sections            Section[]
+  userPreferences     UserCoursePreference[]
 
   @@unique([courseId, academicTermId])
   @@map("course_offerings")
 }
 
 model Section {
-  id                String         @id @default(cuid())
-  courseOfferingId  String         @map("course_offering_id")
-  sectionCode       String         @map("section_code")
-  capacity          Int?
-  instructorDisplay String?        @map("instructor_display")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
-  courseOffering    CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
-  meetings          Meeting[]
+  id                  String                     @id @default(cuid())
+  courseOfferingId    String                     @map("course_offering_id")
+  sectionCode         String                     @map("section_code")
+  capacity            Int?
+  instructorDisplay   String?                    @map("instructor_display")
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
+  courseOffering      CourseOffering             @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  meetings            Meeting[]
+  candidateSelections CandidateCourseSelection[]
 
   @@unique([courseOfferingId, sectionCode])
   @@map("sections")
@@ -167,17 +186,119 @@ model Meeting {
 }
 
 model SemesterWorkspace {
-  id             String         @id @default(cuid())
-  userId         String         @map("user_id")
-  academicTermId String         @map("academic_term_id")
-  state          WorkspaceState @default(PLANNING)
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  academicTerm   AcademicTerm   @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  id                String                 @id @default(cuid())
+  userId            String                 @map("user_id")
+  academicTermId    String                 @map("academic_term_id")
+  state             WorkspaceState         @default(PLANNING)
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academicTerm      AcademicTerm           @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  preferences       SemesterPreferences?
+  candidates        CandidateSemester[]
+  coursePreferences UserCoursePreference[]
+  commitments       Commitment[]
 
   @@unique([userId, academicTermId])
   @@map("semester_workspaces")
+}
+
+model SemesterPreferences {
+  id                             String            @id @default(cuid())
+  workspaceId                    String            @unique @map("workspace_id")
+  workloadPriority               Decimal           @default(0.5) @map("workload_priority") @db.Decimal(3, 2)
+  schedulePriority               Decimal           @default(0.5) @map("schedule_priority") @db.Decimal(3, 2)
+  careerPriority                 Decimal           @default(0.5) @map("career_priority") @db.Decimal(3, 2)
+  interestPriority               Decimal           @default(0.5) @map("interest_priority") @db.Decimal(3, 2)
+  gradeSafetyPriority            Decimal           @default(0.5) @map("grade_safety_priority") @db.Decimal(3, 2)
+  projectPreference              Decimal           @default(0.5) @map("project_preference") @db.Decimal(3, 2)
+  examPreference                 Decimal           @default(0.5) @map("exam_preference") @db.Decimal(3, 2)
+  continuousAssessmentPreference Decimal           @default(0.5) @map("continuous_assessment_preference") @db.Decimal(3, 2)
+  freeDayPriority                Decimal           @default(0.5) @map("free_day_priority") @db.Decimal(3, 2)
+  earlyClassAversion             Decimal           @default(0.5) @map("early_class_aversion") @db.Decimal(3, 2)
+  lateClassAversion              Decimal           @default(0.5) @map("late_class_aversion") @db.Decimal(3, 2)
+  maxPreferredHardCourses        Int?              @map("max_preferred_hard_courses")
+  createdAt                      DateTime          @default(now()) @map("created_at")
+  updatedAt                      DateTime          @updatedAt @map("updated_at")
+  workspace                      SemesterWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("semester_preferences")
+}
+
+model CandidateSemester {
+  id          String                     @id @default(cuid())
+  workspaceId String                     @map("workspace_id")
+  name        String
+  isArchived  Boolean                    @default(false) @map("is_archived")
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+  workspace   SemesterWorkspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  selections  CandidateCourseSelection[]
+
+  @@index([workspaceId, isArchived])
+  @@map("candidate_semesters")
+}
+
+model CandidateCourseSelection {
+  id                  String            @id @default(cuid())
+  candidateSemesterId String            @map("candidate_semester_id")
+  sectionId           String            @map("section_id")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  candidateSemester   CandidateSemester @relation(fields: [candidateSemesterId], references: [id], onDelete: Cascade)
+  section             Section           @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([candidateSemesterId, sectionId])
+  @@index([sectionId])
+  @@map("candidate_course_selections")
+}
+
+model UserCoursePreference {
+  id                       String            @id @default(cuid())
+  workspaceId              String            @map("workspace_id")
+  courseOfferingId         String            @map("course_offering_id")
+  interestScore            Decimal?          @map("interest_score") @db.Decimal(3, 2)
+  careerRelevanceScore     Decimal?          @map("career_relevance_score") @db.Decimal(3, 2)
+  manualDifficultyEstimate Decimal?          @map("manual_difficulty_estimate") @db.Decimal(3, 2)
+  manualNotes              String?           @map("manual_notes")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+  workspace                SemesterWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  courseOffering           CourseOffering    @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, courseOfferingId])
+  @@index([courseOfferingId])
+  @@map("user_course_preferences")
+}
+
+model Commitment {
+  id                String                @id @default(cuid())
+  workspaceId       String                @map("workspace_id")
+  name              String
+  category          CommitmentCategory
+  weeklyEffortHours Decimal               @default(0) @map("weekly_effort_hours") @db.Decimal(5, 2)
+  flexibility       CommitmentFlexibility @default(FLEXIBLE)
+  priority          Decimal               @default(0.5) @db.Decimal(3, 2)
+  startDate         DateTime?             @map("start_date") @db.Date
+  endDate           DateTime?             @map("end_date") @db.Date
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  workspace         SemesterWorkspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  meetings          CommitmentMeeting[]
+
+  @@index([workspaceId])
+  @@map("commitments")
+}
+
+model CommitmentMeeting {
+  id           String     @id @default(cuid())
+  commitmentId String     @map("commitment_id")
+  dayOfWeek    MeetingDay @map("day_of_week")
+  startTime    DateTime   @map("start_time") @db.Time(0)
+  endTime      DateTime   @map("end_time") @db.Time(0)
+  commitment   Commitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@unique([commitmentId, dayOfWeek, startTime, endTime])
+  @@map("commitment_meetings")
 }
 
 model Session {

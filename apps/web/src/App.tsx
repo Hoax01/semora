@@ -10,6 +10,7 @@ import {
   useParams,
 } from 'react-router-dom';
 import { authClient } from './auth-client';
+import { PlanningLandingPage, PlanningPage } from './features/planning';
 
 type AuthMode = 'sign-in' | 'sign-up';
 
@@ -127,21 +128,6 @@ function AuthPage({ mode }: { mode: AuthMode }) {
           <Link to={isSignUp ? '/sign-in' : '/sign-up'}>{isSignUp ? 'Sign in' : 'Create one'}</Link>
         </p>
       </section>
-    </main>
-  );
-}
-
-function HomePage() {
-  return (
-    <main className="shell">
-      <p className="eyebrow">SEMORA / FOUNDATION</p>
-      <h1>Design a semester you won’t regret.</h1>
-      <p className="lede">
-        Start with the Fall 2026 catalogue, then build and compare possible semesters.
-      </p>
-      <Link className="primary-link" to="/catalogue">
-        Browse course catalogue
-      </Link>
     </main>
   );
 }
@@ -324,6 +310,7 @@ function ProtectedShell() {
           semora
         </Link>
         <div className="nav-actions">
+          <Link to="/">Plan</Link>
           <Link to="/catalogue">Catalogue</Link>
           <button className="nav-signout" onClick={handleSignOut} type="button">
             Sign out
@@ -342,7 +329,8 @@ function App() {
         <Route element={<AuthPage mode="sign-in" />} path="/sign-in" />
         <Route element={<AuthPage mode="sign-up" />} path="/sign-up" />
         <Route element={<ProtectedShell />} path="/">
-          <Route element={<HomePage />} index />
+          <Route element={<PlanningLandingPage />} index />
+          <Route element={<PlanningPage />} path="plan/:workspaceId" />
           <Route element={<CataloguePage />} path="catalogue" />
           <Route element={<CourseDetailPage />} path="catalogue/:offeringId" />
           <Route element={<Navigate replace to="/" />} path="*" />
