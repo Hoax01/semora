@@ -97,19 +97,26 @@ enum ExtractionJobStatus {
   FAILED
 }
 
+enum ExtractionVerificationState {
+  VERIFIED
+  VERIFIED_WITH_GAPS
+  REJECTED
+}
+
 model User {
-  id            String              @id @default(cuid())
-  name          String              @map("display_name")
-  email         String              @unique
-  emailVerified Boolean             @default(false) @map("email_verified")
-  image         String?
-  timezone      String              @default("Asia/Karachi")
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
-  workspaces    SemesterWorkspace[]
-  documents     Document[]
-  sessions      Session[]
-  accounts      Account[]
+  id                      String                   @id @default(cuid())
+  name                    String                   @map("display_name")
+  email                   String                   @unique
+  emailVerified           Boolean                  @default(false) @map("email_verified")
+  image                   String?
+  timezone                String                   @default("Asia/Karachi")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  workspaces              SemesterWorkspace[]
+  documents               Document[]
+  extractionVerifications ExtractionVerification[]
+  sessions                Session[]
+  accounts                Account[]
 
   @@map("users")
 }
@@ -334,18 +341,19 @@ model Document {
 }
 
 model ExtractionJob {
-  id               String              @id @default(cuid())
-  documentId       String              @map("document_id")
-  status           ExtractionJobStatus @default(PENDING)
-  modelIdentifier  String?             @map("model_identifier")
-  extractorVersion String?             @map("extractor_version")
-  schemaVersion    String?             @map("schema_version")
-  startedAt        DateTime?           @map("started_at")
-  completedAt      DateTime?           @map("completed_at")
-  failureReason    String?             @map("failure_reason") @db.Text
-  createdAt        DateTime            @default(now()) @map("created_at")
-  document         Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id               String                  @id @default(cuid())
+  documentId       String                  @map("document_id")
+  status           ExtractionJobStatus     @default(PENDING)
+  modelIdentifier  String?                 @map("model_identifier")
+  extractorVersion String?                 @map("extractor_version")
+  schemaVersion    String?                 @map("schema_version")
+  startedAt        DateTime?               @map("started_at")
+  completedAt      DateTime?               @map("completed_at")
+  failureReason    String?                 @map("failure_reason") @db.Text
+  createdAt        DateTime                @default(now()) @map("created_at")
+  document         Document                @relation(fields: [documentId], references: [id], onDelete: Cascade)
   draft            ExtractionDraft?
+  verification     ExtractionVerification?
 
   @@index([documentId, createdAt])
   @@index([status, createdAt])
@@ -361,6 +369,19 @@ model ExtractionDraft {
   extractionJob     ExtractionJob @relation(fields: [extractionJobId], references: [id], onDelete: Cascade)
 
   @@map("extraction_drafts")
+}
+
+model ExtractionVerification {
+  id                String                      @id @default(cuid())
+  extractionJobId   String                      @unique @map("extraction_job_id")
+  verifiedByUserId  String                      @map("verified_by_user_id")
+  verifiedAt        DateTime                    @default(now()) @map("verified_at")
+  verificationState ExtractionVerificationState @map("verification_state")
+  extractionJob     ExtractionJob               @relation(fields: [extractionJobId], references: [id], onDelete: Cascade)
+  verifiedByUser    User                        @relation(fields: [verifiedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([verifiedByUserId, verifiedAt])
+  @@map("extraction_verifications")
 }
 
 model CandidateCourseSelection {

@@ -4,7 +4,9 @@ import {
   ExtractionParseError,
   LocalDeterministicExtractionProvider,
   parseDocument,
+  courseDocumentExtractionSchema,
   type AcademicExtractionProvider,
+  type CourseDocumentExtraction,
   SchemaConstrainedExtractionProvider,
   validateCourseDocumentExtraction,
 } from '@semora/extraction';
@@ -41,6 +43,12 @@ type ExtractionJobRecord = {
     overallConfidence: { toString(): string };
     createdAt: Date;
   } | null;
+  verification: {
+    id: string;
+    verifiedByUserId: string;
+    verifiedAt: Date;
+    verificationState: string;
+  } | null;
 };
 
 const extractionJobInclude = {
@@ -48,6 +56,7 @@ const extractionJobInclude = {
     include: { courseOffering: { include: { course: true } } },
   },
   draft: true,
+  verification: true,
 } as const;
 
 function serializeExtractionJob(job: ExtractionJobRecord) {
@@ -73,7 +82,62 @@ function serializeExtractionJob(job: ExtractionJobRecord) {
           createdAt: job.draft.createdAt.toISOString(),
         }
       : null,
+    verification: job.verification
+      ? {
+          id: job.verification.id,
+          state: job.verification.verificationState,
+          verifiedByUserId: job.verification.verifiedByUserId,
+          verifiedAt: job.verification.verifiedAt.toISOString(),
+        }
+      : null,
   };
+}
+
+function validationContext(job: ExtractionJobRecord) {
+  return {
+    ...(job.document.courseOffering?.course.courseCode
+      ? { expectedCourseCode: job.document.courseOffering.course.courseCode }
+      : {}),
+    ...(job.document.courseOffering?.course.title
+      ? { expectedCourseTitle: job.document.courseOffering.course.title }
+      : {}),
+  };
+}
+
+function parseReviewPayload(payload: unknown) {
+  const parsed = courseDocumentExtractionSchema.safeParse(payload);
+  if (!parsed.success) {
+    return {
+      error: 'EXTRACTION_DRAFT_INVALID' as const,
+      details: parsed.error.issues,
+    };
+  }
+  return { extraction: parsed.data };
+}
+
+async function saveReviewedDraft(job: ExtractionJobRecord, extraction: CourseDocumentExtraction) {
+  if (!prisma) return null;
+  const validated = validateCourseDocumentExtraction(extraction, validationContext(job));
+  const saved = await prisma.$transaction(async (transaction) => {
+    await transaction.extractionDraft.upsert({
+      where: { extractionJobId: job.id },
+      create: {
+        extractionJobId: job.id,
+        draftPayload: validated.extraction,
+        overallConfidence: validated.extraction.overallConfidence,
+      },
+      update: {
+        draftPayload: validated.extraction,
+        overallConfidence: validated.extraction.overallConfidence,
+        createdAt: new Date(),
+      },
+    });
+    return transaction.extractionJob.findUniqueOrThrow({
+      where: { id: job.id },
+      include: extractionJobInclude,
+    });
+  });
+  return { job: saved as unknown as ExtractionJobRecord, validation: validated };
 }
 
 async function ownedJob(jobId: string, userId: string) {
@@ -149,6 +213,7 @@ export async function processExtractionJob(
           createdAt: completedAt,
         },
       });
+      await transaction.extractionVerification.deleteMany({ where: { extractionJobId: job.id } });
       return transaction.extractionJob.update({
         where: { id: job.id },
         data: {
@@ -204,5 +269,127 @@ export function registerExtractionJobRoutes(app: express.Application) {
       return;
     }
     response.status(200).json({ extractionJob: serializeExtractionJob(job) });
+  });
+
+  app.put('/api/extraction-jobs/:jobId/review', async (request, response) => {
+    const userId = await requireUserId(request, response);
+    if (!userId || !prisma) return;
+    const job = await ownedJob(request.params.jobId, userId);
+    if (!job) {
+      response.status(404).json({ error: 'EXTRACTION_JOB_NOT_FOUND' });
+      return;
+    }
+    if (job.status !== 'REVIEW_REQUIRED') {
+      response.status(409).json({ error: 'EXTRACTION_REVIEW_NOT_AVAILABLE' });
+      return;
+    }
+    const parsed = parseReviewPayload(request.body?.payload);
+    if ('error' in parsed) {
+      response.status(400).json(parsed);
+      return;
+    }
+    const saved = await saveReviewedDraft(job, parsed.extraction);
+    if (!saved) return;
+    response.status(200).json({
+      extractionJob: serializeExtractionJob(saved.job),
+      blockingIssues: saved.validation.blockingIssues,
+      valid: saved.validation.valid,
+    });
+  });
+
+  app.post('/api/extraction-jobs/:jobId/verify', async (request, response) => {
+    const userId = await requireUserId(request, response);
+    if (!userId || !prisma) return;
+    const job = await ownedJob(request.params.jobId, userId);
+    if (!job) {
+      response.status(404).json({ error: 'EXTRACTION_JOB_NOT_FOUND' });
+      return;
+    }
+    if (job.status !== 'REVIEW_REQUIRED') {
+      response.status(409).json({ error: 'EXTRACTION_REVIEW_NOT_AVAILABLE' });
+      return;
+    }
+    const parsed = parseReviewPayload(request.body?.payload);
+    if ('error' in parsed) {
+      response.status(400).json(parsed);
+      return;
+    }
+    const saved = await saveReviewedDraft(job, parsed.extraction);
+    if (!saved) return;
+    if (!saved.validation.valid) {
+      response.status(409).json({
+        error: 'EXTRACTION_REVIEW_BLOCKED',
+        blockingIssues: saved.validation.blockingIssues,
+        extractionJob: serializeExtractionJob(saved.job),
+      });
+      return;
+    }
+    const verificationState = saved.validation.extraction.warnings.length
+      ? 'VERIFIED_WITH_GAPS'
+      : 'VERIFIED';
+    const verified = await prisma.$transaction(async (transaction) => {
+      await transaction.extractionVerification.upsert({
+        where: { extractionJobId: job.id },
+        create: {
+          extractionJobId: job.id,
+          verifiedByUserId: userId,
+          verificationState,
+        },
+        update: {
+          verifiedByUserId: userId,
+          verifiedAt: new Date(),
+          verificationState,
+        },
+      });
+      return transaction.extractionJob.update({
+        where: { id: job.id },
+        data: { status: 'VERIFIED', failureReason: null, completedAt: new Date() },
+        include: extractionJobInclude,
+      });
+    });
+    response
+      .status(200)
+      .json({ extractionJob: serializeExtractionJob(verified as unknown as ExtractionJobRecord) });
+  });
+
+  app.post('/api/extraction-jobs/:jobId/reject', async (request, response) => {
+    const userId = await requireUserId(request, response);
+    if (!userId || !prisma) return;
+    const job = await ownedJob(request.params.jobId, userId);
+    if (!job) {
+      response.status(404).json({ error: 'EXTRACTION_JOB_NOT_FOUND' });
+      return;
+    }
+    if (job.status !== 'REVIEW_REQUIRED') {
+      response.status(409).json({ error: 'EXTRACTION_REVIEW_NOT_AVAILABLE' });
+      return;
+    }
+    const rejected = await prisma.$transaction(async (transaction) => {
+      await transaction.extractionVerification.upsert({
+        where: { extractionJobId: job.id },
+        create: {
+          extractionJobId: job.id,
+          verifiedByUserId: userId,
+          verificationState: 'REJECTED',
+        },
+        update: {
+          verifiedByUserId: userId,
+          verifiedAt: new Date(),
+          verificationState: 'REJECTED',
+        },
+      });
+      return transaction.extractionJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          completedAt: new Date(),
+          failureReason: 'REJECTED_BY_USER: The extracted draft was rejected during review.',
+        },
+        include: extractionJobInclude,
+      });
+    });
+    response
+      .status(200)
+      .json({ extractionJob: serializeExtractionJob(rejected as unknown as ExtractionJobRecord) });
   });
 }

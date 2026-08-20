@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 
 type Candidate = {
   id: string;
@@ -201,6 +201,15 @@ type ActiveCourseSelection = Selection & {
     id: string;
     dataCompleteness: number;
     dataConfidence: number;
+    outline: {
+      documentId: string;
+      filename: string;
+      extractionJob: {
+        id: string;
+        status: string;
+        verificationState: string | null;
+      } | null;
+    } | null;
   } | null;
 };
 
@@ -2528,6 +2537,7 @@ function ActiveSemesterView({
   workspace: Workspace;
   onReload: () => Promise<void>;
 }) {
+  const navigate = useNavigate();
   const [courseSearch, setCourseSearch] = useState('');
   const [appliedCourseSearch, setAppliedCourseSearch] = useState('');
   const [catalogueCourses, setCatalogueCourses] = useState<CatalogueCourse[]>([]);
@@ -2611,6 +2621,59 @@ function ActiveSemesterView({
     void runMutation('drop-course', () =>
       apiRequest(`/api/active-selections/${selection.id}/drop`, { method: 'POST' }),
     );
+  }
+
+  async function uploadOutline(
+    selection: ActiveCourseSelection,
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const extension = file.name.toLowerCase().split('.').pop();
+    const mimeType =
+      file.type ||
+      (extension === 'pdf'
+        ? 'application/pdf'
+        : extension === 'docx'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : 'text/plain');
+    setError(undefined);
+    setBusyAction(`outline-${selection.id}`);
+    try {
+      const uploadResponse = await fetch(`/api/active-selections/${selection.id}/outline`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': mimeType, 'X-File-Name': file.name },
+        body: file,
+      });
+      const uploadBody = (await uploadResponse.json().catch(() => undefined)) as
+        { error?: string; extractionJob?: { id: string } } | undefined;
+      if (!uploadResponse.ok || !uploadBody?.extractionJob) {
+        throw new Error(
+          uploadBody?.error === 'FILE_TOO_LARGE'
+            ? 'This outline is larger than the 25 MB limit.'
+            : uploadBody?.error === 'UNSUPPORTED_MIME_TYPE'
+              ? 'Use a PDF, DOCX, or plain-text outline.'
+              : 'Semora could not upload this outline.',
+        );
+      }
+      const processed = await apiRequest<{ extractionJob: { status: string } }>(
+        `/api/extraction-jobs/${uploadBody.extractionJob.id}/process`,
+        {
+          method: 'POST',
+        },
+      );
+      if (processed.extractionJob.status !== 'REVIEW_REQUIRED') {
+        throw new Error('Semora could not extract a reviewable draft from this outline.');
+      }
+      await onReload();
+      navigate(`/extraction-review/${uploadBody.extractionJob.id}`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to process this outline.');
+    } finally {
+      setBusyAction(undefined);
+    }
   }
 
   const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
@@ -2779,6 +2842,32 @@ function ActiveSemesterView({
                   >
                     Switch section
                   </button>
+                  <label className="secondary-button compact-button file-button">
+                    Upload outline
+                    <input
+                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      disabled={Boolean(busyAction)}
+                      onChange={(event) => void uploadOutline(selection, event)}
+                      type="file"
+                    />
+                  </label>
+                  {selection.state?.outline?.extractionJob?.status === 'REVIEW_REQUIRED' ? (
+                    <button
+                      className="secondary-button compact-button"
+                      disabled={Boolean(busyAction)}
+                      onClick={() =>
+                        navigate(
+                          `/extraction-review/${selection.state?.outline?.extractionJob?.id}`,
+                        )
+                      }
+                      type="button"
+                    >
+                      Review extraction
+                    </button>
+                  ) : null}
+                  {selection.state?.outline?.extractionJob?.status === 'VERIFIED' ? (
+                    <span className="outline-status">Outline verified</span>
+                  ) : null}
                   <button
                     className="danger-button compact-button"
                     disabled={Boolean(busyAction)}

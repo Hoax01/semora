@@ -143,6 +143,28 @@ describe('Phase 5 document storage', () => {
       },
     });
 
+    const reviewPayload = locallyProcessed.body.extractionJob.draft.payload;
+    reviewPayload.gradingScheme.categories[0].name = 'Coursework';
+    const savedReview = await request(app)
+      .put(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/review`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: reviewPayload });
+    expect(savedReview.status).toBe(200);
+    expect(savedReview.body.extractionJob.status).toBe('REVIEW_REQUIRED');
+    expect(savedReview.body.extractionJob.draft.payload.gradingScheme.categories[0].name).toBe(
+      'Coursework',
+    );
+
+    const verified = await request(app)
+      .post(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/verify`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: reviewPayload });
+    expect(verified.status).toBe(200);
+    expect(verified.body.extractionJob).toMatchObject({
+      status: 'VERIFIED',
+      verification: { state: 'VERIFIED' },
+    });
+
     const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
       name: 'Document Intruder',
       email: intruderEmail,

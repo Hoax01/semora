@@ -160,7 +160,19 @@ const selectionInclude = {
 
 const activeCourseSelectionInclude = {
   section: selectionInclude.section,
-  state: true,
+  state: {
+    include: {
+      outlineDocument: {
+        include: {
+          extractionJobs: {
+            orderBy: { createdAt: 'desc' as const },
+            take: 1,
+            include: { verification: true },
+          },
+        },
+      },
+    },
+  },
 } as const;
 
 const commitmentInclude = { meetings: true } as const;
@@ -247,6 +259,15 @@ type ActiveCourseSelectionRecord = {
     id: string;
     dataCompleteness: { toString(): string };
     dataConfidence: { toString(): string };
+    outlineDocument: {
+      id: string;
+      originalFilename: string;
+      extractionJobs: Array<{
+        id: string;
+        status: string;
+        verification: { verificationState: string } | null;
+      }>;
+    } | null;
   } | null;
   section: SelectionRecord['section'];
 };
@@ -389,6 +410,21 @@ function serializeActiveCourseSelection(selection: ActiveCourseSelectionRecord) 
           id: selection.state.id,
           dataCompleteness: Number(selection.state.dataCompleteness),
           dataConfidence: Number(selection.state.dataConfidence),
+          outline: selection.state.outlineDocument
+            ? {
+                documentId: selection.state.outlineDocument.id,
+                filename: selection.state.outlineDocument.originalFilename,
+                extractionJob: selection.state.outlineDocument.extractionJobs[0]
+                  ? {
+                      id: selection.state.outlineDocument.extractionJobs[0].id,
+                      status: selection.state.outlineDocument.extractionJobs[0].status,
+                      verificationState:
+                        selection.state.outlineDocument.extractionJobs[0].verification
+                          ?.verificationState ?? null,
+                    }
+                  : null,
+              }
+            : null,
         }
       : null,
   };

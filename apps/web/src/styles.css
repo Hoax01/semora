@@ -558,6 +558,31 @@ h1 {
   gap: 0.45rem;
 }
 
+.file-button {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.outline-status {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #63d39a66;
+  border-radius: 0.45rem;
+  color: #b6f0da;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .active-course-browser {
   background: var(--surface-elevated);
 }
@@ -571,6 +596,302 @@ h1 {
 .active-section-picker > .panel-heading-row h3 {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.extraction-review-page {
+  max-width: 90rem;
+}
+
+.review-message,
+.review-notice {
+  margin-top: 1.25rem;
+}
+
+.review-notice {
+  padding: 0.8rem 1rem;
+  border: 1px solid #63d39a66;
+  border-radius: 0.6rem;
+  color: #b6f0da;
+  background: #28785e12;
+}
+
+.review-alert {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #d79b4d99;
+  border-radius: 0.7rem;
+  background: #8b5a1714;
+}
+
+.review-alert h2,
+.review-alert ul {
+  margin: 0;
+}
+
+.review-alert ul {
+  margin-top: 0.55rem;
+  padding-left: 1.2rem;
+  color: #ffe4ad;
+}
+
+.extraction-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
+  align-items: start;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.extraction-review-main,
+.review-side-panel {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.review-card {
+  padding: clamp(1.1rem, 2.5vw, 1.6rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.review-card h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.5vw, 1.8rem);
+  letter-spacing: -0.035em;
+}
+
+.review-card h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.review-card > .course-meta {
+  margin: 0.45rem 0 0;
+}
+
+.review-identity-grid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.55fr) minmax(12rem, 1.45fr);
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.review-identity-grid label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.review-identity-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.45rem;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  font: inherit;
+  font-weight: 400;
+}
+
+.review-confidence {
+  flex-shrink: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #63d39a66;
+  border-radius: 999px;
+  color: #b6f0da;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.review-danger {
+  border-color: #d6757566;
+  color: #ffb5b5;
+}
+
+.review-evidence {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.review-mode-field,
+.review-field {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.review-mode-field select,
+.review-edit-row input,
+.review-edit-row select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.45rem;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  font: inherit;
+  font-weight: 400;
+}
+
+.review-edit-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.review-edit-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.5fr) minmax(6rem, 0.55fr) auto;
+  align-items: end;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface-elevated);
+}
+
+.review-edit-row label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.review-edit-row .review-evidence {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.review-assessment-row {
+  grid-template-columns:
+    minmax(9rem, 1.4fr) minmax(7rem, 0.8fr) minmax(5rem, 0.5fr) minmax(8rem, 0.7fr)
+    auto;
+}
+
+.review-subsection,
+.review-threshold-list {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.review-subsection ul {
+  margin-bottom: 0;
+  color: var(--text-secondary);
+}
+
+.review-threshold-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.review-threshold-list > div {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--surface-elevated);
+}
+
+.review-threshold-list .review-evidence {
+  margin-top: 0.2rem;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.review-actions .danger-button {
+  margin-left: auto;
+}
+
+.review-status-note,
+.review-empty,
+.review-evidence-summary p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.review-warning-card {
+  border-color: #d79b4d66;
+}
+
+.review-warning-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.review-warning {
+  padding: 0.8rem;
+  border-left: 3px solid #d79b4d;
+  border-radius: 0.45rem;
+  background: #8b5a1714;
+}
+
+.review-warning p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.review-warning.review-low {
+  border-left-color: #8e99a8;
+  background: #8e99a80b;
+}
+
+.review-warning.review-high {
+  border-left-color: #d67575;
+  background: #8b2c3616;
+}
+
+.review-values {
+  color: var(--text-primary) !important;
+  font-weight: 700;
+}
+
+.review-warning .compact-button {
+  margin-top: 0.7rem;
+}
+
+.review-evidence-summary dl {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.review-evidence-summary dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.review-evidence-summary dt {
+  color: var(--text-secondary);
+}
+
+.review-evidence-summary dd {
+  margin: 0;
+  text-align: right;
 }
 
 .intelligence-panel {
@@ -2055,6 +2376,27 @@ h1 {
   .active-course-actions {
     display: flex;
     flex-wrap: wrap;
+  }
+
+  .extraction-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .review-edit-row,
+  .review-assessment-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .review-identity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-edit-row .icon-button {
+    justify-self: start;
+  }
+
+  .review-actions .danger-button {
+    margin-left: 0;
   }
 
   .new-candidate-form input {

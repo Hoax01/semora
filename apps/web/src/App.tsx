@@ -11,6 +11,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { authClient } from './auth-client';
+import { ExtractionReviewPage } from './features/extraction-review';
 import { PlanningLandingPage, PlanningPage } from './features/planning';
 
 type AuthMode = 'sign-in' | 'sign-up';
@@ -343,6 +344,7 @@ function App() {
         <Route element={<ProtectedShell />} path="/">
           <Route element={<PlanningLandingPage />} index />
           <Route element={<PlanningPage />} path="plan/:workspaceId" />
+          <Route element={<ExtractionReviewPage />} path="extraction-review/:jobId" />
           <Route element={<CataloguePage />} path="catalogue" />
           <Route element={<CourseDetailPage />} path="catalogue/:offeringId" />
           <Route element={<Navigate replace to="/" />} path="*" />
