@@ -209,19 +209,44 @@ export const DEFAULT_WORKLOAD_INTERACTION_CONFIG: WorkloadInteractionConfig = {
   additionalHeavyCoursePenalty: 2,
 };
 
+export type CandidateMetricsConfig = {
+  referenceCreditHours: number;
+  scheduleIdleGapPenaltyPerHour: number;
+  scheduleEarlyClassPenaltyPerHour: number;
+  scheduleLateClassPenaltyPerHour: number;
+  scheduleLongDayPenalty: number;
+  scheduleFreeDayBonus: number;
+  scheduleFragmentationPenalty: number;
+  commitmentFixedHourPenalty: number;
+};
+
+export const DEFAULT_CANDIDATE_METRICS_CONFIG: CandidateMetricsConfig = {
+  referenceCreditHours: 3,
+  scheduleIdleGapPenaltyPerHour: 0.5,
+  scheduleEarlyClassPenaltyPerHour: 0.25,
+  scheduleLateClassPenaltyPerHour: 0.25,
+  scheduleLongDayPenalty: 0.5,
+  scheduleFreeDayBonus: 0.5,
+  scheduleFragmentationPenalty: 0.15,
+  commitmentFixedHourPenalty: 0.25,
+};
+
+export type ResolvedCourseWorkloadProfile = {
+  courseId: string;
+  courseOfferingId: string;
+  courseCode: string;
+  profile: CourseWorkloadProfile;
+};
+
 export type CandidateScheduleAnalysis = {
   candidateId: string | null;
   engineVersion: '0.1';
   validity: TimetableAnalysis;
   schedule: ScheduleMetrics;
-  workloadProfiles: Array<{
-    courseId: string;
-    courseOfferingId: string;
-    courseCode: string;
-    profile: CourseWorkloadProfile;
-  }>;
+  workloadProfiles: ResolvedCourseWorkloadProfile[];
   coursePreferenceFit: CoursePreferenceFit;
   interactionPenalties: WorkloadInteractionPenalties;
+  metrics: CandidateMetrics;
 };
 
 export type CoursePreferenceFit = {
@@ -246,6 +271,21 @@ export type WorkloadInteractionPenalties = {
   continuousAssessmentConcentration: WorkloadInteractionMetric;
   examConcentration: WorkloadInteractionMetric;
   totalPenalty: number;
+};
+
+export type CandidateMetrics = {
+  academicIntensity: number | null;
+  continuousLoad: number | null;
+  projectLoad: number | null;
+  examLoad: number | null;
+  assessmentFragmentation: number | null;
+  scheduleQuality: number | null;
+  commitmentCompatibility: number | null;
+  interestFit: number | null;
+  careerFit: number | null;
+  balance: number | null;
+  analysisConfidence: number;
+  dataCompleteness: number;
 };
 
 export function calculateTotalCredits(credits: readonly number[]) {
@@ -740,6 +780,233 @@ export function calculateWorkloadInteractionPenalties(
   };
 }
 
+function weightedProfileMean(
+  courses: readonly CandidateCourseInput[],
+  profiles: readonly ResolvedCourseWorkloadProfile[],
+  dimension: WorkloadDimension,
+  config: CandidateMetricsConfig,
+) {
+  const coursesById = new Map(courses.map((course) => [course.id, course]));
+  let weightedTotal = 0;
+  let totalWeight = 0;
+
+  for (const resolved of profiles) {
+    const value = resolved.profile[dimension];
+    const course = coursesById.get(resolved.courseId);
+    if (value === undefined || value === null || !course) continue;
+    if (!Number.isFinite(course.creditHours) || course.creditHours < 0) {
+      throw new Error('Course credits must be finite non-negative numbers.');
+    }
+    const weight = Math.sqrt(course.creditHours / config.referenceCreditHours);
+    weightedTotal += value * weight;
+    totalWeight += weight;
+  }
+
+  return totalWeight ? roundMetric(weightedTotal / totalWeight) : null;
+}
+
+function addPenalty(value: number | null, penalty: number) {
+  return value === null ? null : roundMetric(clamp(value + penalty, 0, 10));
+}
+
+function calculateScheduleQuality(
+  schedule: ScheduleMetrics,
+  preferences: CandidatePreferencesInput | undefined,
+  config: CandidateMetricsConfig,
+) {
+  const earlyClassAversion = preferences?.earlyClassAversion ?? 0.5;
+  const lateClassAversion = preferences?.lateClassAversion ?? 0.5;
+  const freeDayPriority = preferences?.freeDayPriority ?? 0.5;
+  const penalty =
+    (schedule.totalIdleGapMinutes / 60) * config.scheduleIdleGapPenaltyPerHour +
+    (schedule.earlyClassMinutes / 60) *
+      config.scheduleEarlyClassPenaltyPerHour *
+      (0.5 + earlyClassAversion) +
+    (schedule.lateClassMinutes / 60) *
+      config.scheduleLateClassPenaltyPerHour *
+      (0.5 + lateClassAversion) +
+    schedule.longDays.length * config.scheduleLongDayPenalty +
+    schedule.scheduleFragmentation * config.scheduleFragmentationPenalty -
+    schedule.freeDays.length * config.scheduleFreeDayBonus * (0.5 + freeDayPriority);
+
+  return roundMetric(clamp(10 - penalty, 0, 10));
+}
+
+function meetingMinutes(meetings: readonly TimetableMeeting[]) {
+  return meetings.reduce((total, meeting) => {
+    const start = parseTime(meeting.startTime);
+    const end = parseTime(meeting.endTime);
+    if (start >= end) throw new Error('Timetable meetings must end after they start.');
+    return total + end - start;
+  }, 0);
+}
+
+function calculateCommitmentCompatibility(
+  courses: readonly CandidateCourseInput[],
+  commitments: readonly CandidateCommitmentInput[],
+  validity: TimetableAnalysis,
+  config: CandidateMetricsConfig,
+) {
+  if (!courses.length) return null;
+  if (validity.clashes.some((clash) => clash.type === 'COURSE_HARD_COMMITMENT')) return 0;
+
+  const fixedHours = commitments.reduce(
+    (total, commitment) =>
+      total + (commitment.weeklyEffortHours ?? 0) + meetingMinutes(commitment.meetings) / 60,
+    0,
+  );
+  return roundMetric(clamp(10 - fixedHours * config.commitmentFixedHourPenalty, 0, 10));
+}
+
+function calculateBalance(
+  courses: readonly CandidateCourseInput[],
+  profiles: readonly ResolvedCourseWorkloadProfile[],
+  config: CandidateMetricsConfig,
+) {
+  const dimensionValues = (
+    [
+      'continuousWorkload',
+      'projectIntensity',
+      'examIntensity',
+      'readingIntensity',
+      'labIntensity',
+    ] as const
+  )
+    .map((dimension) => weightedProfileMean(courses, profiles, dimension, config))
+    .filter((value): value is number => value !== null);
+
+  if (dimensionValues.length < 2) return null;
+  const mean = dimensionValues.reduce((total, value) => total + value, 0) / dimensionValues.length;
+  const variance =
+    dimensionValues.reduce((total, value) => total + (value - mean) ** 2, 0) /
+    dimensionValues.length;
+  return roundMetric(clamp(10 - Math.sqrt(variance) * 2, 0, 10));
+}
+
+function calculateDataCompleteness(
+  courses: readonly CandidateCourseInput[],
+  profiles: readonly ResolvedCourseWorkloadProfile[],
+  coursePreferenceFit: CoursePreferenceFit,
+) {
+  const scheduleCompleteness = courses.length
+    ? courses.filter((course) => course.meetings.length > 0).length / courses.length
+    : 0;
+  const expectedWorkloadValues = profiles.length * WORKLOAD_DIMENSIONS.length;
+  const knownWorkloadValues = profiles.reduce(
+    (total, resolved) =>
+      total +
+      WORKLOAD_DIMENSIONS.filter(
+        (dimension) =>
+          resolved.profile[dimension] !== undefined && resolved.profile[dimension] !== null,
+      ).length,
+    0,
+  );
+  const workloadCompleteness = expectedWorkloadValues
+    ? knownWorkloadValues / expectedWorkloadValues
+    : 0;
+  const preferenceCompleteness = coursePreferenceFit.courseCount
+    ? (coursePreferenceFit.interestCompleteness + coursePreferenceFit.careerCompleteness) / 2
+    : 0;
+
+  return roundMetric(
+    clamp(
+      scheduleCompleteness * 0.3 + workloadCompleteness * 0.5 + preferenceCompleteness * 0.2,
+      0,
+      1,
+    ),
+  );
+}
+
+function calculateAnalysisConfidence(
+  courses: readonly CandidateCourseInput[],
+  profiles: readonly ResolvedCourseWorkloadProfile[],
+) {
+  if (!courses.length) return 0;
+  const scheduleConfidence = courses.every((course) => course.meetings.length > 0) ? 1 : 0.5;
+  let knownValues = 0;
+  let weightedConfidence = 0;
+  for (const resolved of profiles) {
+    const knownDimensions = WORKLOAD_DIMENSIONS.filter(
+      (dimension) =>
+        resolved.profile[dimension] !== undefined && resolved.profile[dimension] !== null,
+    ).length;
+    knownValues += knownDimensions;
+    weightedConfidence += knownDimensions * (resolved.profile.confidence ?? 0);
+  }
+  const workloadConfidence = knownValues ? weightedConfidence / knownValues : 0;
+  return roundMetric((scheduleConfidence + workloadConfidence) / 2);
+}
+
+export type CandidateMetricsInput = {
+  courses: readonly CandidateCourseInput[];
+  commitments: readonly CandidateCommitmentInput[];
+  preferences?: CandidatePreferencesInput | undefined;
+  validity: TimetableAnalysis;
+  schedule: ScheduleMetrics;
+  workloadProfiles: readonly ResolvedCourseWorkloadProfile[];
+  coursePreferenceFit: CoursePreferenceFit;
+  interactionPenalties: WorkloadInteractionPenalties;
+};
+
+export function calculateCandidateMetrics(
+  input: CandidateMetricsInput,
+  config: CandidateMetricsConfig = DEFAULT_CANDIDATE_METRICS_CONFIG,
+): CandidateMetrics {
+  const academicIntensity = addPenalty(
+    weightedProfileMean(input.courses, input.workloadProfiles, 'overallIntensity', config),
+    input.interactionPenalties.totalPenalty,
+  );
+  const continuousLoad = addPenalty(
+    weightedProfileMean(input.courses, input.workloadProfiles, 'continuousWorkload', config),
+    input.interactionPenalties.continuousAssessmentConcentration.penalty,
+  );
+  const projectLoad = addPenalty(
+    weightedProfileMean(input.courses, input.workloadProfiles, 'projectIntensity', config),
+    input.interactionPenalties.projectConcentration.penalty,
+  );
+  const examLoad = addPenalty(
+    weightedProfileMean(input.courses, input.workloadProfiles, 'examIntensity', config),
+    input.interactionPenalties.examConcentration.penalty,
+  );
+
+  return {
+    academicIntensity,
+    continuousLoad,
+    projectLoad,
+    examLoad,
+    assessmentFragmentation: weightedProfileMean(
+      input.courses,
+      input.workloadProfiles,
+      'assessmentFragmentation',
+      config,
+    ),
+    scheduleQuality: input.courses.length
+      ? calculateScheduleQuality(input.schedule, input.preferences, config)
+      : null,
+    commitmentCompatibility: calculateCommitmentCompatibility(
+      input.courses,
+      input.commitments,
+      input.validity,
+      config,
+    ),
+    interestFit:
+      input.coursePreferenceFit.interestFit === null
+        ? null
+        : roundMetric(input.coursePreferenceFit.interestFit * 10),
+    careerFit:
+      input.coursePreferenceFit.careerFit === null
+        ? null
+        : roundMetric(input.coursePreferenceFit.careerFit * 10),
+    balance: calculateBalance(input.courses, input.workloadProfiles, config),
+    analysisConfidence: calculateAnalysisConfidence(input.courses, input.workloadProfiles),
+    dataCompleteness: calculateDataCompleteness(
+      input.courses,
+      input.workloadProfiles,
+      input.coursePreferenceFit,
+    ),
+  };
+}
+
 export function analyzeCandidateSchedule(
   input: CandidateSemesterInput,
   config: ScheduleMetricsConfig = DEFAULT_SCHEDULE_METRICS_CONFIG,
@@ -762,15 +1029,29 @@ export function analyzeCandidateSchedule(
     profile: resolveWorkloadProfile(course, course.workloadProfile),
   }));
 
+  const coursePreferenceFit = calculateCoursePreferenceFit(input.courses);
+  const interactionPenalties = calculateWorkloadInteractionPenalties(
+    workloadProfiles.map((course) => course.profile),
+  );
+  const schedule = calculateScheduleMetrics(input.courses, config);
+
   return {
     candidateId: input.candidateId ?? null,
     engineVersion: '0.1',
     validity,
-    schedule: calculateScheduleMetrics(input.courses, config),
+    schedule,
     workloadProfiles,
-    coursePreferenceFit: calculateCoursePreferenceFit(input.courses),
-    interactionPenalties: calculateWorkloadInteractionPenalties(
-      workloadProfiles.map((course) => course.profile),
-    ),
+    coursePreferenceFit,
+    interactionPenalties,
+    metrics: calculateCandidateMetrics({
+      courses: input.courses,
+      commitments: input.commitments,
+      preferences: input.preferences,
+      validity,
+      schedule,
+      workloadProfiles,
+      coursePreferenceFit,
+      interactionPenalties,
+    }),
   };
 }

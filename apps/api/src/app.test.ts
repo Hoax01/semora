@@ -290,6 +290,15 @@ describe('Phase 2 planning foundation', () => {
         examConcentration: { knownCourseCount: 0, heavyCourseCount: 0, penalty: 0 },
         totalPenalty: 0,
       },
+      metrics: {
+        academicIntensity: expect.any(Number),
+        scheduleQuality: expect.any(Number),
+        commitmentCompatibility: 10,
+        interestFit: null,
+        careerFit: null,
+        analysisConfidence: expect.any(Number),
+        dataCompleteness: expect.any(Number),
+      },
     });
 
     const courseOfferingId = selection.body.selection.courseOfferingId as string;

@@ -139,6 +139,7 @@ const scheduleCourse = (overrides: Partial<CandidateCourseInput>): CandidateCour
   creditHours: overrides.creditHours ?? 3,
   sectionCode: overrides.sectionCode ?? '1',
   meetings: overrides.meetings ?? [],
+  workloadProfile: overrides.workloadProfile,
   interestScore: overrides.interestScore,
   careerRelevanceScore: overrides.careerRelevanceScore,
 });
@@ -373,6 +374,74 @@ describe('workload interaction penalties', () => {
       knownCourseCount: 1,
       heavyCourseCount: 1,
       penalty: 0,
+    });
+  });
+});
+
+describe('candidate metrics', () => {
+  it('combines known workload, schedule, commitment, and preference inputs', () => {
+    const workloadProfile: CourseWorkloadProfile = {
+      overallIntensity: 8,
+      continuousWorkload: 8,
+      projectIntensity: 8,
+      examIntensity: 8,
+      assessmentFragmentation: 6,
+      readingIntensity: 8,
+      labIntensity: 8,
+      confidence: 0.8,
+    };
+    const result = analyzeCandidateSchedule({
+      courses: [
+        scheduleCourse({
+          id: 'course-1',
+          interestScore: 1,
+          careerRelevanceScore: 0.5,
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:00', endTime: '11:00' }],
+          workloadProfile,
+        }),
+        scheduleCourse({
+          id: 'course-2',
+          interestScore: 0.5,
+          careerRelevanceScore: 0.5,
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '11:00', endTime: '12:00' }],
+          workloadProfile,
+        }),
+      ],
+      commitments: [],
+    });
+
+    expect(result.metrics).toMatchObject({
+      academicIntensity: 9.5,
+      continuousLoad: 8.5,
+      projectLoad: 8.5,
+      examLoad: 8.5,
+      assessmentFragmentation: 6,
+      interestFit: 7.5,
+      careerFit: 5,
+      balance: 10,
+      commitmentCompatibility: 10,
+      analysisConfidence: 0.9,
+    });
+    expect(result.metrics.dataCompleteness).toBeGreaterThan(0.5);
+    expect(result.metrics.scheduleQuality).toBeGreaterThan(0);
+  });
+
+  it('keeps unavailable candidate metrics explicit instead of inventing scores', () => {
+    const result = analyzeCandidateSchedule({
+      courses: [scheduleCourse({ meetings: [] })],
+      commitments: [],
+    });
+
+    expect(result.metrics).toMatchObject({
+      continuousLoad: null,
+      projectLoad: null,
+      examLoad: null,
+      assessmentFragmentation: null,
+      interestFit: null,
+      careerFit: null,
+      balance: null,
+      scheduleQuality: expect.any(Number),
+      dataCompleteness: expect.any(Number),
     });
   });
 });

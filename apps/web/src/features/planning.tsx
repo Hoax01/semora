@@ -55,6 +55,20 @@ type CandidateAnalysis = {
     examConcentration: InteractionPenaltyMetric;
     totalPenalty: number;
   };
+  metrics: {
+    academicIntensity: number | null;
+    continuousLoad: number | null;
+    projectLoad: number | null;
+    examLoad: number | null;
+    assessmentFragmentation: number | null;
+    scheduleQuality: number | null;
+    commitmentCompatibility: number | null;
+    interestFit: number | null;
+    careerFit: number | null;
+    balance: number | null;
+    analysisConfidence: number;
+    dataCompleteness: number;
+  };
   schedule: {
     days: Record<string, ScheduleDayMetrics>;
     totalClassMinutes: number;
@@ -346,6 +360,14 @@ function formatPreferenceFit(value: number | null) {
 
 function formatPenalty(value: number) {
   return value === 0 ? 'None' : `+${value.toFixed(1)}`;
+}
+
+function formatMetric(value: number | null) {
+  return value === null ? 'Unknown' : `${value.toFixed(1)}/10`;
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
 function formatDay(day: string) {
@@ -1077,6 +1099,71 @@ export function PlanningPage() {
                 <p className="interaction-pressure-help">
                   Penalties begin when at least two known course profiles cross the configured 7/10
                   threshold. Unknown dimensions are not treated as heavy.
+                </p>
+              </section>
+              <section
+                className="candidate-metrics-panel"
+                aria-labelledby="candidate-metrics-title"
+              >
+                <div className="interaction-pressure-heading">
+                  <div>
+                    <p className="eyebrow">PRELIMINARY METRICS</p>
+                    <h3 id="candidate-metrics-title">How this option is shaped</h3>
+                  </div>
+                  <span className="course-meta">
+                    Confidence {formatPercent(candidateAnalysis.metrics.analysisConfidence)} ·{' '}
+                    Completeness {formatPercent(candidateAnalysis.metrics.dataCompleteness)}
+                  </span>
+                </div>
+                <div className="candidate-metrics-grid">
+                  <article>
+                    <span>Academic intensity</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.academicIntensity)}</strong>
+                  </article>
+                  <article>
+                    <span>Continuous load</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.continuousLoad)}</strong>
+                  </article>
+                  <article>
+                    <span>Project load</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.projectLoad)}</strong>
+                  </article>
+                  <article>
+                    <span>Exam load</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.examLoad)}</strong>
+                  </article>
+                  <article>
+                    <span>Assessment fragmentation</span>
+                    <strong>
+                      {formatMetric(candidateAnalysis.metrics.assessmentFragmentation)}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Schedule quality</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.scheduleQuality)}</strong>
+                  </article>
+                  <article>
+                    <span>Commitment compatibility</span>
+                    <strong>
+                      {formatMetric(candidateAnalysis.metrics.commitmentCompatibility)}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Interest fit</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.interestFit)}</strong>
+                  </article>
+                  <article>
+                    <span>Career fit</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.careerFit)}</strong>
+                  </article>
+                  <article>
+                    <span>Balance</span>
+                    <strong>{formatMetric(candidateAnalysis.metrics.balance)}</strong>
+                  </article>
+                </div>
+                <p className="interaction-pressure-help">
+                  Metrics are preliminary and reflect the currently known schedule, workload
+                  profiles, commitments, and course ratings.
                 </p>
               </section>
               <div className="intelligence-notes">
