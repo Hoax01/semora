@@ -1,4 +1,5 @@
 import type express from 'express';
+import { detectTimetableClashes, type MeetingDay } from '@semora/semester-engine';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { requireUserId } from './session.js';
@@ -198,6 +199,51 @@ async function loadSectionForWorkspace(sectionId: string, academicTermId: string
   });
 }
 
+async function loadOwnedCandidateForValidation(candidateId: string, userId: string) {
+  return prisma?.candidateSemester.findFirst({
+    where: { id: candidateId, workspace: { userId } },
+    include: {
+      selections: { include: selectionInclude },
+      workspace: {
+        select: {
+          commitments: {
+            include: { meetings: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      },
+    },
+  });
+}
+
+function analyzeCandidateTimetable(
+  candidate: NonNullable<Awaited<ReturnType<typeof loadOwnedCandidateForValidation>>>,
+) {
+  return detectTimetableClashes({
+    courses: candidate.selections.map((selection) => ({
+      id: selection.id,
+      courseOfferingId: selection.section.courseOffering.id,
+      courseCode: selection.section.courseOffering.course.courseCode,
+      sectionCode: selection.section.sectionCode,
+      meetings: selection.section.meetings.map((meeting) => ({
+        dayOfWeek: meeting.dayOfWeek as MeetingDay,
+        startTime: formatTime(meeting.startTime),
+        endTime: formatTime(meeting.endTime),
+      })),
+    })),
+    commitments: candidate.workspace.commitments.map((commitment) => ({
+      id: commitment.id,
+      name: commitment.name,
+      flexibility: commitment.flexibility,
+      meetings: commitment.meetings.map((meeting) => ({
+        dayOfWeek: meeting.dayOfWeek as MeetingDay,
+        startTime: formatTime(meeting.startTime),
+        endTime: formatTime(meeting.endTime),
+      })),
+    })),
+  });
+}
+
 export function registerPlanningRoutes(app: express.Express) {
   app.get('/api/terms', async (request, response) => {
     if (!prisma) {
@@ -311,6 +357,26 @@ export function registerPlanningRoutes(app: express.Express) {
     }
 
     response.status(200).json({ workspace: serializeWorkspace(workspace) });
+  });
+
+  app.get('/api/candidates/:candidateId/validation', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const candidate = await loadOwnedCandidateForValidation(request.params.candidateId, userId);
+    if (!candidate) {
+      response.status(404).json({ error: 'CANDIDATE_NOT_FOUND' });
+      return;
+    }
+
+    response.status(200).json({
+      candidateId: candidate.id,
+      ...analyzeCandidateTimetable(candidate),
+    });
   });
 
   app.post('/api/workspaces/:workspaceId/candidates', async (request, response) => {

@@ -10,6 +10,21 @@ type Candidate = {
   selections: Selection[];
 };
 
+type CandidateValidation = {
+  candidateId: string;
+  valid: boolean;
+  clashes: TimetableClash[];
+};
+
+type TimetableClash = {
+  type: 'COURSE_COURSE' | 'COURSE_HARD_COMMITMENT';
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  first: { kind: 'COURSE' | 'COMMITMENT'; id: string; label: string };
+  second: { kind: 'COURSE' | 'COMMITMENT'; id: string; label: string };
+};
+
 type Selection = {
   id: string;
   sectionId: string;
@@ -206,6 +221,8 @@ export function PlanningPage() {
   const [catalogueCourses, setCatalogueCourses] = useState<CatalogueCourse[]>([]);
   const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
   const [activeOfferingId, setActiveOfferingId] = useState<string>();
+  const [candidateValidation, setCandidateValidation] = useState<CandidateValidation>();
+  const [validationRefresh, setValidationRefresh] = useState(0);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
 
@@ -213,6 +230,7 @@ export function PlanningPage() {
     if (!workspaceId) return;
     const result = await apiRequest<{ workspace: Workspace }>(`/api/workspaces/${workspaceId}`);
     setWorkspace(result.workspace);
+    setCandidateValidation(undefined);
     setSelectedCandidateId((current) =>
       result.workspace.candidates.some((candidate) => candidate.id === current)
         ? current
@@ -234,6 +252,25 @@ export function PlanningPage() {
   useEffect(() => {
     setEditedName(selectedCandidate?.name ?? '');
   }, [selectedCandidate?.id, selectedCandidate?.name]);
+
+  useEffect(() => {
+    if (!selectedCandidateId) {
+      setCandidateValidation(undefined);
+      return;
+    }
+    let isCurrent = true;
+    apiRequest<CandidateValidation>(`/api/candidates/${selectedCandidateId}/validation`)
+      .then((result) => {
+        if (isCurrent) setCandidateValidation(result);
+      })
+      .catch((reason: unknown) => {
+        if (isCurrent)
+          setError(reason instanceof Error ? reason.message : 'Unable to validate this timetable.');
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedCandidateId, validationRefresh]);
 
   useEffect(() => {
     if (!workspace || !appliedCourseSearch) {
@@ -268,6 +305,7 @@ export function PlanningPage() {
     try {
       await mutation();
       await loadWorkspace();
+      setValidationRefresh((current) => current + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save this change.');
     } finally {
@@ -397,6 +435,29 @@ export function PlanningPage() {
           </section>
 
           {error ? <p className="form-error planner-error">{error}</p> : null}
+
+          {candidateValidation?.clashes.length ? (
+            <aside className="clash-warning" role="alert">
+              <p className="eyebrow">HARD CONSTRAINT</p>
+              <h2>Schedule conflict detected</h2>
+              <p>Resolve these overlaps before treating this candidate as valid.</p>
+              <ul>
+                {candidateValidation.clashes.map((clash, index) => (
+                  <li key={`${clash.type}-${clash.first.id}-${clash.second.id}-${index}`}>
+                    <strong>
+                      {clash.type === 'COURSE_COURSE'
+                        ? 'Course overlap'
+                        : 'Hard commitment overlap'}
+                    </strong>
+                    <span>
+                      {clash.dayOfWeek.slice(0, 3)} {clash.startTime}–{clash.endTime} ·{' '}
+                      {clash.first.label} ↔ {clash.second.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          ) : null}
 
           {selectedCandidate ? (
             <>

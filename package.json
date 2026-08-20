@@ -18,7 +18,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "format:check": "prettier --check \"package.json\" \"tsconfig.base.json\" \".prettierrc.json\" \"prisma.config.ts\" \"docker-compose.yml\" \"apps/**/package.json\" \"packages/**/package.json\" \"apps/**/*.{ts,tsx,css,html}\" \"prisma/**/*.ts\""
+    "format:check": "prettier --check \"package.json\" \"tsconfig.base.json\" \".prettierrc.json\" \"prisma.config.ts\" \"docker-compose.yml\" \"apps/**/package.json\" \"packages/**/package.json\" \"apps/**/*.{ts,tsx,css,html}\" \"packages/**/*.{ts,tsx,css,html}\" \"prisma/**/*.ts\""
   },
   "devDependencies": {
     "prettier": "^3.6.2",

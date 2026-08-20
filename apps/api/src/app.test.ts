@@ -3,6 +3,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { app } from './app.js';
 import { prisma } from './db.js';
 
+function utcTime(value: string) {
+  return new Date(`1970-01-01T${value}:00.000Z`);
+}
+
 describe('GET /api/health', () => {
   it('returns a healthy API response', async () => {
     const response = await request(app).get('/api/health');
@@ -183,6 +187,49 @@ describe('Phase 2 planning foundation', () => {
     expect(switched.status).toBe(200);
     expect(switched.body.selection.sectionId).toBe(secondSectionId);
 
+    const clearValidation = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
+      .set('Cookie', ownerCookie);
+    expect(clearValidation.status).toBe(200);
+    expect(clearValidation.body).toMatchObject({
+      candidateId: optionA.body.candidate.id,
+      valid: true,
+    });
+    expect(clearValidation.body.clashes).toEqual([]);
+
+    const selectedMeeting = switched.body.selection.meetings[0] as {
+      day: string;
+      startTime: string;
+      endTime: string;
+    };
+    const hardCommitment = await prisma?.commitment.create({
+      data: {
+        workspaceId,
+        name: 'TAship',
+        category: 'TASHIP',
+        weeklyEffortHours: 2,
+        flexibility: 'HARD',
+        meetings: {
+          create: {
+            dayOfWeek: selectedMeeting.day,
+            startTime: utcTime(selectedMeeting.startTime),
+            endTime: utcTime(selectedMeeting.endTime),
+          },
+        },
+      },
+    });
+    const conflictedValidation = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
+      .set('Cookie', ownerCookie);
+    expect(conflictedValidation.status).toBe(200);
+    expect(conflictedValidation.body.valid).toBe(false);
+    expect(conflictedValidation.body.clashes).toHaveLength(1);
+    expect(conflictedValidation.body.clashes[0]).toMatchObject({
+      type: 'COURSE_HARD_COMMITMENT',
+      second: { kind: 'COMMITMENT', label: 'TAship' },
+    });
+    if (hardCommitment) await prisma?.commitment.delete({ where: { id: hardCommitment.id } });
+
     const duplicated = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
       .set('Cookie', ownerCookie);
@@ -233,5 +280,10 @@ describe('Phase 2 planning foundation', () => {
       .set('Cookie', intruderCookie)
       .send({ sectionId: firstSectionId });
     expect(foreignSelectionCreate.status).toBe(404);
+
+    const foreignValidation = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
+      .set('Cookie', intruderCookie);
+    expect(foreignValidation.status).toBe(404);
   });
 });

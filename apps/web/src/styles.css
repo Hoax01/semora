@@ -366,6 +366,50 @@ h1 {
   margin-top: 1rem;
 }
 
+.clash-warning {
+  margin-top: 1rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #db6a6a88;
+  border-radius: 0.9rem;
+  background: #7d262618;
+}
+
+.clash-warning h2,
+.clash-warning p {
+  margin: 0;
+}
+
+.clash-warning h2 {
+  margin-top: 0.35rem;
+  font-size: 1.2rem;
+}
+
+.clash-warning > p:not(.eyebrow) {
+  margin-top: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.clash-warning ul {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clash-warning li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  border-left: 3px solid #db6a6a;
+  background: #7d262620;
+}
+
+.clash-warning li span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 .candidate-workbench {
   display: grid;
   grid-template-columns: minmax(17rem, 0.7fr) minmax(24rem, 1.3fr);
