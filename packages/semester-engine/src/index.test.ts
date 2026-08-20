@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  analyzeCandidateScenario,
   analyzeCandidateSchedule,
+  calculateCandidateComparison,
   calculateCoursePreferenceFit,
   calculateScheduleMetrics,
   calculateTotalCredits,
@@ -519,6 +521,124 @@ describe('structured candidate findings', () => {
         }),
       ]),
     );
+  });
+});
+
+describe('candidate comparison and scenarios', () => {
+  it('highlights meaningful differences and assigns reproducible preference tags', () => {
+    const optionA = analyzeCandidateSchedule({
+      candidateId: 'candidate-a',
+      courses: [
+        scheduleCourse({
+          id: 'course-a',
+          courseCode: 'CS A',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:00', endTime: '11:00' }],
+          workloadProfile: {
+            overallIntensity: 8,
+            projectIntensity: 8,
+            examIntensity: 4,
+            continuousWorkload: 6,
+          },
+          careerRelevanceScore: 1,
+        }),
+      ],
+      commitments: [],
+      preferences: {
+        workloadPriority: 1,
+        schedulePriority: 0.5,
+        careerPriority: 0.25,
+      },
+    });
+    const optionB = analyzeCandidateSchedule({
+      candidateId: 'candidate-b',
+      courses: [
+        scheduleCourse({
+          id: 'course-b',
+          courseCode: 'CS B',
+          meetings: [{ dayOfWeek: 'TUESDAY', startTime: '10:00', endTime: '11:00' }],
+          workloadProfile: {
+            overallIntensity: 4,
+            projectIntensity: 3,
+            examIntensity: 6,
+            continuousWorkload: 4,
+          },
+          careerRelevanceScore: 0.5,
+        }),
+      ],
+      commitments: [],
+      preferences: {
+        workloadPriority: 1,
+        schedulePriority: 0.5,
+        careerPriority: 0.25,
+      },
+    });
+
+    const comparison = calculateCandidateComparison([
+      {
+        candidateId: 'candidate-a',
+        name: 'Systems heavy',
+        analysis: optionA,
+        preferences: { workloadPriority: 1, schedulePriority: 0.5, careerPriority: 0.25 },
+      },
+      {
+        candidateId: 'candidate-b',
+        name: 'Balanced',
+        analysis: optionB,
+        preferences: { workloadPriority: 1, schedulePriority: 0.5, careerPriority: 0.25 },
+      },
+    ]);
+
+    expect(comparison.metricDifferences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'academicIntensity',
+          delta: 4,
+          meaningful: true,
+          betterCandidateIds: ['candidate-b'],
+        }),
+      ]),
+    );
+    expect(
+      comparison.candidates.find((candidate) => candidate.candidateId === 'candidate-b'),
+    ).toEqual(
+      expect.objectContaining({
+        recommendationTags: expect.arrayContaining([
+          'LOWEST_WORKLOAD',
+          'BEST_MATCH_FOR_PREFERENCES',
+        ]),
+      }),
+    );
+    expect(comparison.tradeoffs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'academicIntensity',
+          betterCandidateId: 'candidate-b',
+          worseCandidateId: 'candidate-a',
+        }),
+      ]),
+    );
+  });
+
+  it('recalculates a bounded scenario without mutating the original input', () => {
+    const base = {
+      candidateId: 'candidate-1',
+      courses: [
+        scheduleCourse({
+          id: 'course-1',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:00', endTime: '11:00' }],
+        }),
+        scheduleCourse({
+          id: 'course-2',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:30', endTime: '11:30' }],
+        }),
+      ],
+      commitments: [],
+    };
+    const scenario = analyzeCandidateScenario(base, { courses: [base.courses[0]] });
+
+    expect(base.courses).toHaveLength(2);
+    expect(scenario.validity).toEqual({ valid: true, clashes: [] });
+    expect(scenario.schedule.totalClassMinutes).toBe(60);
   });
 });
 

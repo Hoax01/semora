@@ -349,6 +349,37 @@ describe('Phase 2 planning foundation', () => {
       careerCompleteness: 1,
     });
 
+    const comparison = await request(app)
+      .get(`/api/workspaces/${workspaceId}/comparison`)
+      .set('Cookie', ownerCookie);
+    expect(comparison.status).toBe(200);
+    expect(comparison.body.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ candidateId: optionA.body.candidate.id, name: 'Option A' }),
+        expect.objectContaining({ candidateId: optionB.body.candidate.id, name: 'Balanced' }),
+      ]),
+    );
+    expect(comparison.body.metricDifferences).toEqual(expect.any(Array));
+
+    const scenarioWithoutCourse = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/scenario`)
+      .set('Cookie', ownerCookie)
+      .send({ removeSelectionId: selection.body.selection.id });
+    expect(scenarioWithoutCourse.status).toBe(200);
+    expect(scenarioWithoutCourse.body.changes).toEqual(['course_removed']);
+    expect(scenarioWithoutCourse.body.analysis).toMatchObject({
+      candidateId: optionA.body.candidate.id,
+      validity: { valid: true, clashes: [] },
+      schedule: { totalClassMinutes: 0, scheduledDays: [], freeDays: expect.any(Array) },
+    });
+
+    const preferenceScenario = await request(app)
+      .post(`/api/candidates/${optionA.body.candidate.id}/scenario`)
+      .set('Cookie', ownerCookie)
+      .send({ preferences: { workloadPriority: 1 } });
+    expect(preferenceScenario.status).toBe(200);
+    expect(preferenceScenario.body.changes).toEqual(['preferences_changed']);
+
     const workspaceWithCoursePreference = await request(app)
       .get(`/api/workspaces/${workspaceId}`)
       .set('Cookie', ownerCookie);

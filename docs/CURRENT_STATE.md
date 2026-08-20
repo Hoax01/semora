@@ -1,15 +1,16 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 3 — Semester Intelligence (in progress)
-**Next Build Objective:** Phase 3.9 — Candidate Comparison UI
+**Current Phase:** Phase 4 — Lock Semester (in progress)
+**Next Build Objective:** Phase 4.1 — Active Semester Schema
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
 checkpoint is complete. Phase 3 schedule analysis foundations are now
-implemented; preliminary workload profiles, course-preference fit summaries,
-workload interaction penalties, preliminary candidate metrics, and structured
-findings are now implemented, while comparison remains.
+complete; preliminary workload profiles, course-preference fit summaries,
+workload interaction penalties, preliminary candidate metrics, structured
+findings, comparison, recommendation tags, and bounded what-if exploration are
+now implemented.
 
 ---
 
@@ -77,6 +78,14 @@ findings are now implemented, while comparison remains.
   stable message keys, related course or commitment IDs, and concise UI copy
   for clashes, concentration, schedule patterns, commitments, free days, and
   low data completeness.
+- The planner compares all active candidates side-by-side with aligned metrics,
+  meaningful-difference highlighting, validity status, trade-off explanations,
+  confidence/completeness values, and deterministic context-sensitive
+  recommendation tags.
+- The planner provides non-persistent what-if exploration for alternate
+  sections, adding/removing courses, removing commitments, and changing
+  workload priority. Scenario analysis is recalculated by the Semester Engine
+  and never mutates the saved candidate.
 
 ### API and authentication
 
@@ -120,6 +129,11 @@ findings are now implemented, while comparison remains.
   resolved preliminary workload profiles, course-preference fit summaries,
   workload interaction penalties, preliminary candidate metrics, structured
   findings, and hard-constraint validity.
+- Ownership-checked workspace comparison analysis returns all active candidates
+  with deterministic metric differences, trade-offs, validity, and
+  preference-sensitive recommendation tags.
+- Ownership-checked candidate scenario analysis recalculates bounded course,
+  section, commitment, and preference what-if changes without persistence.
 - Ownership-checked workload-profile PATCH/DELETE APIs persist per-workspace
   user estimates for a course offering, validate 0–10 dimensions and weekly
   hours, and restore structural estimates when reset.
@@ -229,6 +243,10 @@ Current API integration coverage verifies:
   concentration severity, long campus days, early/late patterns, fixed
   commitments, free days, and low-data findings; the API analysis contract
   exercises the findings payload.
+- Candidate comparison tests cover meaningful-difference thresholds,
+  preference-sensitive tags, reproducible trade-offs, and API comparison
+  ownership. Scenario tests cover non-persistent course removal and preference
+  overrides.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
@@ -274,22 +292,25 @@ Implemented in this phase so far:
 3.6 Interaction Penalties
 3.7 Candidate Metrics
 3.8 Findings
-```
-
-Not yet implemented:
-
-```text
 3.9 Candidate Comparison UI
 3.10 Recommendation Tags
 3.11 Scenario Exploration
 ```
 
+Not yet implemented:
+
+```text
+4.1 Active Semester Schema
+4.2 Lock Workflow
+```
+
 Phase 3 acceptance status:
 
 ```text
-IN PROGRESS — one candidate now has preliminary schedule, workload,
-course-preference fit, interaction-pressure, candidate-metric, and structured
-finding intelligence; candidate comparison is not yet implemented.
+SATISFIED — students can inspect one candidate's deterministic intelligence,
+compare multiple active candidates, see explainable preference-sensitive tags,
+and explore bounded unsaved scenarios. Automatic generation, Pareto UI, ML,
+community intelligence, and LLM recommendations remain out of scope.
 ```
 
 Checkpoint A, the Sol architecture review described in
@@ -388,7 +409,8 @@ summary with explicit completeness. Centralized interaction heuristics now
 measure concentration among known project, continuous-assessment, and exam
 profiles; candidate metrics now combine those inputs with schedule and
 commitment compatibility. Structured findings now expose deterministic causes,
-severity, and related IDs. Candidate comparison remains later Phase 3 work.
+severity, and related IDs. Candidate comparison, recommendation tags, and
+bounded scenario analysis now remain derived and non-persistent, as intended.
 
 `packages/domain` remains an intentionally empty workspace package. Current
 Phase 2 calculations are isolated in `packages/semester-engine`, while API and
@@ -437,7 +459,8 @@ docs/CATALOGUE_IMPORT.md
 ## Next objective
 
 Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
-has implemented its schedule-analysis, preliminary-profile,
-course-preference, interaction-penalty, candidate-metric, and structured-
-finding foundations. The next objective is Phase 3.9 candidate comparison,
-without implementing later LOCK or NAVIGATE behavior.
+is complete through schedule analysis, preliminary profiles,
+course-preference fit, interaction penalties, candidate metrics, structured
+findings, comparison, recommendation tags, and bounded scenario exploration.
+The next objective is Phase 4.1 active-semester schema, without implementing
+later LOCK workflow behavior in this step.

@@ -1,10 +1,13 @@
 import type express from 'express';
 import {
+  analyzeCandidateScenario,
   analyzeCandidateSchedule,
+  calculateCandidateComparison,
   calculateTotalCredits,
   detectTimetableClashes,
   resolveWorkloadProfile,
   type CandidateSemesterInput,
+  type CandidateCourseInput,
   type CourseWorkloadProfile,
   type MeetingDay,
 } from '@semora/semester-engine';
@@ -104,6 +107,21 @@ const preferenceUpdateSchema = z
     earlyClassAversion: preferenceValueSchema.optional(),
     lateClassAversion: preferenceValueSchema.optional(),
     maxPreferredHardCourses: z.number().int().min(0).max(20).nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+
+const scenarioSchema = z
+  .object({
+    replaceSelection: z
+      .object({
+        selectionId: z.string().trim().min(1),
+        sectionId: z.string().trim().min(1),
+      })
+      .optional(),
+    addSectionId: z.string().trim().min(1).optional(),
+    removeSelectionId: z.string().trim().min(1).optional(),
+    removeCommitmentId: z.string().trim().min(1).optional(),
+    preferences: preferenceUpdateSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0);
 
@@ -466,6 +484,7 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
       selections: { include: selectionInclude },
       workspace: {
         select: {
+          academicTermId: true,
           preferences: true,
           coursePreferences: true,
           workloadProfiles: true,
@@ -477,6 +496,84 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
       },
     },
   });
+}
+
+type AnalysisWorkspace = {
+  coursePreferences: CoursePreferenceRecord[];
+  workloadProfiles: WorkloadProfileRecord[];
+};
+
+type AnalysisSection = {
+  sectionCode: string;
+  meetings: Array<{
+    dayOfWeek: string;
+    startTime: Date;
+    endTime: Date;
+    meetingType: string;
+  }>;
+  courseOffering: {
+    id: string;
+    creditHours: { toString(): string };
+    course: { courseCode: string; title: string };
+  };
+};
+
+function candidateCourseInputFromSection(
+  selectionId: string,
+  section: AnalysisSection,
+  workspace: AnalysisWorkspace,
+): CandidateCourseInput {
+  const courseOfferingId = section.courseOffering.id;
+  const meetings = section.meetings.map((meeting) => ({
+    dayOfWeek: meeting.dayOfWeek as MeetingDay,
+    startTime: formatTime(meeting.startTime),
+    endTime: formatTime(meeting.endTime),
+    meetingType: meeting.meetingType as 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
+  }));
+  const stored = workspace.workloadProfiles.find(
+    (profile) => profile.courseOfferingId === courseOfferingId,
+  );
+  const coursePreference = workspace.coursePreferences.find(
+    (preference) => preference.courseOfferingId === courseOfferingId,
+  );
+
+  return {
+    id: selectionId,
+    courseOfferingId,
+    courseCode: section.courseOffering.course.courseCode,
+    courseTitle: section.courseOffering.course.title,
+    creditHours: Number(section.courseOffering.creditHours),
+    sectionCode: section.sectionCode,
+    meetings,
+    interestScore: decimalOrNull(coursePreference?.interestScore ?? null),
+    careerRelevanceScore: decimalOrNull(coursePreference?.careerRelevanceScore ?? null),
+    ...(stored
+      ? {
+          workloadProfile: resolveWorkloadProfile(
+            {
+              creditHours: Number(section.courseOffering.creditHours),
+              meetings,
+            },
+            {
+              overallIntensity: decimalOrNull(stored.overallIntensity),
+              continuousWorkload: decimalOrNull(stored.continuousWorkload),
+              assignmentIntensity: decimalOrNull(stored.assignmentIntensity),
+              quizIntensity: decimalOrNull(stored.quizIntensity),
+              projectIntensity: decimalOrNull(stored.projectIntensity),
+              examIntensity: decimalOrNull(stored.examIntensity),
+              labIntensity: decimalOrNull(stored.labIntensity),
+              readingIntensity: decimalOrNull(stored.readingIntensity),
+              scheduleBurden: decimalOrNull(stored.scheduleBurden),
+              assessmentFragmentation: decimalOrNull(stored.assessmentFragmentation),
+              estimatedWeeklyHours: decimalOrNull(stored.estimatedWeeklyHours),
+              confidence: Number(stored.confidence),
+              source: stored.sourceType as
+                'STRUCTURAL_ESTIMATE' | 'USER_ESTIMATE' | 'VERIFIED_OUTLINE',
+            },
+          ),
+        }
+      : {}),
+  };
 }
 
 function candidateSemesterInput(
@@ -1102,6 +1199,155 @@ export function registerPlanningRoutes(app: express.Express) {
     }
 
     response.status(200).json(analyzeCandidateSchedule(candidateSemesterInput(candidate)));
+  });
+
+  app.get('/api/workspaces/:workspaceId/comparison', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const workspace = await loadOwnedWorkspace(request.params.workspaceId, userId);
+    if (!workspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+
+    const candidates = (
+      await Promise.all(
+        workspace.candidates.map(async (candidate) => {
+          const fullCandidate = await loadOwnedCandidateForValidation(candidate.id, userId);
+          if (!fullCandidate) return null;
+          const input = candidateSemesterInput(fullCandidate);
+          return {
+            candidateId: candidate.id,
+            name: candidate.name,
+            analysis: analyzeCandidateSchedule(input),
+            ...(input.preferences ? { preferences: input.preferences } : {}),
+          };
+        }),
+      )
+    ).filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+    response.status(200).json(calculateCandidateComparison(candidates));
+  });
+
+  app.post('/api/candidates/:candidateId/scenario', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = scenarioSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const candidate = await loadOwnedCandidateForValidation(request.params.candidateId, userId);
+    if (!candidate) {
+      response.status(404).json({ error: 'CANDIDATE_NOT_FOUND' });
+      return;
+    }
+
+    const input = candidateSemesterInput(candidate);
+    let courses = [...input.courses];
+    let commitments = [...input.commitments];
+    const changes: string[] = [];
+
+    if (parsed.data.removeSelectionId) {
+      const nextCourses = courses.filter((course) => course.id !== parsed.data.removeSelectionId);
+      if (nextCourses.length === courses.length) {
+        response.status(400).json({ error: 'SCENARIO_SELECTION_NOT_FOUND' });
+        return;
+      }
+      courses = nextCourses;
+      changes.push('course_removed');
+    }
+
+    if (parsed.data.replaceSelection) {
+      const existing = courses.find(
+        (course) => course.id === parsed.data.replaceSelection?.selectionId,
+      );
+      if (!existing) {
+        response.status(400).json({ error: 'SCENARIO_SELECTION_NOT_FOUND' });
+        return;
+      }
+      const section = await loadSectionForWorkspace(
+        parsed.data.replaceSelection.sectionId,
+        candidate.workspace.academicTermId,
+      );
+      if (!section) {
+        response.status(404).json({ error: 'SECTION_NOT_FOUND' });
+        return;
+      }
+      if (section.courseOfferingId !== existing.courseOfferingId) {
+        conflictError(response, 'SECTION_MUST_MATCH_COURSE');
+        return;
+      }
+      courses = courses.map((course) =>
+        course.id === existing.id
+          ? candidateCourseInputFromSection(course.id, section, candidate.workspace)
+          : course,
+      );
+      changes.push('section_replaced');
+    }
+
+    if (parsed.data.addSectionId) {
+      const section = await loadSectionForWorkspace(
+        parsed.data.addSectionId,
+        candidate.workspace.academicTermId,
+      );
+      if (!section) {
+        response.status(404).json({ error: 'SECTION_NOT_FOUND' });
+        return;
+      }
+      if (courses.some((course) => course.courseOfferingId === section.courseOfferingId)) {
+        conflictError(response, 'COURSE_ALREADY_SELECTED');
+        return;
+      }
+      courses = [
+        ...courses,
+        candidateCourseInputFromSection(`scenario-${section.id}`, section, candidate.workspace),
+      ];
+      changes.push('course_added');
+    }
+
+    if (parsed.data.removeCommitmentId) {
+      const nextCommitments = commitments.filter(
+        (commitment) => commitment.id !== parsed.data.removeCommitmentId,
+      );
+      if (nextCommitments.length === commitments.length) {
+        response.status(400).json({ error: 'SCENARIO_COMMITMENT_NOT_FOUND' });
+        return;
+      }
+      commitments = nextCommitments;
+      changes.push('commitment_removed');
+    }
+
+    const scenarioPreferenceOverrides = parsed.data.preferences
+      ? (Object.fromEntries(
+          Object.entries(parsed.data.preferences).filter(([, value]) => value !== undefined),
+        ) as CandidateSemesterInput['preferences'])
+      : undefined;
+    const preferences = scenarioPreferenceOverrides
+      ? { ...input.preferences, ...scenarioPreferenceOverrides }
+      : input.preferences;
+    if (scenarioPreferenceOverrides) changes.push('preferences_changed');
+
+    const scenarioOverrides = {
+      courses,
+      commitments,
+      ...(preferences ? { preferences } : {}),
+    };
+
+    response.status(200).json({
+      analysis: analyzeCandidateScenario(input, scenarioOverrides),
+      changes,
+    });
   });
 
   app.post('/api/workspaces/:workspaceId/candidates', async (request, response) => {

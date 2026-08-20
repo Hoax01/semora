@@ -337,6 +337,75 @@ export type CandidateFinding = {
   dataCompleteness?: number;
 };
 
+export type CandidateRecommendationTag =
+  | 'MOST_BALANCED'
+  | 'BEST_SCHEDULE'
+  | 'LOWEST_WORKLOAD'
+  | 'BEST_CAREER_FIT'
+  | 'LOWEST_PROJECT_LOAD'
+  | 'BEST_MATCH_FOR_PREFERENCES';
+
+export type CandidateComparisonMetricKey =
+  | 'academicIntensity'
+  | 'continuousLoad'
+  | 'projectLoad'
+  | 'examLoad'
+  | 'assessmentFragmentation'
+  | 'scheduleQuality'
+  | 'commitmentCompatibility'
+  | 'interestFit'
+  | 'careerFit'
+  | 'balance'
+  | 'analysisConfidence'
+  | 'dataCompleteness';
+
+export type CandidateComparisonConfig = {
+  meaningfulDifference: number;
+};
+
+export const DEFAULT_CANDIDATE_COMPARISON_CONFIG: CandidateComparisonConfig = {
+  meaningfulDifference: 0.5,
+};
+
+export type CandidateComparisonInput = {
+  candidateId: string;
+  name: string;
+  analysis: CandidateScheduleAnalysis;
+  preferences?: CandidatePreferencesInput;
+};
+
+export type CandidateComparisonMetricDifference = {
+  metric: CandidateComparisonMetricKey;
+  label: string;
+  values: Array<{ candidateId: string; value: number | null }>;
+  delta: number | null;
+  meaningful: boolean;
+  betterCandidateIds: string[];
+  lowerIsBetter: boolean;
+};
+
+export type CandidateComparisonTradeoff = {
+  metric: CandidateComparisonMetricKey;
+  messageKey: string;
+  betterCandidateId: string;
+  worseCandidateId: string;
+  delta: number;
+};
+
+export type CandidateComparisonCandidate = {
+  candidateId: string;
+  name: string;
+  analysis: CandidateScheduleAnalysis;
+  preferenceMatchScore: number | null;
+  recommendationTags: CandidateRecommendationTag[];
+};
+
+export type CandidateComparison = {
+  candidates: CandidateComparisonCandidate[];
+  metricDifferences: CandidateComparisonMetricDifference[];
+  tradeoffs: CandidateComparisonTradeoff[];
+};
+
 export function calculateTotalCredits(credits: readonly number[]) {
   const tenths = credits.reduce((total, credit) => {
     if (!Number.isFinite(credit) || credit < 0) {
@@ -1304,4 +1373,222 @@ export function analyzeCandidateSchedule(
       metrics,
     }),
   };
+}
+
+const candidateComparisonMetricDefinitions: Array<{
+  key: CandidateComparisonMetricKey;
+  label: string;
+  lowerIsBetter: boolean;
+}> = [
+  { key: 'academicIntensity', label: 'Academic intensity', lowerIsBetter: true },
+  { key: 'continuousLoad', label: 'Continuous load', lowerIsBetter: true },
+  { key: 'projectLoad', label: 'Project load', lowerIsBetter: true },
+  { key: 'examLoad', label: 'Exam load', lowerIsBetter: true },
+  {
+    key: 'assessmentFragmentation',
+    label: 'Assessment fragmentation',
+    lowerIsBetter: true,
+  },
+  { key: 'scheduleQuality', label: 'Schedule quality', lowerIsBetter: false },
+  { key: 'commitmentCompatibility', label: 'Commitment compatibility', lowerIsBetter: false },
+  { key: 'interestFit', label: 'Interest fit', lowerIsBetter: false },
+  { key: 'careerFit', label: 'Career fit', lowerIsBetter: false },
+  { key: 'balance', label: 'Balance', lowerIsBetter: false },
+  { key: 'analysisConfidence', label: 'Analysis confidence', lowerIsBetter: false },
+  { key: 'dataCompleteness', label: 'Data completeness', lowerIsBetter: false },
+];
+
+function candidateMetricValue(
+  analysis: CandidateScheduleAnalysis,
+  metric: CandidateComparisonMetricKey,
+) {
+  return analysis.metrics[metric];
+}
+
+function bestKnownCandidateIds(
+  values: Array<{ candidateId: string; value: number }>,
+  lowerIsBetter: boolean,
+) {
+  if (!values.length) return [];
+  const bestValue = lowerIsBetter
+    ? Math.min(...values.map((entry) => entry.value))
+    : Math.max(...values.map((entry) => entry.value));
+  return values
+    .filter((entry) => Math.abs(entry.value - bestValue) < 0.05)
+    .map((entry) => entry.candidateId);
+}
+
+function preferenceMatchScore(
+  analysis: CandidateScheduleAnalysis,
+  preferences: CandidatePreferencesInput | undefined,
+) {
+  const priorities = preferences ?? {};
+  const measures: Array<[number, number | null]> = [
+    [priorities.workloadPriority ?? 0, inverseMetric(analysis.metrics.academicIntensity)],
+    [priorities.schedulePriority ?? 0, normalizeMetric(analysis.metrics.scheduleQuality)],
+    [priorities.freeDayPriority ?? 0, normalizeMetric(analysis.metrics.scheduleQuality)],
+    [priorities.careerPriority ?? 0, normalizeMetric(analysis.metrics.careerFit)],
+    [priorities.interestPriority ?? 0, normalizeMetric(analysis.metrics.interestFit)],
+    [
+      priorities.projectPreference ?? 0,
+      styleFit(analysis.metrics.projectLoad, priorities.projectPreference),
+    ],
+    [
+      priorities.examPreference ?? 0,
+      styleFit(analysis.metrics.examLoad, priorities.examPreference),
+    ],
+    [
+      priorities.continuousAssessmentPreference ?? 0,
+      styleFit(analysis.metrics.continuousLoad, priorities.continuousAssessmentPreference),
+    ],
+  ];
+  const knownMeasures = measures.filter(
+    (entry): entry is [number, number] => entry[0] > 0 && entry[1] !== null,
+  );
+  if (!knownMeasures.length) return null;
+  const totalWeight = knownMeasures.reduce((total, [weight]) => total + weight, 0);
+  return roundMetric(
+    (knownMeasures.reduce((total, [weight, value]) => total + weight * value, 0) / totalWeight) *
+      10,
+  );
+}
+
+function normalizeMetric(value: number | null) {
+  return value === null ? null : clamp(value / 10, 0, 1);
+}
+
+function inverseMetric(value: number | null) {
+  return value === null ? null : clamp(1 - value / 10, 0, 1);
+}
+
+function styleFit(value: number | null, preference: number | undefined) {
+  if (value === null || preference === undefined) return null;
+  return clamp(1 - Math.abs(value / 10 - preference), 0, 1);
+}
+
+function tagForMetric(metric: CandidateComparisonMetricKey) {
+  const tags: Partial<Record<CandidateComparisonMetricKey, CandidateRecommendationTag>> = {
+    academicIntensity: 'LOWEST_WORKLOAD',
+    projectLoad: 'LOWEST_PROJECT_LOAD',
+    scheduleQuality: 'BEST_SCHEDULE',
+    careerFit: 'BEST_CAREER_FIT',
+    balance: 'MOST_BALANCED',
+  };
+  return tags[metric];
+}
+
+export function calculateCandidateComparison(
+  inputs: readonly CandidateComparisonInput[],
+  config: CandidateComparisonConfig = DEFAULT_CANDIDATE_COMPARISON_CONFIG,
+): CandidateComparison {
+  const seenIds = new Set<string>();
+  for (const input of inputs) {
+    if (seenIds.has(input.candidateId)) {
+      throw new Error('Candidate comparison inputs must have unique candidate IDs.');
+    }
+    seenIds.add(input.candidateId);
+  }
+  if (!Number.isFinite(config.meaningfulDifference) || config.meaningfulDifference < 0) {
+    throw new Error('Candidate comparison configuration contains invalid values.');
+  }
+
+  const candidates: CandidateComparisonCandidate[] = inputs.map((input) => ({
+    candidateId: input.candidateId,
+    name: input.name,
+    analysis: input.analysis,
+    preferenceMatchScore: preferenceMatchScore(input.analysis, input.preferences),
+    recommendationTags: [],
+  }));
+
+  const metricDifferences = candidateComparisonMetricDefinitions.map((definition) => {
+    const values = candidates.map((candidate) => ({
+      candidateId: candidate.candidateId,
+      value: candidateMetricValue(candidate.analysis, definition.key),
+    }));
+    const knownValues = values.filter((entry): entry is { candidateId: string; value: number } => {
+      return entry.value !== null;
+    });
+    const min = knownValues.length ? Math.min(...knownValues.map((entry) => entry.value)) : null;
+    const max = knownValues.length ? Math.max(...knownValues.map((entry) => entry.value)) : null;
+    const delta = min === null || max === null ? null : roundMetric(max - min);
+    return {
+      metric: definition.key,
+      label: definition.label,
+      values,
+      delta,
+      meaningful: delta !== null && knownValues.length > 1 && delta >= config.meaningfulDifference,
+      betterCandidateIds: bestKnownCandidateIds(knownValues, definition.lowerIsBetter),
+      lowerIsBetter: definition.lowerIsBetter,
+    };
+  });
+
+  for (const difference of metricDifferences) {
+    const tag = difference.meaningful ? tagForMetric(difference.metric) : undefined;
+    if (!tag) continue;
+    for (const candidate of candidates) {
+      if (
+        candidate.analysis.validity.valid &&
+        difference.betterCandidateIds.includes(candidate.candidateId)
+      ) {
+        candidate.recommendationTags.push(tag);
+      }
+    }
+  }
+
+  const eligibleForPreferenceTag = candidates.filter(
+    (candidate) => candidate.analysis.validity.valid && candidate.preferenceMatchScore !== null,
+  );
+  if (eligibleForPreferenceTag.length) {
+    const bestScore = Math.max(
+      ...eligibleForPreferenceTag.map((candidate) => candidate.preferenceMatchScore ?? 0),
+    );
+    for (const candidate of eligibleForPreferenceTag) {
+      if (Math.abs((candidate.preferenceMatchScore ?? 0) - bestScore) < 0.05) {
+        candidate.recommendationTags.push('BEST_MATCH_FOR_PREFERENCES');
+      }
+    }
+  }
+
+  const tradeoffs = metricDifferences.flatMap((difference) => {
+    if (!difference.meaningful || difference.betterCandidateIds.length !== 1) return [];
+    const betterCandidateId = difference.betterCandidateIds[0];
+    if (!betterCandidateId) return [];
+    const worseCandidate = difference.values.find(
+      (entry) => entry.value !== null && entry.candidateId !== betterCandidateId,
+    );
+    if (!worseCandidate) return [];
+    return [
+      {
+        metric: difference.metric,
+        messageKey: `comparison_${difference.metric}`,
+        betterCandidateId,
+        worseCandidateId: worseCandidate.candidateId,
+        delta: difference.delta ?? 0,
+      },
+    ];
+  });
+
+  return { candidates, metricDifferences, tradeoffs };
+}
+
+export type CandidateScenarioOverrides = {
+  courses?: readonly CandidateCourseInput[];
+  commitments?: readonly CandidateCommitmentInput[];
+  preferences?: CandidatePreferencesInput;
+};
+
+export function analyzeCandidateScenario(
+  input: CandidateSemesterInput,
+  overrides: CandidateScenarioOverrides,
+) {
+  const { preferences: basePreferences, ...inputWithoutPreferences } = input;
+  const preferences = overrides.preferences
+    ? { ...basePreferences, ...overrides.preferences }
+    : basePreferences;
+  return analyzeCandidateSchedule({
+    ...inputWithoutPreferences,
+    courses: [...(overrides.courses ?? input.courses)],
+    commitments: [...(overrides.commitments ?? input.commitments)],
+    ...(preferences ? { preferences } : {}),
+  });
 }

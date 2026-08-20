@@ -107,6 +107,46 @@ type CandidateFinding = {
   dataCompleteness?: number;
 };
 
+type CandidateComparisonMetricKey =
+  | 'academicIntensity'
+  | 'continuousLoad'
+  | 'projectLoad'
+  | 'examLoad'
+  | 'assessmentFragmentation'
+  | 'scheduleQuality'
+  | 'commitmentCompatibility'
+  | 'interestFit'
+  | 'careerFit'
+  | 'balance'
+  | 'analysisConfidence'
+  | 'dataCompleteness';
+
+type CandidateComparison = {
+  candidates: Array<{
+    candidateId: string;
+    name: string;
+    analysis: CandidateAnalysis;
+    preferenceMatchScore: number | null;
+    recommendationTags: string[];
+  }>;
+  metricDifferences: Array<{
+    metric: CandidateComparisonMetricKey;
+    label: string;
+    values: Array<{ candidateId: string; value: number | null }>;
+    delta: number | null;
+    meaningful: boolean;
+    betterCandidateIds: string[];
+    lowerIsBetter: boolean;
+  }>;
+  tradeoffs: Array<{
+    metric: CandidateComparisonMetricKey;
+    messageKey: string;
+    betterCandidateId: string;
+    worseCandidateId: string;
+    delta: number;
+  }>;
+};
+
 type WorkloadDimension =
   | 'overallIntensity'
   | 'continuousWorkload'
@@ -437,6 +477,40 @@ function findingDescription(finding: CandidateFinding, selections: Selection[]) 
   }
 }
 
+function recommendationTagTitle(tag: string) {
+  const labels: Record<string, string> = {
+    MOST_BALANCED: 'Most balanced',
+    BEST_SCHEDULE: 'Best schedule',
+    LOWEST_WORKLOAD: 'Lowest workload',
+    BEST_CAREER_FIT: 'Best career fit',
+    LOWEST_PROJECT_LOAD: 'Lowest project load',
+    BEST_MATCH_FOR_PREFERENCES: 'Best match for you',
+  };
+  return labels[tag] ?? 'Preference match';
+}
+
+function comparisonMetricValue(metric: CandidateComparisonMetricKey, value: number | null) {
+  if (value === null) return 'Unknown';
+  return metric === 'analysisConfidence' || metric === 'dataCompleteness'
+    ? formatPercent(value)
+    : formatMetric(value);
+}
+
+function comparisonTradeoffText(
+  tradeoff: CandidateComparison['tradeoffs'][number],
+  comparison: CandidateComparison,
+) {
+  const better = comparison.candidates.find(
+    (candidate) => candidate.candidateId === tradeoff.betterCandidateId,
+  )?.name;
+  const worse = comparison.candidates.find(
+    (candidate) => candidate.candidateId === tradeoff.worseCandidateId,
+  )?.name;
+  const metric = comparison.metricDifferences.find((item) => item.metric === tradeoff.metric);
+  if (!better || !worse || !metric) return 'This comparison contains a meaningful trade-off.';
+  return `${better} has ${metric.label.toLowerCase()} ${formatMetric(tradeoff.delta)} better than ${worse}.`;
+}
+
 function formatDay(day: string) {
   return day.charAt(0) + day.slice(1).toLowerCase();
 }
@@ -574,6 +648,9 @@ export function PlanningPage() {
   const [activeOfferingId, setActiveOfferingId] = useState<string>();
   const [candidateValidation, setCandidateValidation] = useState<CandidateValidation>();
   const [candidateAnalysis, setCandidateAnalysis] = useState<CandidateAnalysis>();
+  const [candidateComparison, setCandidateComparison] = useState<CandidateComparison>();
+  const [scenarioAnalysis, setScenarioAnalysis] = useState<CandidateAnalysis>();
+  const [scenarioDescription, setScenarioDescription] = useState<string>();
   const [validationRefresh, setValidationRefresh] = useState(0);
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>(emptyCommitmentDraft);
   const [preferenceDraft, setPreferenceDraft] = useState<PreferenceDraft>(defaultPreferenceDraft);
@@ -585,6 +662,7 @@ export function PlanningPage() {
     const result = await apiRequest<{ workspace: Workspace }>(`/api/workspaces/${workspaceId}`);
     setWorkspace(result.workspace);
     setCandidateValidation(undefined);
+    setCandidateComparison(undefined);
     setSelectedCandidateId((current) =>
       result.workspace.candidates.some((candidate) => candidate.id === current)
         ? current
@@ -615,6 +693,8 @@ export function PlanningPage() {
     if (!selectedCandidateId) {
       setCandidateValidation(undefined);
       setCandidateAnalysis(undefined);
+      setScenarioAnalysis(undefined);
+      setScenarioDescription(undefined);
       return;
     }
     let isCurrent = true;
@@ -626,6 +706,8 @@ export function PlanningPage() {
         if (!isCurrent) return;
         setCandidateValidation(validation);
         setCandidateAnalysis(analysis);
+        setScenarioAnalysis(undefined);
+        setScenarioDescription(undefined);
       })
       .catch((reason: unknown) => {
         if (isCurrent)
@@ -635,6 +717,26 @@ export function PlanningPage() {
       isCurrent = false;
     };
   }, [selectedCandidateId, validationRefresh]);
+
+  useEffect(() => {
+    if (!workspaceId || !workspace || workspace.candidates.length < 2) {
+      setCandidateComparison(undefined);
+      return;
+    }
+    let isCurrent = true;
+    apiRequest<CandidateComparison>(`/api/workspaces/${workspaceId}/comparison`)
+      .then((comparison) => {
+        if (isCurrent) setCandidateComparison(comparison);
+      })
+      .catch((reason: unknown) => {
+        if (isCurrent) {
+          setError(reason instanceof Error ? reason.message : 'Unable to compare candidates.');
+        }
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [workspace, workspaceId, validationRefresh]);
 
   useEffect(() => {
     if (!workspace || !appliedCourseSearch) {
@@ -675,6 +777,58 @@ export function PlanningPage() {
     } finally {
       setBusyAction(undefined);
     }
+  }
+
+  async function runScenario(body: Record<string, unknown>, description: string) {
+    if (!selectedCandidate) return;
+    setError(undefined);
+    setBusyAction('scenario');
+    try {
+      const result = await apiRequest<{ analysis: CandidateAnalysis }>(
+        `/api/candidates/${selectedCandidate.id}/scenario`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+      setScenarioAnalysis(result.analysis);
+      setScenarioDescription(description);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to explore this scenario.');
+    } finally {
+      setBusyAction(undefined);
+    }
+  }
+
+  function exploreSection(sectionId: string) {
+    if (!activeOffering) return;
+    const existing = activeSelection;
+    void runScenario(
+      existing
+        ? { replaceSelection: { selectionId: existing.id, sectionId } }
+        : { addSectionId: sectionId },
+      existing
+        ? `Try ${activeOffering.courseCode} with another section`
+        : `Try adding ${activeOffering.courseCode}`,
+    );
+  }
+
+  function exploreRemoveCourse(selection: Selection) {
+    void runScenario(
+      { removeSelectionId: selection.id },
+      `Try the semester without ${selection.courseCode}`,
+    );
+  }
+
+  function exploreRemoveCommitment(commitment: Commitment) {
+    void runScenario(
+      { removeCommitmentId: commitment.id },
+      `Try the semester without ${commitment.name}`,
+    );
+  }
+
+  function exploreWorkloadPriority(value: number) {
+    void runScenario(
+      { preferences: { workloadPriority: value } },
+      `Try workload priority at ${value === 1 ? 'high' : value === 0 ? 'low' : 'medium'}`,
+    );
   }
 
   function createCandidate(event: FormEvent<HTMLFormElement>) {
@@ -1012,6 +1166,102 @@ export function PlanningPage() {
             </form>
           </section>
 
+          {candidateComparison && candidateComparison.candidates.length > 1 ? (
+            <section className="comparison-panel" aria-labelledby="comparison-title">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">CANDIDATE COMPARISON</p>
+                  <h2 id="comparison-title">Which trade-off fits you?</h2>
+                </div>
+                <span className="course-meta">Differences under 0.5 stay neutral</span>
+              </div>
+              <div className="comparison-candidate-grid">
+                {candidateComparison.candidates.map((candidate) => (
+                  <article className="comparison-candidate" key={candidate.candidateId}>
+                    <div>
+                      <h3>{candidate.name}</h3>
+                      <span
+                        className={
+                          candidate.analysis.validity.valid ? 'valid-label' : 'invalid-label'
+                        }
+                      >
+                        {candidate.analysis.validity.valid
+                          ? 'Valid timetable'
+                          : 'Needs timetable fixes'}
+                      </span>
+                    </div>
+                    {candidate.recommendationTags.length ? (
+                      <div className="recommendation-tags">
+                        {candidate.recommendationTags.map((tag) => (
+                          <span className="recommendation-tag" key={tag}>
+                            {recommendationTagTitle(tag)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+              <div className="comparison-table-wrap">
+                <table className="comparison-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Metric</th>
+                      {candidateComparison.candidates.map((candidate) => (
+                        <th scope="col" key={candidate.candidateId}>
+                          {candidate.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidateComparison.metricDifferences.map((difference) => (
+                      <tr
+                        className={difference.meaningful ? 'meaningful-difference' : ''}
+                        key={difference.metric}
+                      >
+                        <th scope="row">{difference.label}</th>
+                        {candidateComparison.candidates.map((candidate) => {
+                          const value =
+                            difference.values.find(
+                              (entry) => entry.candidateId === candidate.candidateId,
+                            )?.value ?? null;
+                          const isBetter = difference.betterCandidateIds.includes(
+                            candidate.candidateId,
+                          );
+                          return (
+                            <td
+                              className={difference.meaningful && isBetter ? 'better-value' : ''}
+                              key={candidate.candidateId}
+                            >
+                              {comparisonMetricValue(difference.metric, value)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {candidateComparison.tradeoffs.length ? (
+                <div className="comparison-tradeoffs">
+                  <p className="eyebrow">KEY TRADE-OFFS</p>
+                  <ul>
+                    {candidateComparison.tradeoffs.slice(0, 5).map((tradeoff) => (
+                      <li key={`${tradeoff.metric}-${tradeoff.betterCandidateId}`}>
+                        {comparisonTradeoffText(tradeoff, candidateComparison)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="interaction-pressure-help">
+                  These options are currently similar across the known comparison metrics.
+                </p>
+              )}
+            </section>
+          ) : null}
+
           {error ? <p className="form-error planner-error">{error}</p> : null}
 
           {candidateValidation?.clashes.length ? (
@@ -1295,6 +1545,80 @@ export function PlanningPage() {
                   <p>Your fixed class schedule has no detected long, early, or late-day pattern.</p>
                 ) : null}
               </div>
+              <section className="scenario-panel" aria-labelledby="scenario-title">
+                <div className="interaction-pressure-heading">
+                  <div>
+                    <p className="eyebrow">WHAT-IF SCENARIO</p>
+                    <h3 id="scenario-title">Explore a change without saving it</h3>
+                  </div>
+                  <span className="course-meta">Current candidate stays unchanged</span>
+                </div>
+                <div className="scenario-preference-control">
+                  <label>
+                    Try a different workload priority
+                    <select
+                      defaultValue={String(preferenceDraft.workloadPriority)}
+                      disabled={Boolean(busyAction)}
+                      onChange={(event) => exploreWorkloadPriority(Number(event.target.value))}
+                    >
+                      {preferenceChoices.map((choice) => (
+                        <option key={choice.value} value={choice.value}>
+                          {choice.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                {scenarioAnalysis ? (
+                  <div className="scenario-result">
+                    <div className="scenario-result-heading">
+                      <strong>{scenarioDescription}</strong>
+                      <button
+                        className="text-button"
+                        onClick={() => {
+                          setScenarioAnalysis(undefined);
+                          setScenarioDescription(undefined);
+                        }}
+                        type="button"
+                      >
+                        Clear scenario
+                      </button>
+                    </div>
+                    <div className="scenario-metric-grid">
+                      <span>
+                        Intensity{' '}
+                        <strong>{formatMetric(scenarioAnalysis.metrics.academicIntensity)}</strong>
+                      </span>
+                      <span>
+                        Projects{' '}
+                        <strong>{formatMetric(scenarioAnalysis.metrics.projectLoad)}</strong>
+                      </span>
+                      <span>
+                        Schedule{' '}
+                        <strong>{formatMetric(scenarioAnalysis.metrics.scheduleQuality)}</strong>
+                      </span>
+                      <span>
+                        Balance <strong>{formatMetric(scenarioAnalysis.metrics.balance)}</strong>
+                      </span>
+                    </div>
+                    {scenarioAnalysis.findings.length ? (
+                      <p className="scenario-findings">
+                        {scenarioAnalysis.findings
+                          .slice(0, 3)
+                          .map((finding) => findingTitle(finding.type))
+                          .join(' · ')}
+                      </p>
+                    ) : (
+                      <p className="scenario-findings">No configured findings in this scenario.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="interaction-pressure-help">
+                    Use “Try this section”, “Try without course”, or “Try without commitment” to
+                    compare a possible change here.
+                  </p>
+                )}
+              </section>
             </section>
           ) : null}
 
@@ -1393,6 +1717,14 @@ export function PlanningPage() {
                             </p>
                           </div>
                           <div className="commitment-actions">
+                            <button
+                              className="secondary-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => exploreRemoveCommitment(commitment)}
+                              type="button"
+                            >
+                              Try without
+                            </button>
                             <button
                               className="secondary-button compact-button"
                               disabled={Boolean(busyAction)}
@@ -1872,6 +2204,14 @@ export function PlanningPage() {
                                 Change section
                               </button>
                               <button
+                                className="secondary-button compact-button"
+                                disabled={Boolean(busyAction)}
+                                onClick={() => exploreRemoveCourse(selection)}
+                                type="button"
+                              >
+                                Try without course
+                              </button>
+                              <button
                                 className="danger-button compact-button"
                                 disabled={Boolean(busyAction)}
                                 onClick={() => removeSelection(selection.id)}
@@ -1987,6 +2327,16 @@ export function PlanningPage() {
                                     ? 'Switch to this section'
                                     : 'Add section'}
                               </button>
+                              {!isSelected ? (
+                                <button
+                                  className="text-button"
+                                  disabled={Boolean(busyAction)}
+                                  onClick={() => exploreSection(section.id)}
+                                  type="button"
+                                >
+                                  Try without saving
+                                </button>
+                              ) : null}
                             </article>
                           );
                         })}
