@@ -3,10 +3,6 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { app } from './app.js';
 import { prisma } from './db.js';
 
-function utcTime(value: string) {
-  return new Date(`1970-01-01T${value}:00.000Z`);
-}
-
 describe('GET /api/health', () => {
   it('returns a healthy API response', async () => {
     const response = await request(app).get('/api/health');
@@ -202,21 +198,39 @@ describe('Phase 2 planning foundation', () => {
       startTime: string;
       endTime: string;
     };
-    const hardCommitment = await prisma?.commitment.create({
-      data: {
-        workspaceId,
+    const invalidCommitment = await request(app)
+      .post(`/api/workspaces/${workspaceId}/commitments`)
+      .set('Cookie', ownerCookie)
+      .send({
+        name: 'Invalid block',
+        category: 'PERSONAL',
+        weeklyEffortHours: 1,
+        flexibility: 'FLEXIBLE',
+        meetings: [{ dayOfWeek: selectedMeeting.day, startTime: '15:00', endTime: '14:00' }],
+      });
+    expect(invalidCommitment.status).toBe(400);
+
+    const hardCommitment = await request(app)
+      .post(`/api/workspaces/${workspaceId}/commitments`)
+      .set('Cookie', ownerCookie)
+      .send({
         name: 'TAship',
         category: 'TASHIP',
         weeklyEffortHours: 2,
         flexibility: 'HARD',
-        meetings: {
-          create: {
+        meetings: [
+          {
             dayOfWeek: selectedMeeting.day,
-            startTime: utcTime(selectedMeeting.startTime),
-            endTime: utcTime(selectedMeeting.endTime),
+            startTime: selectedMeeting.startTime,
+            endTime: selectedMeeting.endTime,
           },
-        },
-      },
+        ],
+      });
+    expect(hardCommitment.status).toBe(201);
+    expect(hardCommitment.body.commitment).toMatchObject({
+      name: 'TAship',
+      flexibility: 'HARD',
+      weeklyEffortHours: 2,
     });
     const conflictedValidation = await request(app)
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
@@ -237,7 +251,33 @@ describe('Phase 2 planning foundation', () => {
       name: 'TAship',
       flexibility: 'HARD',
     });
-    if (hardCommitment) await prisma?.commitment.delete({ where: { id: hardCommitment.id } });
+    const softenedCommitment = await request(app)
+      .patch(`/api/commitments/${hardCommitment.body.commitment.id}`)
+      .set('Cookie', ownerCookie)
+      .send({
+        name: 'TAship',
+        category: 'TASHIP',
+        weeklyEffortHours: 2,
+        flexibility: 'FLEXIBLE',
+        meetings: [
+          {
+            dayOfWeek: selectedMeeting.day,
+            startTime: selectedMeeting.startTime,
+            endTime: selectedMeeting.endTime,
+          },
+        ],
+      });
+    expect(softenedCommitment.status).toBe(200);
+
+    const clearAfterSoftening = await request(app)
+      .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
+      .set('Cookie', ownerCookie);
+    expect(clearAfterSoftening.body.valid).toBe(true);
+
+    const deletedCommitment = await request(app)
+      .delete(`/api/commitments/${hardCommitment.body.commitment.id}`)
+      .set('Cookie', ownerCookie);
+    expect(deletedCommitment.status).toBe(200);
 
     const duplicated = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
@@ -289,6 +329,18 @@ describe('Phase 2 planning foundation', () => {
       .set('Cookie', intruderCookie)
       .send({ sectionId: firstSectionId });
     expect(foreignSelectionCreate.status).toBe(404);
+
+    const foreignCommitmentCreate = await request(app)
+      .post(`/api/workspaces/${workspaceId}/commitments`)
+      .set('Cookie', intruderCookie)
+      .send({
+        name: 'Stolen commitment',
+        category: 'PERSONAL',
+        weeklyEffortHours: 1,
+        flexibility: 'FLEXIBLE',
+        meetings: [],
+      });
+    expect(foreignCommitmentCreate.status).toBe(404);
 
     const foreignValidation = await request(app)
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)

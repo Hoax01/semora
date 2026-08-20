@@ -25,6 +25,62 @@ const selectionRequestSchema = z.object({
   sectionId: z.string().trim().min(1),
 });
 
+const commitmentCategories = [
+  'TASHIP',
+  'SOCIETY',
+  'WORK',
+  'RESEARCH',
+  'GYM',
+  'COMMUTE',
+  'PERSONAL',
+  'OTHER',
+] as const;
+const commitmentFlexibilities = ['HARD', 'SOFT', 'FLEXIBLE'] as const;
+const meetingDays = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const;
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const commitmentMeetingSchema = z.object({
+  dayOfWeek: z.enum(meetingDays),
+  startTime: z.string().regex(timePattern),
+  endTime: z.string().regex(timePattern),
+});
+const commitmentRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    category: z.enum(commitmentCategories),
+    weeklyEffortHours: z.number().finite().min(0).max(168),
+    flexibility: z.enum(commitmentFlexibilities),
+    meetings: z.array(commitmentMeetingSchema).max(7),
+  })
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+    for (const [index, meeting] of value.meetings.entries()) {
+      if (meeting.startTime >= meeting.endTime) {
+        context.addIssue({
+          code: 'custom',
+          path: ['meetings', index, 'endTime'],
+          message: 'Meeting must end after it starts.',
+        });
+      }
+      const key = `${meeting.dayOfWeek}:${meeting.startTime}:${meeting.endTime}`;
+      if (seen.has(key)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['meetings', index],
+          message: 'Recurring meetings must be unique.',
+        });
+      }
+      seen.add(key);
+    }
+  });
+
 const selectionInclude = {
   section: {
     include: {
@@ -34,10 +90,12 @@ const selectionInclude = {
   },
 } as const;
 
+const commitmentInclude = { meetings: true } as const;
+
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
   commitments: {
-    include: { meetings: true },
+    include: commitmentInclude,
     orderBy: { createdAt: 'asc' as const },
   },
   candidates: {
@@ -167,6 +225,14 @@ function serializeCommitment(commitment: CommitmentRecord) {
       startTime: formatTime(meeting.startTime),
       endTime: formatTime(meeting.endTime),
     })),
+  };
+}
+
+function commitmentMeetingData(meeting: z.infer<typeof commitmentMeetingSchema>) {
+  return {
+    dayOfWeek: meeting.dayOfWeek,
+    startTime: new Date(`1970-01-01T${meeting.startTime}:00.000Z`),
+    endTime: new Date(`1970-01-01T${meeting.endTime}:00.000Z`),
   };
 }
 
@@ -391,6 +457,100 @@ export function registerPlanningRoutes(app: express.Express) {
     }
 
     response.status(200).json({ workspace: serializeWorkspace(workspace) });
+  });
+
+  app.post('/api/workspaces/:workspaceId/commitments', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = commitmentRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    if (!(await loadOwnedWorkspace(request.params.workspaceId, userId))) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+
+    const commitment = await prisma.commitment.create({
+      data: {
+        workspaceId: request.params.workspaceId,
+        name: parsed.data.name,
+        category: parsed.data.category,
+        weeklyEffortHours: parsed.data.weeklyEffortHours,
+        flexibility: parsed.data.flexibility,
+        meetings: { create: parsed.data.meetings.map(commitmentMeetingData) },
+      },
+      include: commitmentInclude,
+    });
+
+    response.status(201).json({ commitment: serializeCommitment(commitment) });
+  });
+
+  app.patch('/api/commitments/:commitmentId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = commitmentRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const existing = await prisma.commitment.findFirst({
+      where: { id: request.params.commitmentId, workspace: { userId } },
+      select: { id: true },
+    });
+    if (!existing) {
+      response.status(404).json({ error: 'COMMITMENT_NOT_FOUND' });
+      return;
+    }
+
+    const commitment = await prisma.$transaction(async (transaction) => {
+      await transaction.commitmentMeeting.deleteMany({ where: { commitmentId: existing.id } });
+      return transaction.commitment.update({
+        where: { id: existing.id },
+        data: {
+          name: parsed.data.name,
+          category: parsed.data.category,
+          weeklyEffortHours: parsed.data.weeklyEffortHours,
+          flexibility: parsed.data.flexibility,
+          meetings: { create: parsed.data.meetings.map(commitmentMeetingData) },
+        },
+        include: commitmentInclude,
+      });
+    });
+
+    response.status(200).json({ commitment: serializeCommitment(commitment) });
+  });
+
+  app.delete('/api/commitments/:commitmentId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const existing = await prisma.commitment.findFirst({
+      where: { id: request.params.commitmentId, workspace: { userId } },
+      select: { id: true },
+    });
+    if (!existing) {
+      response.status(404).json({ error: 'COMMITMENT_NOT_FOUND' });
+      return;
+    }
+
+    await prisma.commitment.delete({ where: { id: existing.id } });
+    response.status(200).json({ commitmentId: existing.id });
   });
 
   app.get('/api/candidates/:candidateId/validation', async (request, response) => {

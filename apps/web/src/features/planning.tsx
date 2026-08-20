@@ -86,6 +86,19 @@ type Commitment = {
   meetings: Meeting[];
 };
 
+type CommitmentCategory =
+  'TASHIP' | 'SOCIETY' | 'WORK' | 'RESEARCH' | 'GYM' | 'COMMUTE' | 'PERSONAL' | 'OTHER';
+type CommitmentFlexibility = 'HARD' | 'SOFT' | 'FLEXIBLE';
+type CommitmentDraftMeeting = { dayOfWeek: string; startTime: string; endTime: string };
+type CommitmentDraft = {
+  id?: string;
+  name: string;
+  category: CommitmentCategory;
+  weeklyEffortHours: string;
+  flexibility: CommitmentFlexibility;
+  meetings: CommitmentDraftMeeting[];
+};
+
 type University = {
   id: string;
   name: string;
@@ -102,6 +115,35 @@ type University = {
 const scheduleDays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 const scheduleStartMinutes = 8 * 60;
 const scheduleEndMinutes = 20 * 60;
+const commitmentCategories: Array<{ value: CommitmentCategory; label: string }> = [
+  { value: 'TASHIP', label: 'TAship' },
+  { value: 'SOCIETY', label: 'Society' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'RESEARCH', label: 'Research' },
+  { value: 'GYM', label: 'Gym' },
+  { value: 'COMMUTE', label: 'Commute' },
+  { value: 'PERSONAL', label: 'Personal' },
+  { value: 'OTHER', label: 'Other' },
+];
+const commitmentDays = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+];
+
+function emptyCommitmentDraft(): CommitmentDraft {
+  return {
+    name: '',
+    category: 'PERSONAL',
+    weeklyEffortHours: '0',
+    flexibility: 'FLEXIBLE',
+    meetings: [],
+  };
+}
 
 function timeToMinutes(value: string) {
   const [hoursText, minutesText] = value.split(':');
@@ -263,6 +305,7 @@ export function PlanningPage() {
   const [activeOfferingId, setActiveOfferingId] = useState<string>();
   const [candidateValidation, setCandidateValidation] = useState<CandidateValidation>();
   const [validationRefresh, setValidationRefresh] = useState(0);
+  const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>(emptyCommitmentDraft);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
 
@@ -413,6 +456,96 @@ export function PlanningPage() {
     void runMutation('remove-selection', () =>
       apiRequest(`/api/selections/${selectionId}`, { method: 'DELETE' }),
     );
+  }
+
+  function editCommitment(commitment: Commitment) {
+    setCommitmentDraft({
+      id: commitment.id,
+      name: commitment.name,
+      category: commitment.category as CommitmentCategory,
+      weeklyEffortHours: String(commitment.weeklyEffortHours),
+      flexibility: commitment.flexibility as CommitmentFlexibility,
+      meetings: commitment.meetings.map((meeting) => ({
+        dayOfWeek: meeting.day,
+        startTime: meeting.startTime,
+        endTime: meeting.endTime,
+      })),
+    });
+  }
+
+  function updateCommitmentDraft(
+    field: 'name' | 'category' | 'weeklyEffortHours' | 'flexibility',
+    value: string,
+  ) {
+    setCommitmentDraft(
+      (current) =>
+        ({
+          ...current,
+          [field]: value,
+        }) as CommitmentDraft,
+    );
+  }
+
+  function updateCommitmentMeeting(
+    index: number,
+    field: keyof CommitmentDraftMeeting,
+    value: string,
+  ) {
+    setCommitmentDraft((current) => ({
+      ...current,
+      meetings: current.meetings.map((meeting, meetingIndex) =>
+        meetingIndex === index ? { ...meeting, [field]: value } : meeting,
+      ),
+    }));
+  }
+
+  function addCommitmentMeeting() {
+    setCommitmentDraft((current) => ({
+      ...current,
+      meetings: [
+        ...current.meetings,
+        { dayOfWeek: 'MONDAY', startTime: '09:00', endTime: '10:00' },
+      ],
+    }));
+  }
+
+  function removeCommitmentMeeting(index: number) {
+    setCommitmentDraft((current) => ({
+      ...current,
+      meetings: current.meetings.filter((_, meetingIndex) => meetingIndex !== index),
+    }));
+  }
+
+  function saveCommitment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId || !commitmentDraft.name.trim()) return;
+    const payload = {
+      name: commitmentDraft.name.trim(),
+      category: commitmentDraft.category,
+      weeklyEffortHours: Number(commitmentDraft.weeklyEffortHours),
+      flexibility: commitmentDraft.flexibility,
+      meetings: commitmentDraft.meetings,
+    };
+    void runMutation('commitment', async () => {
+      await apiRequest(
+        commitmentDraft.id
+          ? `/api/commitments/${commitmentDraft.id}`
+          : `/api/workspaces/${workspaceId}/commitments`,
+        {
+          method: commitmentDraft.id ? 'PATCH' : 'POST',
+          body: JSON.stringify(payload),
+        },
+      );
+      setCommitmentDraft(emptyCommitmentDraft());
+    });
+  }
+
+  function removeCommitment(commitment: Commitment) {
+    if (!window.confirm(`Remove ${commitment.name} from this semester?`)) return;
+    void runMutation('delete-commitment', async () => {
+      await apiRequest(`/api/commitments/${commitment.id}`, { method: 'DELETE' });
+      if (commitmentDraft.id === commitment.id) setCommitmentDraft(emptyCommitmentDraft());
+    });
   }
 
   const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
@@ -579,6 +712,199 @@ export function PlanningPage() {
                     Add course sections to see the fixed shape of this candidate week.
                   </p>
                 )}
+              </section>
+
+              <section className="commitments-panel" aria-labelledby="commitments-title">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">LIFE OUTSIDE CLASS</p>
+                    <h2 id="commitments-title">Commitments</h2>
+                  </div>
+                  <span className="course-meta">Recurring schedule</span>
+                </div>
+                <div className="commitments-layout">
+                  <div className="commitment-list">
+                    {workspace.commitments.length ? (
+                      workspace.commitments.map((commitment) => (
+                        <article className="commitment-row" key={commitment.id}>
+                          <div>
+                            <p className="course-code">{commitment.category}</p>
+                            <h3>{commitment.name}</h3>
+                            <p className="course-meta">
+                              {commitment.weeklyEffortHours} hours/week ·{' '}
+                              {commitment.flexibility.toLowerCase()}
+                            </p>
+                            <p className="meeting-summary">
+                              {commitment.meetings.length
+                                ? commitment.meetings.map(formatMeeting).join(' · ')
+                                : 'No fixed recurring time'}
+                            </p>
+                          </div>
+                          <div className="commitment-actions">
+                            <button
+                              className="secondary-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => editCommitment(commitment)}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="danger-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => removeCommitment(commitment)}
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="selected-courses-empty">
+                        Add a recurring obligation to see how it fits around your courses.
+                      </p>
+                    )}
+                  </div>
+                  <form className="commitment-form" onSubmit={saveCommitment}>
+                    <div className="panel-heading-row">
+                      <h3>{commitmentDraft.id ? 'Edit commitment' : 'Add commitment'}</h3>
+                      {commitmentDraft.id ? (
+                        <button
+                          className="text-button"
+                          onClick={() => setCommitmentDraft(emptyCommitmentDraft())}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                    <label>
+                      Name
+                      <input
+                        maxLength={80}
+                        onChange={(event) => updateCommitmentDraft('name', event.target.value)}
+                        placeholder="TAship, gym, society…"
+                        required
+                        value={commitmentDraft.name}
+                      />
+                    </label>
+                    <div className="commitment-form-row">
+                      <label>
+                        Category
+                        <select
+                          onChange={(event) =>
+                            updateCommitmentDraft('category', event.target.value)
+                          }
+                          value={commitmentDraft.category}
+                        >
+                          {commitmentCategories.map((category) => (
+                            <option key={category.value} value={category.value}>
+                              {category.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Hours / week
+                        <input
+                          max="168"
+                          min="0"
+                          onChange={(event) =>
+                            updateCommitmentDraft('weeklyEffortHours', event.target.value)
+                          }
+                          step="0.25"
+                          type="number"
+                          value={commitmentDraft.weeklyEffortHours}
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      Flexibility
+                      <select
+                        onChange={(event) =>
+                          updateCommitmentDraft('flexibility', event.target.value)
+                        }
+                        value={commitmentDraft.flexibility}
+                      >
+                        <option value="HARD">Hard — cannot move</option>
+                        <option value="SOFT">Soft — avoid if possible</option>
+                        <option value="FLEXIBLE">Flexible — can move</option>
+                      </select>
+                    </label>
+                    <div className="commitment-meetings-heading">
+                      <div>
+                        <strong>Recurring times</strong>
+                        <span>Optional fixed blocks for the timetable.</span>
+                      </div>
+                      <button className="text-button" onClick={addCommitmentMeeting} type="button">
+                        + Add time
+                      </button>
+                    </div>
+                    <div className="commitment-meeting-editor">
+                      {commitmentDraft.meetings.map((meeting, index) => (
+                        <div
+                          className="commitment-meeting-row"
+                          key={`${index}-${meeting.dayOfWeek}`}
+                        >
+                          <label>
+                            <span className="sr-only">Day</span>
+                            <select
+                              aria-label={`Meeting ${index + 1} day`}
+                              onChange={(event) =>
+                                updateCommitmentMeeting(index, 'dayOfWeek', event.target.value)
+                              }
+                              value={meeting.dayOfWeek}
+                            >
+                              {commitmentDays.map((day) => (
+                                <option key={day} value={day}>
+                                  {day.slice(0, 1) + day.slice(1).toLowerCase()}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span className="sr-only">Start time</span>
+                            <input
+                              aria-label={`Meeting ${index + 1} start time`}
+                              onChange={(event) =>
+                                updateCommitmentMeeting(index, 'startTime', event.target.value)
+                              }
+                              type="time"
+                              value={meeting.startTime}
+                            />
+                          </label>
+                          <span aria-hidden="true">–</span>
+                          <label>
+                            <span className="sr-only">End time</span>
+                            <input
+                              aria-label={`Meeting ${index + 1} end time`}
+                              onChange={(event) =>
+                                updateCommitmentMeeting(index, 'endTime', event.target.value)
+                              }
+                              type="time"
+                              value={meeting.endTime}
+                            />
+                          </label>
+                          <button
+                            aria-label={`Remove meeting ${index + 1}`}
+                            className="icon-button"
+                            onClick={() => removeCommitmentMeeting(index)}
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      disabled={busyAction === 'commitment' || !commitmentDraft.name.trim()}
+                      type="submit"
+                    >
+                      {commitmentDraft.id ? 'Save commitment' : 'Add commitment'}
+                    </button>
+                  </form>
+                </div>
               </section>
 
               <section className="candidate-workbench">

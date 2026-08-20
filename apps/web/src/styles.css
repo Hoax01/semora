@@ -581,6 +581,162 @@ h1 {
   color: var(--text-secondary);
 }
 
+.commitments-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.commitments-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.commitment-list {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+}
+
+.commitment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px dashed #e0b36a88;
+  border-radius: 0.7rem;
+  background: #e0b36a0d;
+}
+
+.commitment-row h3,
+.commitment-row p {
+  margin: 0;
+}
+
+.commitment-row h3 {
+  margin-top: 0.15rem;
+  font-size: 1rem;
+}
+
+.commitment-row .meeting-summary {
+  margin-top: 0.45rem;
+}
+
+.commitment-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.45rem;
+}
+
+.commitment-form {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.commitment-form h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.commitment-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.commitment-form input,
+.commitment-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 400;
+}
+
+.commitment-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.8fr);
+  gap: 0.65rem;
+}
+
+.commitment-meetings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.commitment-meetings-heading div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.commitment-meetings-heading span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.text-button {
+  width: fit-content;
+  margin: 0;
+  padding: 0.2rem 0;
+  color: var(--accent-hover);
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.commitment-meeting-editor {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.commitment-meeting-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 1fr) minmax(5.5rem, 0.8fr) auto minmax(5.5rem, 0.8fr) auto;
+  align-items: end;
+  gap: 0.35rem;
+}
+
+.commitment-meeting-row > span {
+  padding-bottom: 0.65rem;
+  color: var(--text-secondary);
+}
+
+.icon-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.icon-button:hover,
+.text-button:hover {
+  color: var(--text-primary);
+}
+
 .candidate-workbench {
   display: grid;
   grid-template-columns: minmax(17rem, 0.7fr) minmax(24rem, 1.3fr);
@@ -1086,6 +1242,27 @@ h1 {
 
   .planner-selection-layout {
     grid-template-columns: 1fr;
+  }
+
+  .commitments-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .commitment-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commitment-actions {
+    flex-wrap: wrap;
+  }
+
+  .commitment-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .commitment-meeting-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr) auto;
   }
 
   .selected-course-row,
