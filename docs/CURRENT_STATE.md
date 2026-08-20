@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 4 — Lock Semester (in progress)
-**Next Build Objective:** Phase 4.3 — Add/Drop Support
+**Current Phase:** Phase 4 — Lock Semester (complete)
+**Next Build Objective:** Phase 5 — Course Outline Extraction
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -10,7 +10,8 @@ checkpoint is complete. Phase 3 and its optional Sol behavior audit are now
 complete; preliminary workload profiles, course-preference fit summaries,
 workload interaction penalties, candidate metrics, structured findings,
 comparison, recommendation tags, and bounded what-if exploration are
-implemented and regression-covered.
+implemented and regression-covered. Phase 4 lock, Add/Drop, and
+active-semester UI requirements are now implemented.
 
 ---
 
@@ -88,6 +89,9 @@ implemented and regression-covered.
   sections, adding/removing courses, removing commitments, and changing
   workload priority. Scenario analysis is recalculated by the Semester Engine
   including its credit total and never mutates the saved candidate.
+- The planner switches to an active-semester view after locking, showing active
+  course cards, active credits, a weekly timetable, and simple controls for
+  adding, switching, and dropping courses.
 
 ### API and authentication
 
@@ -157,9 +161,15 @@ implemented and regression-covered.
   active course states, marks the workspace ACTIVE, and records the locked
   candidate. Repeated locks of the same candidate are idempotent; other lock
   attempts on an active workspace are rejected.
-- The planner exposes a deliberate Lock Semester panel, active-state summary,
-  and error guidance for empty or conflicting candidates. Add/Drop controls and
-  the dedicated active-semester dashboard remain out of scope for this step.
+- Ownership-checked active-semester Add/Drop APIs support adding a section,
+  switching an active selection within the same course offering, and dropping
+  an active selection. Each mutation is term-scoped, serialized per workspace,
+  rejects duplicate active course offerings and critical timetable conflicts,
+  and preserves dropped selection history.
+- The planner exposes a deliberate Lock Semester panel and an active-semester
+  dashboard with selected-course cards, a Monday-to-Friday timetable, active
+  credit totals, and simple Add/Drop and section-switch controls. Candidate
+  planning data remains separate from active-semester mutations.
 
 ### Database
 
@@ -209,7 +219,7 @@ implemented and regression-covered.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 4.2 lock workflow change:
+The following quality suite passes after the Phase 4 active-semester completion:
 
 ```text
 npm run typecheck
@@ -287,7 +297,9 @@ Current API integration coverage verifies:
   local database schema up to date after the Phase 4.1 migration.
 - Lock workflow integration coverage verifies critical-conflict rejection
   without mutation, active selection/state creation, workspace transition,
-  repeated-lock idempotency, and cross-user rejection.
+  repeated-lock idempotency, Add/Drop operations, same-offering duplicate
+  rejection, section switching, dropped-history preservation, and cross-user
+  rejection.
 
 ### Phase 2 implementation status
 
@@ -344,11 +356,6 @@ Implemented in this phase so far:
 ```text
 4.1 Active Semester Schema
 4.2 Lock Workflow
-```
-
-Not yet implemented:
-
-```text
 4.3 Add/Drop Support
 4.4 Active Semester UI
 ```
@@ -356,9 +363,9 @@ Not yet implemented:
 Phase 4 acceptance status:
 
 ```text
-IN PROGRESS — candidates can now be locked transactionally and the planner
-shows the active state, while Add/Drop operation and the dedicated active-
-semester UI remain incomplete.
+SATISFIED — students can compare and lock a candidate, see the active semester,
+and add, switch, or drop active courses while candidate planning data remains
+preserved.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -525,6 +532,7 @@ Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
 is complete through schedule analysis, preliminary profiles,
 course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
-Phase 4.1 active-semester schema and the transactional Phase 4.2 lock workflow
-are now complete. The next objective is Phase 4.3 Add/Drop support; the
-dedicated active-semester UI remains after that objective.
+Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
+and the basic active-semester UI are now complete. The next objective is Phase
+5 Course Outline Extraction; course-outline-derived workload enrichment and
+later NAVIGATE intelligence remain out of scope until that phase.

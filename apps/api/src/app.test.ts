@@ -573,6 +573,77 @@ describe('Phase 2 planning foundation', () => {
     expect(repeatedLock.body.alreadyLocked).toBe(true);
     expect(await prisma?.activeCourseSelection.count({ where: { workspaceId } })).toBe(1);
 
+    const toMinutes = (value: string) => {
+      const [hours, minutes] = value.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    const activeMeetings = switched.body.selection.meetings as Array<{
+      day: string;
+      startTime: string;
+      endTime: string;
+    }>;
+    const additionalCourse = catalogue.body.courses.find(
+      (course: { id: string; sections: Array<{ meetings: typeof activeMeetings }> }) =>
+        course.id !== courseWithMultipleSections.id &&
+        course.sections.some((section) =>
+          section.meetings.every((meeting) =>
+            activeMeetings.every(
+              (activeMeeting) =>
+                meeting.day !== activeMeeting.day ||
+                toMinutes(meeting.endTime) <= toMinutes(activeMeeting.startTime) ||
+                toMinutes(activeMeeting.endTime) <= toMinutes(meeting.startTime),
+            ),
+          ),
+        ),
+    );
+    expect(additionalCourse).toBeDefined();
+    const additionalSection = additionalCourse.sections.find((section) =>
+      section.meetings.every((meeting) =>
+        activeMeetings.every(
+          (activeMeeting) =>
+            meeting.day !== activeMeeting.day ||
+            toMinutes(meeting.endTime) <= toMinutes(activeMeeting.startTime) ||
+            toMinutes(activeMeeting.endTime) <= toMinutes(meeting.startTime),
+        ),
+      ),
+    );
+    expect(additionalSection).toBeDefined();
+    const addedActiveCourse = await request(app)
+      .post(`/api/workspaces/${workspaceId}/active-selections`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: additionalSection.id });
+    expect(addedActiveCourse.status).toBe(201);
+    expect(addedActiveCourse.body.activeCourseSelection).toMatchObject({
+      courseOfferingId: additionalCourse.id,
+      status: 'ACTIVE',
+    });
+
+    const duplicateActiveCourse = await request(app)
+      .post(`/api/workspaces/${workspaceId}/active-selections`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: additionalSection.id });
+    expect(duplicateActiveCourse.status).toBe(409);
+    expect(duplicateActiveCourse.body.error).toBe('COURSE_ALREADY_ACTIVE');
+
+    const activeSwitched = await request(app)
+      .patch(`/api/active-selections/${locked.body.workspace.activeCourseSelections[0].id}`)
+      .set('Cookie', ownerCookie)
+      .send({ sectionId: firstSectionId });
+    expect(activeSwitched.status).toBe(200);
+    expect(activeSwitched.body.activeCourseSelection.sectionId).toBe(firstSectionId);
+
+    const droppedActiveCourse = await request(app)
+      .post(`/api/active-selections/${addedActiveCourse.body.activeCourseSelection.id}/drop`)
+      .set('Cookie', ownerCookie);
+    expect(droppedActiveCourse.status).toBe(200);
+    expect(droppedActiveCourse.body.workspace.activeCourseSelections).toHaveLength(1);
+    expect(
+      await prisma?.activeCourseSelection.findUnique({
+        where: { id: addedActiveCourse.body.activeCourseSelection.id },
+        select: { status: true, droppedAt: true },
+      }),
+    ).toMatchObject({ status: 'DROPPED', droppedAt: expect.any(Date) });
+
     const duplicated = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/duplicate`)
       .set('Cookie', ownerCookie);
@@ -645,6 +716,12 @@ describe('Phase 2 planning foundation', () => {
       .post(`/api/candidates/${optionA.body.candidate.id}/lock`)
       .set('Cookie', intruderCookie);
     expect(foreignLock.status).toBe(404);
+
+    const foreignActiveAdd = await request(app)
+      .post(`/api/workspaces/${workspaceId}/active-selections`)
+      .set('Cookie', intruderCookie)
+      .send({ sectionId: additionalSection.id });
+    expect(foreignActiveAdd.status).toBe(404);
 
     const foreignAnalysis = await request(app)
       .get(`/api/candidates/${optionA.body.candidate.id}/analysis`)

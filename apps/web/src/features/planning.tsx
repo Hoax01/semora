@@ -578,7 +578,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
       throw new Error('Choose another section of the same course when switching sections.');
     }
     if (body?.error === 'CANDIDATE_HAS_CRITICAL_CONFLICTS') {
-      throw new Error('Resolve the critical timetable conflicts before locking this semester.');
+      throw new Error('This change would create a critical timetable conflict.');
     }
     if (body?.error === 'CANDIDATE_EMPTY') {
       throw new Error('Add at least one course before locking this semester.');
@@ -588,6 +588,15 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     }
     if (body?.error === 'CANDIDATE_ARCHIVED') {
       throw new Error('Archived candidates cannot be locked.');
+    }
+    if (body?.error === 'WORKSPACE_NOT_ACTIVE') {
+      throw new Error('Lock the semester before changing active courses.');
+    }
+    if (body?.error === 'COURSE_ALREADY_ACTIVE') {
+      throw new Error('That course is already active in this semester.');
+    }
+    if (body?.error === 'ACTIVE_SELECTION_NOT_FOUND') {
+      throw new Error('That active course is no longer available. Refresh and try again.');
     }
     throw new Error('Semora could not save this change. Please try again.');
   }
@@ -1188,6 +1197,10 @@ export function PlanningPage() {
         <p className="catalogue-message">Loading your semester workspace…</p>
       </main>
     );
+
+  if (workspace?.state === 'ACTIVE') {
+    return <ActiveSemesterView workspace={workspace} onReload={loadWorkspace} />;
+  }
 
   return (
     <main className="planner-page">
@@ -2504,6 +2517,379 @@ export function PlanningPage() {
       ) : (
         <p className="form-error">{error}</p>
       )}
+    </main>
+  );
+}
+
+function ActiveSemesterView({
+  workspace,
+  onReload,
+}: {
+  workspace: Workspace;
+  onReload: () => Promise<void>;
+}) {
+  const [courseSearch, setCourseSearch] = useState('');
+  const [appliedCourseSearch, setAppliedCourseSearch] = useState('');
+  const [catalogueCourses, setCatalogueCourses] = useState<CatalogueCourse[]>([]);
+  const [activeOfferingId, setActiveOfferingId] = useState<string>();
+  const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
+  const [busyAction, setBusyAction] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!appliedCourseSearch) {
+      setCatalogueCourses([]);
+      setIsCatalogueLoading(false);
+      return;
+    }
+    let isCurrent = true;
+    setIsCatalogueLoading(true);
+    apiRequest<{ courses: CatalogueCourse[] }>(
+      `/api/catalogue?termId=${encodeURIComponent(workspace.term.id)}&q=${encodeURIComponent(appliedCourseSearch)}`,
+    )
+      .then((result) => {
+        if (isCurrent) setCatalogueCourses(result.courses);
+      })
+      .catch((reason: unknown) => {
+        if (isCurrent) {
+          setError(reason instanceof Error ? reason.message : 'Unable to search courses.');
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsCatalogueLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [appliedCourseSearch, workspace.term.id]);
+
+  async function runMutation(action: string, mutation: () => Promise<unknown>) {
+    setError(undefined);
+    setBusyAction(action);
+    try {
+      await mutation();
+      await onReload();
+      return true;
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : 'Unable to save this active semester change.',
+      );
+      return false;
+    } finally {
+      setBusyAction(undefined);
+    }
+  }
+
+  function searchCourses(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAppliedCourseSearch(courseSearch.trim());
+    setActiveOfferingId(undefined);
+  }
+
+  function chooseSection(sectionId: string) {
+    if (!activeOfferingId) return;
+    const existing = workspace.activeCourseSelections.find(
+      (selection) => selection.courseOfferingId === activeOfferingId,
+    );
+    void runMutation('active-selection', () =>
+      apiRequest(
+        existing
+          ? `/api/active-selections/${existing.id}`
+          : `/api/workspaces/${workspace.id}/active-selections`,
+        {
+          method: existing ? 'PATCH' : 'POST',
+          body: JSON.stringify({ sectionId }),
+        },
+      ),
+    ).then((succeeded) => {
+      if (succeeded) setActiveOfferingId(undefined);
+    });
+  }
+
+  function dropCourse(selection: ActiveCourseSelection) {
+    if (!window.confirm(`Drop ${selection.courseCode} from this semester?`)) return;
+    void runMutation('drop-course', () =>
+      apiRequest(`/api/active-selections/${selection.id}/drop`, { method: 'POST' }),
+    );
+  }
+
+  const activeOffering = catalogueCourses.find((course) => course.id === activeOfferingId);
+  const activeSelection = workspace.activeCourseSelections.find(
+    (selection) => selection.courseOfferingId === activeOfferingId,
+  );
+  const totalCredits = workspace.activeCourseSelections.reduce(
+    (total, selection) => total + selection.credits,
+    0,
+  );
+  const scheduleEntries: ScheduleEntry[] = [
+    ...workspace.activeCourseSelections.flatMap((selection) =>
+      selection.meetings.map((meeting, index) => ({
+        key: `${selection.id}-${meeting.day}-${index}`,
+        kind: 'course' as const,
+        sourceId: selection.id,
+        label: selection.courseCode,
+        detail: `Section ${selection.sectionCode} · ${meeting.startTime}–${meeting.endTime}`,
+        meeting,
+      })),
+    ),
+    ...workspace.commitments.flatMap((commitment) =>
+      commitment.meetings.map((meeting, index) => ({
+        key: `${commitment.id}-${meeting.day}-${index}`,
+        kind: 'commitment' as const,
+        sourceId: commitment.id,
+        label: commitment.name,
+        detail: `${meeting.startTime}–${meeting.endTime}`,
+        meeting,
+      })),
+    ),
+  ];
+  const visibleScheduleEntries = scheduleEntries.filter(
+    (entry) =>
+      scheduleDays.includes(entry.meeting.day as (typeof scheduleDays)[number]) &&
+      timeToMinutes(entry.meeting.endTime) > scheduleStartMinutes &&
+      timeToMinutes(entry.meeting.startTime) < scheduleEndMinutes,
+  );
+
+  return (
+    <main className="planner-page active-semester-page">
+      <header className="planner-heading">
+        <div>
+          <p className="eyebrow">LOCK / ACTIVE SEMESTER</p>
+          <h1>{workspace.term.name}</h1>
+          <p className="lede">{workspace.term.university.name} · Your semester is active.</p>
+        </div>
+        <Link className="back-link" to={`/catalogue?termId=${workspace.term.id}`}>
+          Browse catalogue
+        </Link>
+      </header>
+
+      <section
+        className="active-semester-overview"
+        aria-labelledby="active-semester-overview-title"
+      >
+        <div>
+          <p className="eyebrow">SEMESTER OVERVIEW</p>
+          <h2 id="active-semester-overview-title">Keep the active semester current.</h2>
+          <p>
+            Add, drop, or switch sections during Add/Drop. Your planning candidates remain
+            unchanged.
+          </p>
+        </div>
+        <div className="active-semester-summary">
+          <strong>{totalCredits}</strong>
+          <span>credits</span>
+          <small>{workspace.activeCourseSelections.length} active courses</small>
+        </div>
+      </section>
+
+      {error ? <p className="form-error planner-error">{error}</p> : null}
+
+      <section className="weekly-schedule-panel" aria-labelledby="active-weekly-schedule-title">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">WEEKLY TIMETABLE</p>
+            <h2 id="active-weekly-schedule-title">Your active week</h2>
+          </div>
+          <span className="schedule-legend">
+            <span className="schedule-legend-item course-legend">Course</span>
+            <span className="schedule-legend-item commitment-legend">Commitment</span>
+          </span>
+        </div>
+        {visibleScheduleEntries.length ? (
+          <div className="schedule-board">
+            <div className="schedule-time-axis" aria-hidden="true">
+              {scheduleAxisHours.map((hour) => (
+                <span
+                  key={hour}
+                  style={{
+                    top: `${((hour * 60 - scheduleStartMinutes) / (scheduleEndMinutes - scheduleStartMinutes)) * 100}%`,
+                  }}
+                >
+                  {String(hour).padStart(2, '0')}:00
+                </span>
+              ))}
+            </div>
+            {scheduleDays.map((day) => (
+              <section className="schedule-day" key={day} aria-label={day}>
+                <h3>{day.slice(0, 1) + day.slice(1).toLowerCase()}</h3>
+                <div className="schedule-track">
+                  {scheduleAxisHours.map((hour) => (
+                    <span
+                      className="schedule-grid-line"
+                      key={hour}
+                      style={{
+                        top: `${((hour * 60 - scheduleStartMinutes) / (scheduleEndMinutes - scheduleStartMinutes)) * 100}%`,
+                      }}
+                    />
+                  ))}
+                  {visibleScheduleEntries
+                    .filter((entry) => entry.meeting.day === day)
+                    .map((entry) => (
+                      <article
+                        className={`schedule-block ${entry.kind === 'commitment' ? 'commitment-block' : 'course-block'}`}
+                        key={entry.key}
+                        style={scheduleBlockStyle(entry.meeting)}
+                      >
+                        <strong>{entry.label}</strong>
+                        <small>{entry.detail}</small>
+                      </article>
+                    ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <p className="schedule-empty">Your active timetable has no Monday–Friday blocks yet.</p>
+        )}
+      </section>
+
+      <section className="active-courses-panel" aria-labelledby="active-courses-title">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">ACTIVE COURSES</p>
+            <h2 id="active-courses-title">What you are taking</h2>
+          </div>
+          <span className="course-meta">Add/Drop ready</span>
+        </div>
+        {workspace.activeCourseSelections.length ? (
+          <div className="active-course-grid">
+            {workspace.activeCourseSelections.map((selection) => (
+              <article className="active-course-card" key={selection.id}>
+                <div>
+                  <p className="course-code">{selection.courseCode}</p>
+                  <h3>{selection.title}</h3>
+                  <p className="course-meta">
+                    Section {selection.sectionCode} · {selection.credits} credits
+                  </p>
+                  <p className="meeting-summary">
+                    {selection.meetings.map(formatMeeting).join(' · ') || 'Timing TBA'}
+                  </p>
+                  <p className="course-meta">{selection.instructor ?? 'Instructor not provided'}</p>
+                </div>
+                <div className="active-course-actions">
+                  <button
+                    className="secondary-button compact-button"
+                    disabled={Boolean(busyAction)}
+                    onClick={() => {
+                      setCourseSearch(selection.courseCode);
+                      setAppliedCourseSearch(selection.courseCode);
+                      setActiveOfferingId(selection.courseOfferingId);
+                    }}
+                    type="button"
+                  >
+                    Switch section
+                  </button>
+                  <button
+                    className="danger-button compact-button"
+                    disabled={Boolean(busyAction)}
+                    onClick={() => dropCourse(selection)}
+                    type="button"
+                  >
+                    Drop course
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="selected-courses-empty">
+            No active courses. Add one below during Add/Drop.
+          </p>
+        )}
+      </section>
+
+      <section className="active-course-browser" aria-labelledby="active-course-browser-title">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">ADD OR SWITCH</p>
+            <h2 id="active-course-browser-title">Find a course section</h2>
+          </div>
+          <Link className="back-link" to={`/catalogue?termId=${workspace.term.id}`}>
+            Full catalogue
+          </Link>
+        </div>
+        <form className="planner-search" onSubmit={searchCourses}>
+          <label className="sr-only" htmlFor="active-course-search">
+            Search active course sections
+          </label>
+          <input
+            id="active-course-search"
+            onChange={(event) => setCourseSearch(event.target.value)}
+            placeholder="Search by code or title"
+            value={courseSearch}
+          />
+          <button disabled={!courseSearch.trim()} type="submit">
+            Search
+          </button>
+        </form>
+        {isCatalogueLoading ? <p className="catalogue-message">Searching courses…</p> : null}
+        {!isCatalogueLoading && appliedCourseSearch && !catalogueCourses.length ? (
+          <p className="catalogue-message">No courses match “{appliedCourseSearch}”.</p>
+        ) : null}
+        <div className="planner-course-results">
+          {catalogueCourses.map((course) => (
+            <button
+              className={
+                course.id === activeOfferingId ? 'planner-course-row active' : 'planner-course-row'
+              }
+              key={course.id}
+              onClick={() => setActiveOfferingId(course.id)}
+              type="button"
+            >
+              <span>
+                <strong>{course.courseCode}</strong>
+                <span>{course.title}</span>
+              </span>
+              <small>
+                {course.credits} cr · {course.sections.length} sections
+              </small>
+            </button>
+          ))}
+        </div>
+        {activeOffering ? (
+          <div className="active-section-picker">
+            <div className="panel-heading-row">
+              <div>
+                <p className="eyebrow">SECTION OPTIONS</p>
+                <h3>{activeOffering.courseCode}</h3>
+                <p className="course-meta">{activeOffering.title}</p>
+              </div>
+              <span className="credit-badge">{activeOffering.credits} credits</span>
+            </div>
+            <div className="section-option-list">
+              {activeOffering.sections.map((section) => {
+                const isSelected = activeSelection?.sectionId === section.id;
+                return (
+                  <article
+                    className={isSelected ? 'section-option selected' : 'section-option'}
+                    key={section.id}
+                  >
+                    <div>
+                      <h3>Section {section.sectionCode}</h3>
+                      <p>{section.instructor ?? 'Instructor not provided'}</p>
+                      <p className="meeting-summary">
+                        {section.meetings.map(formatMeeting).join(' · ') || 'Timing TBA'}
+                      </p>
+                    </div>
+                    <button
+                      className={isSelected ? 'secondary-button compact-button' : 'compact-button'}
+                      disabled={Boolean(busyAction) || isSelected}
+                      onClick={() => chooseSection(section.id)}
+                      type="button"
+                    >
+                      {isSelected
+                        ? 'Selected'
+                        : activeSelection
+                          ? 'Switch to this section'
+                          : 'Add course'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 }

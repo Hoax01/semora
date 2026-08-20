@@ -463,6 +463,116 @@ h1 {
   color: #ffe4ad !important;
 }
 
+.active-semester-overview,
+.active-courses-panel,
+.active-course-browser {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.active-semester-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border-color: #63d39a66;
+  background: #28785e12;
+}
+
+.active-semester-overview h2,
+.active-semester-overview p {
+  margin: 0;
+}
+
+.active-semester-overview h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.25rem, 3vw, 1.8rem);
+}
+
+.active-semester-overview p:not(.eyebrow) {
+  max-width: 48rem;
+  margin-top: 0.55rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.active-semester-summary {
+  display: grid;
+  flex-shrink: 0;
+  min-width: 8rem;
+  gap: 0.15rem;
+  text-align: right;
+}
+
+.active-semester-summary strong {
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+}
+
+.active-semester-summary span,
+.active-semester-summary small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.active-course-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.25rem;
+}
+
+.active-course-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.active-course-card h3,
+.active-course-card p {
+  margin: 0;
+}
+
+.active-course-card h3 {
+  margin-top: 0.2rem;
+  font-size: 1rem;
+}
+
+.active-course-card .meeting-summary,
+.active-course-card .course-meta {
+  margin-top: 0.45rem;
+}
+
+.active-course-actions {
+  display: grid;
+  flex-shrink: 0;
+  gap: 0.45rem;
+}
+
+.active-course-browser {
+  background: var(--surface-elevated);
+}
+
+.active-section-picker {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.active-section-picker > .panel-heading-row h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
 .intelligence-panel {
   margin-top: 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
@@ -1923,6 +2033,28 @@ h1 {
   .lock-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .active-semester-overview {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .active-semester-summary {
+    text-align: left;
+  }
+
+  .active-course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .active-course-card {
+    flex-direction: column;
+  }
+
+  .active-course-actions {
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .new-candidate-form input {

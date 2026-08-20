@@ -189,6 +189,21 @@ const workspaceInclude = {
   },
 } as const;
 
+const activeWorkspaceValidationInclude = {
+  preferences: true,
+  coursePreferences: true,
+  workloadProfiles: true,
+  commitments: {
+    include: { meetings: true },
+    orderBy: { createdAt: 'asc' as const },
+  },
+  activeCourseSelections: {
+    where: { status: 'ACTIVE' as const },
+    include: activeCourseSelectionInclude,
+    orderBy: { addedAt: 'asc' as const },
+  },
+} as const;
+
 type SelectionRecord = {
   id: string;
   sectionId: string;
@@ -385,7 +400,7 @@ function serializeCommitment(commitment: CommitmentRecord) {
     name: commitment.name,
     category: commitment.category,
     weeklyEffortHours: Number(commitment.weeklyEffortHours),
-    flexibility: commitment.flexibility,
+    flexibility: commitment.flexibility as 'HARD' | 'SOFT' | 'FLEXIBLE',
     meetings: commitment.meetings.map((meeting) => ({
       day: meeting.dayOfWeek,
       startTime: formatTime(meeting.startTime),
@@ -493,6 +508,8 @@ class CandidateSelectionConflict extends Error {}
 
 class LockWorkflowConflict extends Error {}
 
+class ActiveCourseConflict extends Error {}
+
 async function loadOwnedWorkspace(workspaceId: string, userId: string) {
   return prisma?.semesterWorkspace.findFirst({
     where: { id: workspaceId, userId },
@@ -530,6 +547,16 @@ async function loadSectionForWorkspace(sectionId: string, academicTermId: string
   });
 }
 
+async function loadOwnedActiveSelection(selectionId: string, userId: string) {
+  return prisma?.activeCourseSelection.findFirst({
+    where: { id: selectionId, status: 'ACTIVE', workspace: { userId } },
+    include: {
+      workspace: { select: { id: true, userId: true, academicTermId: true, state: true } },
+      ...activeCourseSelectionInclude,
+    },
+  });
+}
+
 async function loadOwnedCandidateForValidation(candidateId: string, userId: string) {
   return prisma?.candidateSemester.findFirst({
     where: { id: candidateId, workspace: { userId } },
@@ -553,8 +580,10 @@ async function loadOwnedCandidateForValidation(candidateId: string, userId: stri
 }
 
 type AnalysisWorkspace = {
+  preferences: PreferencesRecord | null;
   coursePreferences: CoursePreferenceRecord[];
   workloadProfiles: WorkloadProfileRecord[];
+  commitments: CommitmentRecord[];
 };
 
 type AnalysisSection = {
@@ -630,103 +659,65 @@ function candidateCourseInputFromSection(
   };
 }
 
+type SemesterInputSelection = {
+  id: string;
+  section: AnalysisSection;
+};
+
+function semesterPreferencesInput(preferences: PreferencesRecord | null) {
+  return preferences
+    ? {
+        workloadPriority: Number(preferences.workloadPriority),
+        schedulePriority: Number(preferences.schedulePriority),
+        careerPriority: Number(preferences.careerPriority),
+        interestPriority: Number(preferences.interestPriority),
+        gradeSafetyPriority: Number(preferences.gradeSafetyPriority),
+        projectPreference: Number(preferences.projectPreference),
+        examPreference: Number(preferences.examPreference),
+        continuousAssessmentPreference: Number(preferences.continuousAssessmentPreference),
+        freeDayPriority: Number(preferences.freeDayPriority),
+        earlyClassAversion: Number(preferences.earlyClassAversion),
+        lateClassAversion: Number(preferences.lateClassAversion),
+        maxPreferredHardCourses: preferences.maxPreferredHardCourses,
+      }
+    : undefined;
+}
+
+function semesterCommitmentsInput(commitments: CommitmentRecord[]) {
+  return commitments.map((commitment) => ({
+    id: commitment.id,
+    name: commitment.name,
+    flexibility: commitment.flexibility as 'HARD' | 'SOFT' | 'FLEXIBLE',
+    weeklyEffortHours: Number(commitment.weeklyEffortHours),
+    meetings: commitment.meetings.map((meeting) => ({
+      dayOfWeek: meeting.dayOfWeek as MeetingDay,
+      startTime: formatTime(meeting.startTime),
+      endTime: formatTime(meeting.endTime),
+    })),
+  }));
+}
+
+function semesterInputFromSelections(
+  candidateId: string,
+  selections: SemesterInputSelection[],
+  workspace: AnalysisWorkspace,
+): CandidateSemesterInput {
+  const preferences = semesterPreferencesInput(workspace.preferences);
+
+  return {
+    candidateId,
+    courses: selections.map((selection) =>
+      candidateCourseInputFromSection(selection.id, selection.section, workspace),
+    ),
+    commitments: semesterCommitmentsInput(workspace.commitments),
+    ...(preferences ? { preferences } : {}),
+  };
+}
+
 function candidateSemesterInput(
   candidate: NonNullable<Awaited<ReturnType<typeof loadOwnedCandidateForValidation>>>,
 ): CandidateSemesterInput {
-  const preferences = candidate.workspace.preferences;
-
-  return {
-    candidateId: candidate.id,
-    courses: candidate.selections.map((selection) => ({
-      id: selection.id,
-      courseOfferingId: selection.section.courseOffering.id,
-      courseCode: selection.section.courseOffering.course.courseCode,
-      courseTitle: selection.section.courseOffering.course.title,
-      creditHours: Number(selection.section.courseOffering.creditHours),
-      sectionCode: selection.section.sectionCode,
-      meetings: selection.section.meetings.map((meeting) => ({
-        dayOfWeek: meeting.dayOfWeek as MeetingDay,
-        startTime: formatTime(meeting.startTime),
-        endTime: formatTime(meeting.endTime),
-        meetingType: meeting.meetingType as 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
-      })),
-      interestScore: decimalOrNull(
-        candidate.workspace.coursePreferences.find(
-          (preference) => preference.courseOfferingId === selection.section.courseOffering.id,
-        )?.interestScore ?? null,
-      ),
-      careerRelevanceScore: decimalOrNull(
-        candidate.workspace.coursePreferences.find(
-          (preference) => preference.courseOfferingId === selection.section.courseOffering.id,
-        )?.careerRelevanceScore ?? null,
-      ),
-      ...(() => {
-        const stored = candidate.workspace.workloadProfiles.find(
-          (profile) => profile.courseOfferingId === selection.section.courseOffering.id,
-        );
-        if (!stored) return {};
-        const override: CourseWorkloadProfile = {
-          overallIntensity: decimalOrNull(stored.overallIntensity),
-          continuousWorkload: decimalOrNull(stored.continuousWorkload),
-          assignmentIntensity: decimalOrNull(stored.assignmentIntensity),
-          quizIntensity: decimalOrNull(stored.quizIntensity),
-          projectIntensity: decimalOrNull(stored.projectIntensity),
-          examIntensity: decimalOrNull(stored.examIntensity),
-          labIntensity: decimalOrNull(stored.labIntensity),
-          readingIntensity: decimalOrNull(stored.readingIntensity),
-          scheduleBurden: decimalOrNull(stored.scheduleBurden),
-          assessmentFragmentation: decimalOrNull(stored.assessmentFragmentation),
-          estimatedWeeklyHours: decimalOrNull(stored.estimatedWeeklyHours),
-          confidence: Number(stored.confidence),
-          source: stored.sourceType as 'STRUCTURAL_ESTIMATE' | 'USER_ESTIMATE' | 'VERIFIED_OUTLINE',
-        };
-        return {
-          workloadProfile: resolveWorkloadProfile(
-            {
-              creditHours: Number(selection.section.courseOffering.creditHours),
-              meetings: selection.section.meetings.map((meeting) => ({
-                dayOfWeek: meeting.dayOfWeek as MeetingDay,
-                startTime: formatTime(meeting.startTime),
-                endTime: formatTime(meeting.endTime),
-                meetingType: meeting.meetingType as
-                  'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'OTHER',
-              })),
-            },
-            override,
-          ),
-        };
-      })(),
-    })),
-    commitments: candidate.workspace.commitments.map((commitment) => ({
-      id: commitment.id,
-      name: commitment.name,
-      flexibility: commitment.flexibility,
-      weeklyEffortHours: Number(commitment.weeklyEffortHours),
-      meetings: commitment.meetings.map((meeting) => ({
-        dayOfWeek: meeting.dayOfWeek as MeetingDay,
-        startTime: formatTime(meeting.startTime),
-        endTime: formatTime(meeting.endTime),
-      })),
-    })),
-    ...(preferences
-      ? {
-          preferences: {
-            workloadPriority: Number(preferences.workloadPriority),
-            schedulePriority: Number(preferences.schedulePriority),
-            careerPriority: Number(preferences.careerPriority),
-            interestPriority: Number(preferences.interestPriority),
-            gradeSafetyPriority: Number(preferences.gradeSafetyPriority),
-            projectPreference: Number(preferences.projectPreference),
-            examPreference: Number(preferences.examPreference),
-            continuousAssessmentPreference: Number(preferences.continuousAssessmentPreference),
-            freeDayPriority: Number(preferences.freeDayPriority),
-            earlyClassAversion: Number(preferences.earlyClassAversion),
-            lateClassAversion: Number(preferences.lateClassAversion),
-            maxPreferredHardCourses: preferences.maxPreferredHardCourses,
-          },
-        }
-      : {}),
-  };
+  return semesterInputFromSelections(candidate.id, candidate.selections, candidate.workspace);
 }
 
 function analyzeCandidateTimetable(
@@ -1336,6 +1327,264 @@ export function registerPlanningRoutes(app: express.Express) {
       alreadyLocked,
       workspace: serializeWorkspace(workspace),
     });
+  });
+
+  app.post('/api/workspaces/:workspaceId/active-selections', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = selectionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const workspace = await loadOwnedWorkspace(request.params.workspaceId, userId);
+    if (!workspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+    if (workspace.state !== 'ACTIVE') {
+      conflictError(response, 'WORKSPACE_NOT_ACTIVE');
+      return;
+    }
+
+    let addedSelectionId: string;
+    try {
+      addedSelectionId = await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT 1::integer AS "locked"
+          FROM pg_advisory_xact_lock(hashtext(${workspace.id}))
+        `;
+
+        const activeWorkspace = await transaction.semesterWorkspace.findFirst({
+          where: { id: workspace.id, userId, state: 'ACTIVE' },
+          include: activeWorkspaceValidationInclude,
+        });
+        if (!activeWorkspace) throw new ActiveCourseConflict('WORKSPACE_NOT_ACTIVE');
+
+        const section = await transaction.section.findFirst({
+          where: {
+            id: parsed.data.sectionId,
+            courseOffering: { academicTermId: activeWorkspace.academicTermId },
+          },
+          include: { courseOffering: { include: { course: true } }, meetings: true },
+        });
+        if (!section) throw new ActiveCourseConflict('SECTION_NOT_FOUND');
+
+        if (
+          activeWorkspace.activeCourseSelections.some(
+            (selection) => selection.section.courseOffering.id === section.courseOfferingId,
+          )
+        ) {
+          throw new ActiveCourseConflict('COURSE_ALREADY_ACTIVE');
+        }
+
+        const currentSemesterInput = semesterInputFromSelections(
+          activeWorkspace.id,
+          activeWorkspace.activeCourseSelections,
+          activeWorkspace,
+        );
+        const validation = detectTimetableClashes({
+          ...currentSemesterInput,
+          courses: [
+            ...currentSemesterInput.courses,
+            candidateCourseInputFromSection(`pending-${section.id}`, section, activeWorkspace),
+          ],
+        });
+        if (!validation.valid) throw new ActiveCourseConflict('CANDIDATE_HAS_CRITICAL_CONFLICTS');
+
+        const activeSelection = await transaction.activeCourseSelection.create({
+          data: { workspaceId: activeWorkspace.id, sectionId: section.id, status: 'ACTIVE' },
+        });
+        await transaction.activeCourseState.create({
+          data: { activeCourseSelectionId: activeSelection.id },
+        });
+        return activeSelection.id;
+      });
+    } catch (error) {
+      if (error instanceof ActiveCourseConflict) {
+        if (error.message === 'SECTION_NOT_FOUND') {
+          response.status(404).json({ error: error.message });
+        } else {
+          conflictError(response, error.message);
+        }
+        return;
+      }
+      throw error;
+    }
+
+    const savedWorkspace = await loadOwnedWorkspace(workspace.id, userId);
+    if (!savedWorkspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+    const activeSelection = savedWorkspace.activeCourseSelections.find(
+      (selection) => selection.id === addedSelectionId,
+    );
+    response.status(201).json({
+      activeCourseSelection: activeSelection
+        ? serializeActiveCourseSelection(activeSelection)
+        : undefined,
+      workspace: serializeWorkspace(savedWorkspace),
+    });
+  });
+
+  app.patch('/api/active-selections/:selectionId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = selectionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const existing = await loadOwnedActiveSelection(request.params.selectionId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ACTIVE_SELECTION_NOT_FOUND' });
+      return;
+    }
+    const section = await loadSectionForWorkspace(
+      parsed.data.sectionId,
+      existing.workspace.academicTermId,
+    );
+    if (!section) {
+      response.status(404).json({ error: 'SECTION_NOT_FOUND' });
+      return;
+    }
+    if (section.courseOfferingId !== existing.section.courseOffering.id) {
+      conflictError(response, 'SECTION_MUST_MATCH_COURSE');
+      return;
+    }
+
+    try {
+      await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT 1::integer AS "locked"
+          FROM pg_advisory_xact_lock(hashtext(${existing.workspace.id}))
+        `;
+
+        const activeWorkspace = await transaction.semesterWorkspace.findFirst({
+          where: { id: existing.workspace.id, userId, state: 'ACTIVE' },
+          include: activeWorkspaceValidationInclude,
+        });
+        if (!activeWorkspace) throw new ActiveCourseConflict('WORKSPACE_NOT_ACTIVE');
+
+        const current = activeWorkspace.activeCourseSelections.find(
+          (selection) => selection.id === existing.id,
+        );
+        if (!current) throw new ActiveCourseConflict('ACTIVE_SELECTION_NOT_FOUND');
+
+        if (
+          activeWorkspace.activeCourseSelections.some(
+            (selection) =>
+              selection.id !== current.id &&
+              selection.section.courseOffering.id === section.courseOfferingId,
+          )
+        ) {
+          throw new ActiveCourseConflict('COURSE_ALREADY_ACTIVE');
+        }
+
+        const courses = activeWorkspace.activeCourseSelections.map((selection) =>
+          selection.id === current.id
+            ? candidateCourseInputFromSection(selection.id, section, activeWorkspace)
+            : candidateCourseInputFromSection(selection.id, selection.section, activeWorkspace),
+        );
+        const validation = detectTimetableClashes({
+          ...semesterInputFromSelections(
+            activeWorkspace.id,
+            activeWorkspace.activeCourseSelections,
+            activeWorkspace,
+          ),
+          courses,
+        });
+        if (!validation.valid) throw new ActiveCourseConflict('CANDIDATE_HAS_CRITICAL_CONFLICTS');
+
+        await transaction.activeCourseSelection.update({
+          where: { id: current.id },
+          data: { sectionId: section.id },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ActiveCourseConflict) {
+        if (error.message === 'ACTIVE_SELECTION_NOT_FOUND') {
+          response.status(404).json({ error: error.message });
+        } else {
+          conflictError(response, error.message);
+        }
+        return;
+      }
+      throw error;
+    }
+
+    const savedWorkspace = await loadOwnedWorkspace(existing.workspace.id, userId);
+    if (!savedWorkspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+    const activeSelection = savedWorkspace.activeCourseSelections.find(
+      (selection) => selection.id === existing.id,
+    );
+    response.status(200).json({
+      activeCourseSelection: activeSelection
+        ? serializeActiveCourseSelection(activeSelection)
+        : undefined,
+      workspace: serializeWorkspace(savedWorkspace),
+    });
+  });
+
+  app.post('/api/active-selections/:selectionId/drop', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const existing = await loadOwnedActiveSelection(request.params.selectionId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ACTIVE_SELECTION_NOT_FOUND' });
+      return;
+    }
+
+    try {
+      await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT 1::integer AS "locked"
+          FROM pg_advisory_xact_lock(hashtext(${existing.workspace.id}))
+        `;
+        const current = await transaction.activeCourseSelection.findFirst({
+          where: { id: existing.id, status: 'ACTIVE', workspace: { userId, state: 'ACTIVE' } },
+        });
+        if (!current) throw new ActiveCourseConflict('ACTIVE_SELECTION_NOT_FOUND');
+        await transaction.activeCourseSelection.update({
+          where: { id: current.id },
+          data: { status: 'DROPPED', droppedAt: new Date() },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ActiveCourseConflict) {
+        response.status(404).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
+
+    const savedWorkspace = await loadOwnedWorkspace(existing.workspace.id, userId);
+    if (!savedWorkspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+    response.status(200).json({ workspace: serializeWorkspace(savedWorkspace) });
   });
 
   app.get('/api/candidates/:candidateId/analysis', async (request, response) => {
