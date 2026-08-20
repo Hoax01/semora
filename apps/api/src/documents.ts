@@ -3,6 +3,8 @@ import express from 'express';
 import {
   DEFAULT_MAX_DOCUMENT_BYTES,
   detectDocumentFormat,
+  EXTRACTION_PARSER_VERSION,
+  EXTRACTION_SCHEMA_VERSION,
   type DocumentFormat,
 } from '@semora/extraction';
 import { prisma } from './db.js';
@@ -46,6 +48,28 @@ function serializeDocument(document: {
     fileSize: document.fileSize,
     fileHash: document.fileHash,
     uploadedAt: document.uploadedAt.toISOString(),
+  };
+}
+
+function serializeExtractionJob(job: {
+  id: string;
+  status: string;
+  modelIdentifier: string | null;
+  extractorVersion: string | null;
+  schemaVersion: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  failureReason: string | null;
+}) {
+  return {
+    id: job.id,
+    status: job.status,
+    modelIdentifier: job.modelIdentifier,
+    extractorVersion: job.extractorVersion,
+    schemaVersion: job.schemaVersion,
+    startedAt: job.startedAt?.toISOString() ?? null,
+    completedAt: job.completedAt?.toISOString() ?? null,
+    failureReason: job.failureReason,
   };
 }
 
@@ -135,14 +159,25 @@ export function registerDocumentRoutes(app: express.Application) {
               fileHash,
             },
           });
+          const job = await transaction.extractionJob.create({
+            data: {
+              documentId: created.id,
+              modelIdentifier: null,
+              extractorVersion: EXTRACTION_PARSER_VERSION,
+              schemaVersion: EXTRACTION_SCHEMA_VERSION,
+            },
+          });
           await transaction.activeCourseState.update({
             where: { id: activeCourseStateId },
             data: { outlineDocumentId: created.id },
           });
-          return created;
+          return { created, job };
         });
 
-        response.status(201).json({ document: serializeDocument(document) });
+        response.status(201).json({
+          document: serializeDocument(document.created),
+          extractionJob: serializeExtractionJob(document.job),
+        });
       } catch (error) {
         await removePrivateDocument(stored.storageKey).catch(() => undefined);
         throw error;

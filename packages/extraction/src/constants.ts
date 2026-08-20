@@ -1,0 +1,3 @@
+export const EXTRACTION_SCHEMA_VERSION = '0.1';
+export const EXTRACTION_PARSER_VERSION = '0.1';
+export const DEFAULT_MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;

@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build --workspace @semora/semester-engine && tsx watch src/server.ts",
-    "build": "npm run build --workspace @semora/semester-engine && tsc -p tsconfig.json",
+    "build": "npm run build --workspace @semora/extraction && npm run build --workspace @semora/semester-engine && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "catalogue:convert-lums": "tsx src/convert-lums-schedule.ts",
     "catalogue:import": "tsx src/import-catalogue.ts",
-    "pretypecheck": "npm run build --workspace @semora/semester-engine",
+    "pretypecheck": "npm run build --workspace @semora/extraction && npm run build --workspace @semora/semester-engine",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "pretest": "npm run build --workspace @semora/semester-engine",
+    "pretest": "npm run build --workspace @semora/extraction && npm run build --workspace @semora/semester-engine",
     "test": "vitest run"
   },
   "dependencies": {

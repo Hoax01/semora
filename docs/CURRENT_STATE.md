@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 5 — Course Outline Extraction (in progress)
-**Next Build Objective:** Phase 5.5 — AI Provider Adapter and Extraction Job Processing
+**Next Build Objective:** Phase 5.5 — Concrete AI Provider Adapter
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -12,9 +12,10 @@ workload interaction penalties, candidate metrics, structured findings,
 comparison, recommendation tags, and bounded what-if exploration are
 implemented and regression-covered. Phase 4 lock, Add/Drop, and
 active-semester UI requirements are now implemented. The deterministic Phase 5
-document-normalization foundation and private outline upload/storage are now
-implemented; extraction jobs, AI extraction, review, and canonical persistence
-remain incomplete.
+document-normalization foundation, private outline upload/storage, extraction
+job state, and schema-constrained provider contracts are now implemented;
+concrete model extraction, review, and canonical persistence remain
+incomplete.
 
 ---
 
@@ -204,6 +205,18 @@ remain incomplete.
 - Cross-user active-course access is rejected. No public file URL or direct file
   download route is exposed.
 
+### Extraction jobs and provider boundary
+
+- Uploads create a persisted `PENDING` extraction job. The protected job status
+  and process endpoints distinguish `PARSING`, `EXTRACTING`, `REVIEW_REQUIRED`,
+  and `FAILED` states without mutating canonical academic data.
+- Processing reads the private stored file through `@semora/extraction`, then
+  passes the normalized document through an `AcademicExtractionProvider`
+  contract. Provider output is runtime-validated by the schema-constrained
+  extraction contract before an `ExtractionDraft` can be persisted.
+- No concrete AI vendor/model is configured yet. The default provider fails
+  explicitly as unconfigured; tests do not make live or paid model calls.
+
 ### Database
 
 - PostgreSQL + Prisma schema for universities, terms, courses, offerings,
@@ -218,6 +231,7 @@ remain incomplete.
   - `20260820153904_phase3_workload_profiles`
   - `20260820190218_phase4_active_semester_schema`
   - `20260821130000_phase5_documents`
+  - `20260821140000_phase5_extraction_jobs`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -248,8 +262,9 @@ remain incomplete.
   retains referenced historical selections, and leaves other universities and
   academic terms untouched.
 - Optional Docker Compose PostgreSQL remains available on host port 5433.
-- No Phase 5 database migration has been added yet; document metadata and local
-  storage are the next implementation slice.
+- Phase 5 migrations now persist document metadata, extraction jobs, and
+  temporary extraction drafts; canonical academic structure migrations remain
+  intentionally pending verification/review work.
 
 ---
 
@@ -329,6 +344,10 @@ Current API integration coverage verifies:
   SHA-256/file metadata persistence, private byte storage, active-course-state
   attachment, cross-user rejection, MIME/extension validation, and empty-file
   rejection.
+- Extraction job integration coverage verifies persisted `PENDING` jobs,
+  authorized status/process access, parser failure isolation, and explicit
+  failed-job state. Provider unit coverage verifies schema-constrained output
+  and rejection of malformed confidence values.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
@@ -341,8 +360,9 @@ Current API integration coverage verifies:
 - catalogue imports reject malformed or duplicate source records and preserve a
   selected section's stable identity across a repeated import while updating
   its meetings.
-- Prisma migration status reports the six checked-in migrations applied and the
-  local database schema up to date after the Phase 4.1 migration.
+- Prisma migration status reports all eight checked-in migrations applied and
+  the local database schema up to date after the Phase 5 extraction-job
+  migration.
 - Lock workflow integration coverage verifies critical-conflict rejection
   without mutation, active selection/state creation, workspace transition,
   repeated-lock idempotency, Add/Drop operations, same-offering duplicate
@@ -425,13 +445,14 @@ Implemented in this phase so far:
 5.2 File Storage and Document Metadata
 5.3 PDF + DOCX Parsing foundation
 5.4 Normalized Document foundation
+5.5 Extraction Job and Provider Boundary foundation
+5.6 Schema-Constrained Extraction Contract foundation
 ```
 
 Still incomplete in this phase:
 
 ```text
-5.5 AI Provider Adapter
-5.6 Extraction Schema
+5.5 Concrete AI Provider Adapter
 5.7 Deterministic Validation
 5.8 Mandatory Review UI
 5.9 Canonical Persistence after verification
@@ -441,9 +462,10 @@ Still incomplete in this phase:
 Phase 5 acceptance status:
 
 ```text
-IN PROGRESS — deterministic normalization and private, user-owned outline
-upload/storage work for PDF, DOCX, and plain text, including a real LUMS outline
-smoke check. Extraction jobs, useful course-structure extraction,
+IN PROGRESS — deterministic normalization, private user-owned storage,
+persisted extraction jobs, and schema-constrained provider boundaries work for
+PDF, DOCX, and plain text, including a real LUMS outline smoke check. A concrete
+AI provider, useful course-structure drafts, deterministic validation,
 evidence/warnings, user review, verification, and canonical persistence remain.
 ```
 
@@ -468,9 +490,9 @@ and schedule range/alignment defects.
   section selection, live credits, hard-commitment clash warnings, the
   08:00–21:00 timetable, desktop layout, and a page-width-safe 390-pixel mobile
   layout against the local Fall 2026 data. No browser console errors appeared.
-- All four migrations, the corrected clean-database seed, and the API suite
-  were verified against a temporary PostgreSQL database. The temporary database
-  was removed after verification.
+- The Phase 0–4 migrations, corrected clean-database seed, and API suite were
+  verified against a temporary PostgreSQL database during the earlier audit.
+  The temporary database was removed after verification.
 - The official local catalogue was restored to 520 offerings, 823 sections,
   and 1,441 meetings after the audit discovered that the old seed had mutated
   it. A full catalogue fingerprint was unchanged before and after running the
@@ -565,6 +587,11 @@ under the ignored `storage/` directory (or `SEMORA_FILE_STORAGE_PATH` when
 configured); production private object storage and file deletion/retention
 flows are not implemented yet.
 
+The extraction process endpoint currently has no configured concrete AI provider
+and therefore fails explicitly after successful parsing with an unconfigured
+provider error. This is intentional until a provider choice and secret are
+configured; no draft or canonical academic data is fabricated.
+
 The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
 DOCX page references are therefore unavailable, and complex layout semantics
 remain intentionally limited to practical paragraph and table preservation.
@@ -615,10 +642,14 @@ docs/CURRENT_STATE.md
 docs/CATALOGUE_IMPORT.md
 packages/extraction/src/index.ts
 packages/extraction/src/index.test.ts
+packages/extraction/src/provider.ts
+packages/extraction/src/provider.test.ts
 apps/api/src/documents.ts
 apps/api/src/document-storage.ts
 apps/api/src/documents.test.ts
+apps/api/src/extraction-jobs.ts
 prisma/migrations/20260821130000_phase5_documents/
+prisma/migrations/20260821140000_phase5_extraction_jobs/
 ```
 
 ---
@@ -633,7 +664,8 @@ Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
 and the basic active-semester UI are now complete. Phase 5 Course Outline
 Extraction is in progress. Document metadata, private local development
 storage, and the authenticated active-course upload boundary are complete. The
-next objective is to create the synchronous extraction-job/provider boundary
-before adding schema-constrained drafts or review. Course-outline-derived
-workload enrichment and later NAVIGATE intelligence remain out of scope until
-the documented Phase 5 verification path exists.
+extraction-job/provider boundary and schema-constrained draft contract are now
+in place. The next objective is to configure one concrete AI provider, then add
+deterministic validation and review. Course-outline-derived workload enrichment
+and later NAVIGATE intelligence remain out of scope until the documented Phase 5
+verification path exists.

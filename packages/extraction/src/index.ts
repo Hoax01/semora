@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import * as mammoth from 'mammoth';
+import {
+  DEFAULT_MAX_DOCUMENT_BYTES,
+  EXTRACTION_PARSER_VERSION,
+  EXTRACTION_SCHEMA_VERSION,
+} from './constants.js';
 
-export const EXTRACTION_SCHEMA_VERSION = '0.1';
-export const EXTRACTION_PARSER_VERSION = '0.1';
-export const DEFAULT_MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
+export {
+  DEFAULT_MAX_DOCUMENT_BYTES,
+  EXTRACTION_PARSER_VERSION,
+  EXTRACTION_SCHEMA_VERSION,
+} from './constants.js';
 
 export type DocumentFormat = 'PDF' | 'DOCX' | 'PLAIN_TEXT';
 
@@ -329,3 +336,5 @@ export async function parseDocument(
   if (format === 'PDF') return normalizePdf(file, metadata);
   return normalizeDocx(file, metadata);
 }
+
+export * from './provider.js';

@@ -74,6 +74,11 @@ describe('Phase 5 document storage', () => {
       fileSize: bytes.byteLength,
       fileHash: expect.any(String),
     });
+    expect(upload.body.extractionJob).toMatchObject({
+      status: 'PENDING',
+      extractorVersion: '0.1',
+      schemaVersion: '0.1',
+    });
     storedKey = (
       await prisma?.document.findUniqueOrThrow({ where: { id: upload.body.document.id } })
     ).storageKey;
@@ -86,6 +91,19 @@ describe('Phase 5 document storage', () => {
         select: { outlineDocumentId: true },
       }),
     ).toEqual({ outlineDocumentId: upload.body.document.id });
+
+    const jobStatus = await request(app)
+      .get(`/api/extraction-jobs/${upload.body.extractionJob.id}`)
+      .set('Cookie', ownerCookie);
+    expect(jobStatus.status).toBe(200);
+    expect(jobStatus.body.extractionJob.status).toBe('PENDING');
+
+    const processed = await request(app)
+      .post(`/api/extraction-jobs/${upload.body.extractionJob.id}/process`)
+      .set('Cookie', ownerCookie);
+    expect(processed.status).toBe(200);
+    expect(processed.body.extractionJob.status).toBe('FAILED');
+    expect(processed.body.extractionJob.failureReason).toMatch(/^PARSING_FAILED:/);
 
     const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
       name: 'Document Intruder',
