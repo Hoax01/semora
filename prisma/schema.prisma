@@ -76,6 +76,11 @@ enum WorkloadProfileSource {
   VERIFIED_OUTLINE
 }
 
+enum ActiveCourseSelectionStatus {
+  ACTIVE
+  DROPPED
+}
+
 model User {
   id            String              @id @default(cuid())
   name          String              @map("display_name")
@@ -173,6 +178,7 @@ model Section {
   courseOffering      CourseOffering             @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   meetings            Meeting[]
   candidateSelections CandidateCourseSelection[]
+  activeSelections    ActiveCourseSelection[]
   workloadProfiles    CourseWorkloadProfile[]
 
   @@unique([courseOfferingId, sectionCode])
@@ -194,19 +200,23 @@ model Meeting {
 }
 
 model SemesterWorkspace {
-  id                String                  @id @default(cuid())
-  userId            String                  @map("user_id")
-  academicTermId    String                  @map("academic_term_id")
-  state             WorkspaceState          @default(PLANNING)
-  createdAt         DateTime                @default(now()) @map("created_at")
-  updatedAt         DateTime                @updatedAt @map("updated_at")
-  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  academicTerm      AcademicTerm            @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
-  preferences       SemesterPreferences?
-  candidates        CandidateSemester[]
-  coursePreferences UserCoursePreference[]
-  workloadProfiles  CourseWorkloadProfile[]
-  commitments       Commitment[]
+  id                        String                  @id @default(cuid())
+  userId                    String                  @map("user_id")
+  academicTermId            String                  @map("academic_term_id")
+  state                     WorkspaceState          @default(PLANNING)
+  lockedCandidateSemesterId String?                 @map("locked_candidate_semester_id")
+  lockedAt                  DateTime?               @map("locked_at")
+  createdAt                 DateTime                @default(now()) @map("created_at")
+  updatedAt                 DateTime                @updatedAt @map("updated_at")
+  user                      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academicTerm              AcademicTerm            @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  lockedCandidateSemester   CandidateSemester?      @relation("WorkspaceLockedCandidate", fields: [lockedCandidateSemesterId], references: [id], onDelete: SetNull)
+  preferences               SemesterPreferences?
+  candidates                CandidateSemester[]
+  activeCourseSelections    ActiveCourseSelection[]
+  coursePreferences         UserCoursePreference[]
+  workloadProfiles          CourseWorkloadProfile[]
+  commitments               Commitment[]
 
   @@unique([userId, academicTermId])
   @@map("semester_workspaces")
@@ -235,17 +245,46 @@ model SemesterPreferences {
 }
 
 model CandidateSemester {
-  id          String                     @id @default(cuid())
-  workspaceId String                     @map("workspace_id")
-  name        String
-  isArchived  Boolean                    @default(false) @map("is_archived")
-  createdAt   DateTime                   @default(now()) @map("created_at")
-  updatedAt   DateTime                   @updatedAt @map("updated_at")
-  workspace   SemesterWorkspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  selections  CandidateCourseSelection[]
+  id                 String                     @id @default(cuid())
+  workspaceId        String                     @map("workspace_id")
+  name               String
+  isArchived         Boolean                    @default(false) @map("is_archived")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+  workspace          SemesterWorkspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  selections         CandidateCourseSelection[]
+  lockedByWorkspaces SemesterWorkspace[]        @relation("WorkspaceLockedCandidate")
 
   @@index([workspaceId, isArchived])
   @@map("candidate_semesters")
+}
+
+model ActiveCourseSelection {
+  id          String                      @id @default(cuid())
+  workspaceId String                      @map("workspace_id")
+  sectionId   String                      @map("section_id")
+  addedAt     DateTime                    @default(now()) @map("added_at")
+  droppedAt   DateTime?                   @map("dropped_at")
+  status      ActiveCourseSelectionStatus @default(ACTIVE)
+  workspace   SemesterWorkspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  section     Section                     @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  state       ActiveCourseState?
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, sectionId, status])
+  @@map("active_course_selections")
+}
+
+model ActiveCourseState {
+  id                      String                @id @default(cuid())
+  activeCourseSelectionId String                @unique @map("active_course_selection_id")
+  dataCompleteness        Decimal               @default(0) @map("data_completeness") @db.Decimal(3, 2)
+  dataConfidence          Decimal               @default(0) @map("data_confidence") @db.Decimal(3, 2)
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+  activeCourseSelection   ActiveCourseSelection @relation(fields: [activeCourseSelectionId], references: [id], onDelete: Cascade)
+
+  @@map("active_course_states")
 }
 
 model CandidateCourseSelection {

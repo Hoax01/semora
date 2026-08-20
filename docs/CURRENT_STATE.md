@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
-**Last Updated:** August 20, 2026
+**Last Updated:** August 21, 2026
 **Current Phase:** Phase 4 — Lock Semester (in progress)
-**Next Build Objective:** Phase 4.1 — Active Semester Schema
+**Next Build Objective:** Phase 4.2 — Lock Workflow
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -164,10 +164,16 @@ implemented and regression-covered.
   - `20260819212415_add_auth_account_issuer`
   - `20260820105904_phase2_planning_foundation`
   - `20260820153904_phase3_workload_profiles`
+  - `20260820190218_phase4_active_semester_schema`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
   cascade/restrict boundaries.
+- Phase 4.1 persistence now includes workspace lock metadata,
+  `ActiveCourseSelection` records with active/dropped status and timestamps,
+  and one-to-one `ActiveCourseState` records with explicit data
+  completeness/confidence defaults. Candidate planning selections remain
+  separate from active selections.
 - `CourseWorkloadProfile` stores workspace-owned preliminary estimates with
   source, confidence, optional section scope, and the ten Phase 3 dimensions.
 - The `@semora/semester-engine` package contains deterministic timetable
@@ -194,7 +200,7 @@ implemented and regression-covered.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 3 behavior audit:
+The following quality suite passes after the Phase 4.1 schema change:
 
 ```text
 npm run typecheck
@@ -268,6 +274,8 @@ Current API integration coverage verifies:
 - catalogue imports reject malformed or duplicate source records and preserve a
   selected section's stable identity across a repeated import while updating
   its meetings.
+- Prisma migration status reports the six checked-in migrations applied and the
+  local database schema up to date after the Phase 4.1 migration.
 
 ### Phase 2 implementation status
 
@@ -311,7 +319,6 @@ Implemented in this phase so far:
 Not yet implemented:
 
 ```text
-4.1 Active Semester Schema
 4.2 Lock Workflow
 ```
 
@@ -322,6 +329,29 @@ SATISFIED — students can inspect one candidate's deterministic intelligence,
 compare multiple active candidates, see explainable preference-sensitive tags,
 and explore bounded unsaved scenarios. Automatic generation, Pareto UI, ML,
 community intelligence, and LLM recommendations remain out of scope.
+```
+
+### Phase 4 implementation status
+
+Implemented in this phase so far:
+
+```text
+4.1 Active Semester Schema
+```
+
+Not yet implemented:
+
+```text
+4.2 Lock Workflow
+4.3 Add/Drop Support
+4.4 Active Semester UI
+```
+
+Phase 4 acceptance status:
+
+```text
+IN PROGRESS — the active-semester persistence boundary exists, but candidate
+locking and active-semester operation are not yet exposed through the API or UI.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -488,5 +518,6 @@ Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3
 is complete through schedule analysis, preliminary profiles,
 course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
-The next objective is Phase 4.1 active-semester schema, without implementing
-later LOCK workflow behavior in this step.
+Phase 4.1 active-semester schema is now complete. The next objective is the
+transactional Phase 4.2 lock workflow; Add/Drop and active-semester UI remain
+after that objective.
