@@ -81,6 +81,13 @@ enum ActiveCourseSelectionStatus {
   DROPPED
 }
 
+enum DocumentType {
+  COURSE_OUTLINE
+  COURSE_MEMO
+  COURSE_TIMING
+  OTHER
+}
+
 model User {
   id            String              @id @default(cuid())
   name          String              @map("display_name")
@@ -91,6 +98,7 @@ model User {
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
   workspaces    SemesterWorkspace[]
+  documents     Document[]
   sessions      Session[]
   accounts      Account[]
 
@@ -162,6 +170,7 @@ model CourseOffering {
   sections            Section[]
   userPreferences     UserCoursePreference[]
   workloadProfiles    CourseWorkloadProfile[]
+  documents           Document[]
 
   @@unique([courseId, academicTermId])
   @@map("course_offerings")
@@ -217,6 +226,7 @@ model SemesterWorkspace {
   coursePreferences         UserCoursePreference[]
   workloadProfiles          CourseWorkloadProfile[]
   commitments               Commitment[]
+  documents                 Document[]
 
   @@unique([userId, academicTermId])
   @@map("semester_workspaces")
@@ -278,13 +288,39 @@ model ActiveCourseSelection {
 model ActiveCourseState {
   id                      String                @id @default(cuid())
   activeCourseSelectionId String                @unique @map("active_course_selection_id")
+  outlineDocumentId       String?               @unique @map("outline_document_id")
   dataCompleteness        Decimal               @default(0) @map("data_completeness") @db.Decimal(3, 2)
   dataConfidence          Decimal               @default(0) @map("data_confidence") @db.Decimal(3, 2)
   createdAt               DateTime              @default(now()) @map("created_at")
   updatedAt               DateTime              @updatedAt @map("updated_at")
   activeCourseSelection   ActiveCourseSelection @relation(fields: [activeCourseSelectionId], references: [id], onDelete: Cascade)
+  outlineDocument         Document?             @relation("ActiveCourseOutline", fields: [outlineDocumentId], references: [id], onDelete: SetNull)
 
   @@map("active_course_states")
+}
+
+model Document {
+  id                String             @id @default(cuid())
+  userId            String             @map("user_id")
+  workspaceId       String?            @map("workspace_id")
+  courseOfferingId  String?            @map("course_offering_id")
+  documentType      DocumentType       @default(COURSE_OUTLINE) @map("document_type")
+  originalFilename  String             @map("original_filename")
+  storageKey        String             @unique @map("storage_key")
+  mimeType          String             @map("mime_type")
+  fileSize          Int                @map("file_size")
+  fileHash          String             @map("file_hash")
+  uploadedAt        DateTime           @default(now()) @map("uploaded_at")
+  deletedAt         DateTime?          @map("deleted_at")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace         SemesterWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  courseOffering    CourseOffering?    @relation(fields: [courseOfferingId], references: [id], onDelete: SetNull)
+  activeCourseState ActiveCourseState? @relation("ActiveCourseOutline")
+
+  @@index([userId, uploadedAt])
+  @@index([workspaceId, courseOfferingId])
+  @@index([userId, fileHash])
+  @@map("documents")
 }
 
 model CandidateCourseSelection {

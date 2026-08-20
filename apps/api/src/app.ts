@@ -2,6 +2,7 @@ import express from 'express';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './auth.js';
 import { checkDatabaseConnection, prisma } from './db.js';
+import { registerDocumentRoutes } from './documents.js';
 import { registerPlanningRoutes } from './planning.js';
 import { requireUserId } from './session.js';
 
@@ -167,3 +168,4 @@ app.get('/api/me', async (request, response) => {
 });
 
 registerPlanningRoutes(app);
+registerDocumentRoutes(app);

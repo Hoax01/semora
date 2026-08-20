@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 5 — Course Outline Extraction (in progress)
-**Next Build Objective:** Phase 5.2 — Document Metadata and Local Storage
+**Next Build Objective:** Phase 5.5 — AI Provider Adapter and Extraction Job Processing
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -12,8 +12,9 @@ workload interaction penalties, candidate metrics, structured findings,
 comparison, recommendation tags, and bounded what-if exploration are
 implemented and regression-covered. Phase 4 lock, Add/Drop, and
 active-semester UI requirements are now implemented. The deterministic Phase 5
-document-normalization foundation is now implemented; outline upload, AI
-extraction, review, and canonical persistence remain incomplete.
+document-normalization foundation and private outline upload/storage are now
+implemented; extraction jobs, AI extraction, review, and canonical persistence
+remain incomplete.
 
 ---
 
@@ -190,6 +191,19 @@ extraction, review, and canonical persistence remain incomplete.
   transport, file storage, AI provider calls, review state, or canonical course
   persistence.
 
+### Outline document storage
+
+- Authenticated `POST /api/active-selections/:selectionId/outline` accepts a
+  bounded raw PDF, DOCX, or plain-text upload for an owned active course.
+- Uploads validate MIME type, matching extension, size, empty content, and safe
+  filenames before writing bytes to private local `storage/` paths. The database
+  stores only metadata and a generated storage key, never the document binary.
+- Each stored document belongs to its user and workspace/course offering. The
+  active course state points to the current uploaded outline document while
+  preserving the unverified data completeness/confidence values.
+- Cross-user active-course access is rejected. No public file URL or direct file
+  download route is exposed.
+
 ### Database
 
 - PostgreSQL + Prisma schema for universities, terms, courses, offerings,
@@ -203,6 +217,7 @@ extraction, review, and canonical persistence remain incomplete.
   - `20260820105904_phase2_planning_foundation`
   - `20260820153904_phase3_workload_profiles`
   - `20260820190218_phase4_active_semester_schema`
+  - `20260821130000_phase5_documents`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -310,6 +325,10 @@ Current API integration coverage verifies:
 - `@semora/extraction` unit coverage verifies format detection, deterministic
   metadata, plain-text normalization, PDF page/heading extraction, DOCX
   paragraph/table normalization, and clear invalid-input errors.
+- Document storage integration coverage verifies authenticated owned uploads,
+  SHA-256/file metadata persistence, private byte storage, active-course-state
+  attachment, cross-user rejection, MIME/extension validation, and empty-file
+  rejection.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
@@ -403,6 +422,7 @@ Implemented in this phase so far:
 
 ```text
 5.1 Extraction Package foundation
+5.2 File Storage and Document Metadata
 5.3 PDF + DOCX Parsing foundation
 5.4 Normalized Document foundation
 ```
@@ -410,7 +430,6 @@ Implemented in this phase so far:
 Still incomplete in this phase:
 
 ```text
-5.2 File Storage and Document Metadata
 5.5 AI Provider Adapter
 5.6 Extraction Schema
 5.7 Deterministic Validation
@@ -422,10 +441,10 @@ Still incomplete in this phase:
 Phase 5 acceptance status:
 
 ```text
-IN PROGRESS — deterministic document normalization works for PDF, DOCX, and
-plain text, including a real LUMS outline smoke check. Upload/storage, useful
-course-structure extraction, evidence/warnings, user review, verification, and
-canonical persistence remain to be implemented.
+IN PROGRESS — deterministic normalization and private, user-owned outline
+upload/storage work for PDF, DOCX, and plain text, including a real LUMS outline
+smoke check. Extraction jobs, useful course-structure extraction,
+evidence/warnings, user review, verification, and canonical persistence remain.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -541,6 +560,11 @@ calculations and their stable contracts are isolated in
 their consumers. The Phase 3 audit did not add an unnecessary second contract
 layer.
 
+Phase 5 local storage is intentionally development-only. Files are written
+under the ignored `storage/` directory (or `SEMORA_FILE_STORAGE_PATH` when
+configured); production private object storage and file deletion/retention
+flows are not implemented yet.
+
 The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
 DOCX page references are therefore unavailable, and complex layout semantics
 remain intentionally limited to practical paragraph and table preservation.
@@ -591,6 +615,10 @@ docs/CURRENT_STATE.md
 docs/CATALOGUE_IMPORT.md
 packages/extraction/src/index.ts
 packages/extraction/src/index.test.ts
+apps/api/src/documents.ts
+apps/api/src/document-storage.ts
+apps/api/src/documents.test.ts
+prisma/migrations/20260821130000_phase5_documents/
 ```
 
 ---
@@ -603,8 +631,9 @@ course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
 Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
 and the basic active-semester UI are now complete. Phase 5 Course Outline
-Extraction is in progress. The next objective is to add document metadata and
-local development storage, then create the synchronous upload-to-extraction-job
-boundary before adding provider extraction or review. Course-outline-derived
+Extraction is in progress. Document metadata, private local development
+storage, and the authenticated active-course upload boundary are complete. The
+next objective is to create the synchronous extraction-job/provider boundary
+before adding schema-constrained drafts or review. Course-outline-derived
 workload enrichment and later NAVIGATE intelligence remain out of scope until
 the documented Phase 5 verification path exists.
