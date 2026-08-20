@@ -134,7 +134,8 @@ type University = {
 
 const scheduleDays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 const scheduleStartMinutes = 8 * 60;
-const scheduleEndMinutes = 20 * 60;
+const scheduleEndMinutes = 21 * 60;
+const scheduleAxisHours = [8, 10, 12, 14, 16, 18, 20, 21];
 const commitmentCategories: Array<{ value: CommitmentCategory; label: string }> = [
   { value: 'TASHIP', label: 'TAship' },
   { value: 'SOCIETY', label: 'Society' },
@@ -417,7 +418,7 @@ export function PlanningPage() {
     let isCurrent = true;
     setIsCatalogueLoading(true);
     apiRequest<{ courses: CatalogueCourse[] }>(
-      `/api/catalogue?term=${encodeURIComponent(workspace.term.name)}&q=${encodeURIComponent(appliedCourseSearch)}`,
+      `/api/catalogue?termId=${encodeURIComponent(workspace.term.id)}&q=${encodeURIComponent(appliedCourseSearch)}`,
     )
       .then((result) => {
         if (!isCurrent) return;
@@ -666,6 +667,12 @@ export function PlanningPage() {
       })),
     ) ?? []),
   ];
+  const visibleScheduleEntries = scheduleEntries.filter(
+    (entry) =>
+      scheduleDays.includes(entry.meeting.day as (typeof scheduleDays)[number]) &&
+      timeToMinutes(entry.meeting.endTime) > scheduleStartMinutes &&
+      timeToMinutes(entry.meeting.startTime) < scheduleEndMinutes,
+  );
 
   if (!workspace && !error)
     return (
@@ -684,7 +691,7 @@ export function PlanningPage() {
               <h1>{workspace.term.name}</h1>
               <p className="lede">{workspace.term.university.name}</p>
             </div>
-            <Link className="back-link" to="/catalogue">
+            <Link className="back-link" to={`/catalogue?termId=${workspace.term.id}`}>
               Browse catalogue
             </Link>
           </header>
@@ -759,25 +766,34 @@ export function PlanningPage() {
                     <span className="schedule-legend-item commitment-legend">Commitment</span>
                   </span>
                 </div>
-                {scheduleEntries.length ? (
+                {visibleScheduleEntries.length ? (
                   <div className="schedule-board">
                     <div className="schedule-time-axis" aria-hidden="true">
-                      {[8, 10, 12, 14, 16, 18, 20].map((hour) => (
-                        <span key={hour}>{String(hour).padStart(2, '0')}:00</span>
+                      {scheduleAxisHours.map((hour) => (
+                        <span
+                          key={hour}
+                          style={{
+                            top: `${((hour * 60 - scheduleStartMinutes) / (scheduleEndMinutes - scheduleStartMinutes)) * 100}%`,
+                          }}
+                        >
+                          {String(hour).padStart(2, '0')}:00
+                        </span>
                       ))}
                     </div>
                     {scheduleDays.map((day) => (
                       <section className="schedule-day" key={day} aria-label={day}>
                         <h3>{day.slice(0, 1) + day.slice(1).toLowerCase()}</h3>
                         <div className="schedule-track">
-                          {[0, 1, 2, 3, 4, 5].map((line) => (
+                          {scheduleAxisHours.map((hour) => (
                             <span
                               className="schedule-grid-line"
-                              key={line}
-                              style={{ top: `${(line / 6) * 100}%` }}
+                              key={hour}
+                              style={{
+                                top: `${((hour * 60 - scheduleStartMinutes) / (scheduleEndMinutes - scheduleStartMinutes)) * 100}%`,
+                              }}
                             />
                           ))}
-                          {scheduleEntries
+                          {visibleScheduleEntries
                             .filter((entry) => entry.meeting.day === day)
                             .map((entry) => (
                               <article
@@ -798,7 +814,9 @@ export function PlanningPage() {
                   </div>
                 ) : (
                   <p className="schedule-empty">
-                    Add course sections to see the fixed shape of this candidate week.
+                    {scheduleEntries.length
+                      ? 'No Monday–Friday blocks fall within the displayed 08:00–21:00 schedule.'
+                      : 'Add course sections to see the fixed shape of this candidate week.'}
                   </p>
                 )}
               </section>
@@ -1176,7 +1194,7 @@ export function PlanningPage() {
                       <p className="eyebrow">COURSE CATALOGUE</p>
                       <h2 id="course-browser-title">Add a section</h2>
                     </div>
-                    <Link className="back-link" to="/catalogue">
+                    <Link className="back-link" to={`/catalogue?termId=${workspace.term.id}`}>
                       Full catalogue
                     </Link>
                   </div>

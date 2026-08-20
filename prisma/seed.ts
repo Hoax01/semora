@@ -30,11 +30,7 @@ const courses = [
 async function main() {
   const lums = await prisma.university.upsert({
     where: { shortName: 'LUMS' },
-    update: {
-      name: 'Lahore University of Management Sciences',
-      country: 'Pakistan',
-      timezone: 'Asia/Karachi',
-    },
+    update: {},
     create: {
       name: 'Lahore University of Management Sciences',
       shortName: 'LUMS',
@@ -59,6 +55,16 @@ async function main() {
     },
   });
 
+  const existingOfferingCount = await prisma.courseOffering.count({
+    where: { academicTermId: fall2026.id },
+  });
+  if (existingOfferingCount > 0) {
+    console.log(
+      `Skipped development catalogue seed because ${fall2026.name} already has ${existingOfferingCount} offerings.`,
+    );
+    return;
+  }
+
   for (const [index, course] of courses.entries()) {
     const persistedCourse = await prisma.course.upsert({
       where: {
@@ -67,11 +73,9 @@ async function main() {
           courseCode: course.code,
         },
       },
-      update: {
-        title: course.title,
-        department: course.department,
-        creditHoursDefault: '3.0',
-      },
+      // Seed data must never overwrite an imported catalogue. Existing
+      // canonical course records are intentionally left unchanged.
+      update: {},
       create: {
         universityId: lums.id,
         courseCode: course.code,
@@ -83,7 +87,10 @@ async function main() {
 
     const weekday = index % 2 === 0 ? 'MONDAY' : 'TUESDAY';
     const secondaryWeekday = index % 2 === 0 ? 'WEDNESDAY' : 'THURSDAY';
+    const alternateWeekday = index % 2 === 0 ? 'TUESDAY' : 'MONDAY';
+    const alternateSecondaryWeekday = index % 2 === 0 ? 'THURSDAY' : 'WEDNESDAY';
     const hour = 8 + (index % 5) * 2;
+    const alternateHour = hour + 1;
 
     await prisma.courseOffering.upsert({
       where: {
@@ -92,12 +99,16 @@ async function main() {
           academicTermId: fall2026.id,
         },
       },
-      update: {
+      // A repeat seed is a no-op for an offering that may have since been
+      // populated by the official importer.
+      update: {},
+      create: {
+        courseId: persistedCourse.id,
+        academicTermId: fall2026.id,
         creditHours: '3.0',
         gradingMode: 'UNKNOWN',
-        sourceConfidence: 'OFFICIAL_IMPORT',
+        sourceConfidence: 'DEVELOPMENT_SEED',
         sections: {
-          deleteMany: {},
           create: [
             {
               sectionCode: '01',
@@ -122,34 +133,23 @@ async function main() {
                 ],
               },
             },
-          ],
-        },
-      },
-      create: {
-        courseId: persistedCourse.id,
-        academicTermId: fall2026.id,
-        creditHours: '3.0',
-        gradingMode: 'UNKNOWN',
-        sourceConfidence: 'OFFICIAL_IMPORT',
-        sections: {
-          create: [
             {
-              sectionCode: '01',
+              sectionCode: '02',
               capacity: 40,
-              instructorDisplay: `Instructor ${index + 1}`,
+              instructorDisplay: `Instructor ${index + 1}B`,
               meetings: {
                 create: [
                   {
-                    dayOfWeek: weekday,
-                    startTime: atTime(`${String(hour).padStart(2, '0')}:00`),
-                    endTime: atTime(`${String(hour + 1).padStart(2, '0')}:20`),
+                    dayOfWeek: alternateWeekday,
+                    startTime: atTime(`${String(alternateHour).padStart(2, '0')}:00`),
+                    endTime: atTime(`${String(alternateHour + 1).padStart(2, '0')}:20`),
                     meetingType: 'LECTURE',
                     location: 'Academic Block',
                   },
                   {
-                    dayOfWeek: secondaryWeekday,
-                    startTime: atTime(`${String(hour).padStart(2, '0')}:00`),
-                    endTime: atTime(`${String(hour + 1).padStart(2, '0')}:20`),
+                    dayOfWeek: alternateSecondaryWeekday,
+                    startTime: atTime(`${String(alternateHour).padStart(2, '0')}:00`),
+                    endTime: atTime(`${String(alternateHour + 1).padStart(2, '0')}:20`),
                     meetingType: 'LECTURE',
                     location: 'Academic Block',
                   },

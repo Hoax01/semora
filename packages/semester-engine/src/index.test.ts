@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectTimetableClashes, type TimetableCourse } from './index.js';
+import { calculateTotalCredits, detectTimetableClashes, type TimetableCourse } from './index.js';
 
 const course = (overrides: Partial<TimetableCourse>): TimetableCourse => ({
   id: overrides.id ?? 'selection-1',
@@ -67,6 +67,12 @@ describe('detectTimetableClashes', () => {
           meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:15', endTime: '10:45' }],
         },
         {
+          id: 'soft-2',
+          name: 'Society',
+          flexibility: 'SOFT',
+          meetings: [{ dayOfWeek: 'MONDAY', startTime: '10:15', endTime: '10:45' }],
+        },
+        {
           id: 'hard-1',
           name: 'TAship',
           flexibility: 'HARD',
@@ -81,5 +87,33 @@ describe('detectTimetableClashes', () => {
       type: 'COURSE_HARD_COMMITMENT',
       second: { kind: 'COMMITMENT', label: 'TAship' },
     });
+  });
+
+  it('rejects a malformed isolated meeting', () => {
+    expect(() =>
+      detectTimetableClashes({
+        courses: [
+          course({
+            meetings: [{ dayOfWeek: 'MONDAY', startTime: '11:00', endTime: '10:00' }],
+          }),
+        ],
+      }),
+    ).toThrow('Timetable meetings must end after they start.');
+  });
+});
+
+describe('calculateTotalCredits', () => {
+  it('adds decimal course credits without floating-point display drift', () => {
+    expect(calculateTotalCredits([3, 3, 4, 0.5])).toBe(10.5);
+    expect(calculateTotalCredits([0.1, 0.2])).toBe(0.3);
+  });
+
+  it('rejects invalid credit values', () => {
+    expect(() => calculateTotalCredits([3, -1])).toThrow(
+      'Course credits must be finite non-negative numbers.',
+    );
+    expect(() => calculateTotalCredits([Number.NaN])).toThrow(
+      'Course credits must be finite non-negative numbers.',
+    );
   });
 });

@@ -49,6 +49,16 @@ export type TimetableAnalysis = {
   clashes: TimetableClash[];
 };
 
+export function calculateTotalCredits(credits: readonly number[]) {
+  const tenths = credits.reduce((total, credit) => {
+    if (!Number.isFinite(credit) || credit < 0) {
+      throw new Error('Course credits must be finite non-negative numbers.');
+    }
+    return total + Math.round(credit * 10);
+  }, 0);
+  return tenths / 10;
+}
+
 function parseTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
   if (!match) throw new Error(`Invalid timetable time: ${value}`);
@@ -61,6 +71,12 @@ function parseTime(value: string) {
 
 function formatTime(minutes: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function validateMeeting(meeting: TimetableMeeting) {
+  const start = parseTime(meeting.startTime);
+  const end = parseTime(meeting.endTime);
+  if (start >= end) throw new Error('Timetable meetings must end after they start.');
 }
 
 function overlap(first: TimetableMeeting, second: TimetableMeeting) {
@@ -85,6 +101,11 @@ export function detectTimetableClashes(input: {
 }): TimetableAnalysis {
   const clashes: TimetableClash[] = [];
   const commitments = input.commitments ?? [];
+
+  // Validate every interval even when a candidate has only one block. Without
+  // this pass, malformed isolated meetings would never reach overlap().
+  for (const course of input.courses) course.meetings.forEach(validateMeeting);
+  for (const commitment of commitments) commitment.meetings.forEach(validateMeeting);
 
   for (let firstIndex = 0; firstIndex < input.courses.length; firstIndex += 1) {
     const firstCourse = input.courses[firstIndex];

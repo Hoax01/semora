@@ -460,6 +460,7 @@ h1 {
 .schedule-time-axis {
   position: relative;
   height: 30rem;
+  margin-top: 2rem;
   color: var(--text-secondary);
   font-size: 0.68rem;
 }
@@ -470,33 +471,12 @@ h1 {
   transform: translateY(-50%);
 }
 
-.schedule-time-axis span:nth-child(1) {
-  top: 0;
+.schedule-time-axis span:first-child {
   transform: none;
 }
 
-.schedule-time-axis span:nth-child(2) {
-  top: 16.666%;
-}
-
-.schedule-time-axis span:nth-child(3) {
-  top: 33.333%;
-}
-
-.schedule-time-axis span:nth-child(4) {
-  top: 50%;
-}
-
-.schedule-time-axis span:nth-child(5) {
-  top: 66.666%;
-}
-
-.schedule-time-axis span:nth-child(6) {
-  top: 83.333%;
-}
-
-.schedule-time-axis span:nth-child(7) {
-  top: 100%;
+.schedule-time-axis span:last-child {
+  transform: translateY(-100%);
 }
 
 .schedule-day h3 {

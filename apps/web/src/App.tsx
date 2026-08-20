@@ -8,6 +8,7 @@ import {
   Routes,
   useNavigate,
   useParams,
+  useSearchParams,
 } from 'react-router-dom';
 import { authClient } from './auth-client';
 import { PlanningLandingPage, PlanningPage } from './features/planning';
@@ -133,6 +134,8 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 }
 
 function CataloguePage() {
+  const [searchParams] = useSearchParams();
+  const termId = searchParams.get('termId')?.trim() ?? '';
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [courses, setCourses] = useState<CatalogueCourse[]>([]);
@@ -144,7 +147,7 @@ function CataloguePage() {
     let isCurrent = true;
     setIsLoading(true);
     setError(undefined);
-    const params = new URLSearchParams({ term: 'Fall 2026' });
+    const params = new URLSearchParams(termId ? { termId } : { term: 'Fall 2026' });
     if (appliedQuery) params.set('q', appliedQuery);
     getApi<{ term: { name: string }; courses: CatalogueCourse[] }>(`/api/catalogue?${params}`)
       .then((result) => {
@@ -162,7 +165,7 @@ function CataloguePage() {
     return () => {
       isCurrent = false;
     };
-  }, [appliedQuery]);
+  }, [appliedQuery, termId]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -202,7 +205,11 @@ function CataloguePage() {
       ) : null}
       <div className="catalogue-list">
         {courses.map((course) => (
-          <Link className="catalogue-item" key={course.id} to={`/catalogue/${course.id}`}>
+          <Link
+            className="catalogue-item"
+            key={course.id}
+            to={`/catalogue/${course.id}${termId ? `?termId=${encodeURIComponent(termId)}` : ''}`}
+          >
             <div>
               <p className="course-code">{course.courseCode}</p>
               <h2>{course.title}</h2>
@@ -223,6 +230,8 @@ function CataloguePage() {
 
 function CourseDetailPage() {
   const { offeringId } = useParams();
+  const [searchParams] = useSearchParams();
+  const termId = searchParams.get('termId')?.trim() ?? '';
   const [course, setCourse] = useState<CatalogueCourse>();
   const [error, setError] = useState<string>();
 
@@ -250,7 +259,10 @@ function CourseDetailPage() {
 
   return (
     <main className="app-page">
-      <Link className="back-link" to="/catalogue">
+      <Link
+        className="back-link"
+        to={`/catalogue${termId ? `?termId=${encodeURIComponent(termId)}` : ''}`}
+      >
         ← Back to catalogue
       </Link>
       <div className="detail-heading">

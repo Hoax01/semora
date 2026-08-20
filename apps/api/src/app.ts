@@ -103,11 +103,14 @@ app.get('/api/catalogue', async (request, response) => {
   if (!(await requireUserId(request, response))) return;
 
   const query = String(request.query.q ?? '').trim();
+  const termId = String(request.query.termId ?? '').trim();
   const termName = String(request.query.term ?? '').trim();
-  const term = await prisma.academicTerm.findFirst({
-    where: termName ? { name: termName } : {},
-    orderBy: { startDate: 'desc' },
-  });
+  const term = termId
+    ? await prisma.academicTerm.findUnique({ where: { id: termId } })
+    : await prisma.academicTerm.findFirst({
+        where: termName ? { name: termName } : {},
+        orderBy: { startDate: 'desc' },
+      });
   if (!term) {
     response.status(404).json({ error: 'TERM_NOT_FOUND' });
     return;

@@ -105,23 +105,41 @@ export function validateCatalogueImport(input: unknown): CatalogueImport {
     throw new Error('Catalogue import requires university, term, and courses.');
   }
 
+  const seenCourseCodes = new Set<string>();
   const courses = value.courses.map((courseValue, courseIndex) => {
     if (!courseValue || typeof courseValue !== 'object') {
       throw new Error(`courses[${courseIndex}] must be an object.`);
     }
     const course = courseValue as Record<string, unknown>;
+    const courseCode = requiredString(course.courseCode, `courses[${courseIndex}].courseCode`);
+    if (seenCourseCodes.has(courseCode)) {
+      throw new Error(`courses[${courseIndex}].courseCode duplicates ${courseCode}.`);
+    }
+    seenCourseCodes.add(courseCode);
     if (!Array.isArray(course.sections))
       throw new Error(`courses[${courseIndex}].sections is required.`);
+    const seenSectionCodes = new Set<string>();
     const sections = course.sections.map((sectionValue, sectionIndex) => {
       if (!sectionValue || typeof sectionValue !== 'object') {
         throw new Error(`courses[${courseIndex}].sections[${sectionIndex}] must be an object.`);
       }
       const section = sectionValue as Record<string, unknown>;
+      const sectionCode = requiredString(
+        section.sectionCode,
+        `courses[${courseIndex}].sections[${sectionIndex}].sectionCode`,
+      );
+      if (seenSectionCodes.has(sectionCode)) {
+        throw new Error(
+          `courses[${courseIndex}].sections[${sectionIndex}].sectionCode duplicates ${sectionCode}.`,
+        );
+      }
+      seenSectionCodes.add(sectionCode);
       if (!Array.isArray(section.meetings)) {
         throw new Error(`courses[${courseIndex}].sections[${sectionIndex}].meetings is required.`);
       }
+      const seenMeetings = new Set<string>();
       return {
-        sectionCode: requiredString(section.sectionCode, `courses[${courseIndex}].sectionCode`),
+        sectionCode,
         capacity: optionalNumber(section.capacity, `courses[${courseIndex}].capacity`),
         instructorDisplay: optionalString(
           section.instructorDisplay,
@@ -134,36 +152,36 @@ export function validateCatalogueImport(input: unknown): CatalogueImport {
             );
           }
           const meeting = meetingValue as Record<string, unknown>;
+          const path = `courses[${courseIndex}].sections[${sectionIndex}].meetings[${meetingIndex}]`;
+          const dayOfWeek = enumValue(meeting.dayOfWeek, meetingDays, `${path}.dayOfWeek`);
+          const startTime = requiredString(meeting.startTime, `${path}.startTime`);
+          const endTime = requiredString(meeting.endTime, `${path}.endTime`);
+          const meetingType = enumValue(
+            meeting.meetingType ?? 'LECTURE',
+            meetingTypes,
+            `${path}.meetingType`,
+          );
+          if (timeValue(startTime, `${path}.startTime`) >= timeValue(endTime, `${path}.endTime`)) {
+            throw new Error(`${path} must end after it starts.`);
+          }
+          const meetingKey = `${dayOfWeek}:${startTime}:${endTime}:${meetingType}`;
+          if (seenMeetings.has(meetingKey)) {
+            throw new Error(`${path} duplicates another meeting in section ${sectionCode}.`);
+          }
+          seenMeetings.add(meetingKey);
           return {
-            dayOfWeek: enumValue(
-              meeting.dayOfWeek,
-              meetingDays,
-              `courses[${courseIndex}].meetings[${meetingIndex}].dayOfWeek`,
-            ),
-            startTime: requiredString(
-              meeting.startTime,
-              `courses[${courseIndex}].meetings[${meetingIndex}].startTime`,
-            ),
-            endTime: requiredString(
-              meeting.endTime,
-              `courses[${courseIndex}].meetings[${meetingIndex}].endTime`,
-            ),
-            meetingType: enumValue(
-              meeting.meetingType ?? 'LECTURE',
-              meetingTypes,
-              `courses[${courseIndex}].meetings[${meetingIndex}].meetingType`,
-            ),
-            location: optionalString(
-              meeting.location,
-              `courses[${courseIndex}].meetings[${meetingIndex}].location`,
-            ),
+            dayOfWeek,
+            startTime,
+            endTime,
+            meetingType,
+            location: optionalString(meeting.location, `${path}.location`),
           };
         }),
       };
     });
 
     return {
-      courseCode: requiredString(course.courseCode, `courses[${courseIndex}].courseCode`),
+      courseCode,
       title: requiredString(course.title, `courses[${courseIndex}].title`),
       description: optionalString(course.description, `courses[${courseIndex}].description`),
       department: optionalString(course.department, `courses[${courseIndex}].department`),
@@ -278,31 +296,60 @@ export async function importCatalogue(prisma: PrismaClient, input: unknown) {
             creditHours: course.creditHours ?? course.creditHoursDefault,
           },
         });
-        await transaction.section.deleteMany({ where: { courseOfferingId: offering.id } });
+        const importedSectionCodes: string[] = [];
         for (const section of course.sections) {
-          await transaction.section.create({
-            data: {
+          importedSectionCodes.push(section.sectionCode);
+          const savedSection = await transaction.section.upsert({
+            where: {
+              courseOfferingId_sectionCode: {
+                courseOfferingId: offering.id,
+                sectionCode: section.sectionCode,
+              },
+            },
+            update: {
+              capacity: section.capacity ?? null,
+              instructorDisplay: section.instructorDisplay ?? null,
+            },
+            create: {
               courseOfferingId: offering.id,
               sectionCode: section.sectionCode,
               capacity: section.capacity ?? null,
               instructorDisplay: section.instructorDisplay ?? null,
-              meetings: {
-                create: section.meetings.map((meeting) => ({
-                  dayOfWeek: meeting.dayOfWeek as never,
-                  startTime: timeValue(meeting.startTime, 'meeting.startTime'),
-                  endTime: timeValue(meeting.endTime, 'meeting.endTime'),
-                  meetingType: meeting.meetingType as never,
-                  location: meeting.location ?? null,
-                })),
-              },
             },
           });
+          await transaction.meeting.deleteMany({ where: { sectionId: savedSection.id } });
+          if (section.meetings.length) {
+            await transaction.meeting.createMany({
+              data: section.meetings.map((meeting) => ({
+                sectionId: savedSection.id,
+                dayOfWeek: meeting.dayOfWeek as never,
+                startTime: timeValue(meeting.startTime, 'meeting.startTime'),
+                endTime: timeValue(meeting.endTime, 'meeting.endTime'),
+                meetingType: meeting.meetingType as never,
+                location: meeting.location ?? null,
+              })),
+            });
+          }
         }
+
+        // Preserve selected section identities so catalogue refreshes cannot
+        // invalidate a user's candidate. Stale, unreferenced sections are safe
+        // to remove.
+        await transaction.section.deleteMany({
+          where: {
+            courseOfferingId: offering.id,
+            ...(importedSectionCodes.length
+              ? { sectionCode: { notIn: importedSectionCodes } }
+              : {}),
+            candidateSelections: { none: {} },
+          },
+        });
       }
       await transaction.courseOffering.deleteMany({
         where: {
           academicTermId: term.id,
-          courseId: { notIn: importedCourseIds },
+          ...(importedCourseIds.length ? { courseId: { notIn: importedCourseIds } } : {}),
+          sections: { none: { candidateSelections: { some: {} } } },
         },
       });
 

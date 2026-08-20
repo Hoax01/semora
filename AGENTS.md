@@ -9,7 +9,9 @@ platform. Its lifecycle is:
 PLAN → LOCK → NAVIGATE
 ```
 
-The current implementation phase is **Phase 1 — Academic Catalogue**.
+Phase 2 — Semester Planning Core and its Sol architecture checkpoint are
+complete. The next implementation phase is **Phase 3 — Semester Intelligence**,
+which has not started.
 
 ## Developer workflow and model roles
 

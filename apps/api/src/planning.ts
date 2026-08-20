@@ -1,5 +1,9 @@
 import type express from 'express';
-import { detectTimetableClashes, type MeetingDay } from '@semora/semester-engine';
+import {
+  calculateTotalCredits,
+  detectTimetableClashes,
+  type MeetingDay,
+} from '@semora/semester-engine';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { requireUserId } from './session.js';
@@ -208,9 +212,8 @@ type WorkspaceRecord = {
 
 function serializeCandidate(candidate: CandidateRecord) {
   const selections = candidate.selections ?? [];
-  const credits = selections.reduce(
-    (total, selection) => total + Number(selection.section.courseOffering.creditHours),
-    0,
+  const credits = calculateTotalCredits(
+    selections.map((selection) => Number(selection.section.courseOffering.creditHours)),
   );
 
   return {
@@ -318,6 +321,8 @@ function validationError(response: express.Response, details: unknown) {
 function conflictError(response: express.Response, error: string) {
   response.status(409).json({ error });
 }
+
+class CandidateSelectionConflict extends Error {}
 
 async function loadOwnedWorkspace(workspaceId: string, userId: string) {
   return prisma?.semesterWorkspace.findFirst({
@@ -573,9 +578,10 @@ export function registerPlanningRoutes(app: express.Express) {
       preferenceData.lateClassAversion = parsed.data.lateClassAversion;
     if (parsed.data.maxPreferredHardCourses !== undefined)
       preferenceData.maxPreferredHardCourses = parsed.data.maxPreferredHardCourses;
-    const preferences = await prisma.semesterPreferences.update({
+    const preferences = await prisma.semesterPreferences.upsert({
       where: { workspaceId: workspace.id },
-      data: preferenceData,
+      update: preferenceData,
+      create: { workspaceId: workspace.id, ...preferenceData },
     });
     response.status(200).json({ preferences: serializePreferences(preferences) });
   });
@@ -736,9 +742,10 @@ export function registerPlanningRoutes(app: express.Express) {
 
     const candidate = await prisma.candidateSemester.findFirst({
       where: { id: request.params.candidateId, workspace: { userId } },
-      include: {
+      select: {
+        id: true,
+        workspaceId: true,
         workspace: { select: { academicTermId: true } },
-        selections: { include: { section: { select: { courseOfferingId: true } } } },
       },
     });
     if (!candidate) {
@@ -754,19 +761,36 @@ export function registerPlanningRoutes(app: express.Express) {
       response.status(404).json({ error: 'SECTION_NOT_FOUND' });
       return;
     }
-    if (
-      candidate.selections.some(
-        (selection) => selection.section.courseOfferingId === section.courseOfferingId,
-      )
-    ) {
-      conflictError(response, 'COURSE_ALREADY_SELECTED');
-      return;
+    let selection;
+    try {
+      selection = await prisma.$transaction(async (transaction) => {
+        // The relational model intentionally derives an offering from Section.
+        // Serialize writes per candidate so two simultaneous requests cannot
+        // add alternate sections of the same offering.
+        await transaction.$queryRaw`
+          SELECT 1::integer AS "locked"
+          FROM pg_advisory_xact_lock(hashtext(${candidate.id}))
+        `;
+        const duplicate = await transaction.candidateCourseSelection.findFirst({
+          where: {
+            candidateSemesterId: candidate.id,
+            section: { courseOfferingId: section.courseOfferingId },
+          },
+          select: { id: true },
+        });
+        if (duplicate) throw new CandidateSelectionConflict('COURSE_ALREADY_SELECTED');
+        return transaction.candidateCourseSelection.create({
+          data: { candidateSemesterId: candidate.id, sectionId: section.id },
+          include: selectionInclude,
+        });
+      });
+    } catch (error) {
+      if (error instanceof CandidateSelectionConflict) {
+        conflictError(response, error.message);
+        return;
+      }
+      throw error;
     }
-
-    const selection = await prisma.candidateCourseSelection.create({
-      data: { candidateSemesterId: candidate.id, sectionId: section.id },
-      include: selectionInclude,
-    });
     const workspace = await loadOwnedWorkspace(candidate.workspaceId, userId);
     const savedCandidate = workspace?.candidates.find((item) => item.id === candidate.id);
 
@@ -813,24 +837,35 @@ export function registerPlanningRoutes(app: express.Express) {
       return;
     }
 
-    const duplicate = await prisma.candidateCourseSelection.findFirst({
-      where: {
-        candidateSemesterId: existing.candidateSemester.id,
-        id: { not: existing.id },
-        section: { courseOfferingId: section.courseOfferingId },
-      },
-      select: { id: true },
-    });
-    if (duplicate) {
-      conflictError(response, 'COURSE_ALREADY_SELECTED');
-      return;
+    let selection;
+    try {
+      selection = await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT 1::integer AS "locked"
+          FROM pg_advisory_xact_lock(hashtext(${existing.candidateSemester.id}))
+        `;
+        const duplicate = await transaction.candidateCourseSelection.findFirst({
+          where: {
+            candidateSemesterId: existing.candidateSemester.id,
+            id: { not: existing.id },
+            section: { courseOfferingId: section.courseOfferingId },
+          },
+          select: { id: true },
+        });
+        if (duplicate) throw new CandidateSelectionConflict('COURSE_ALREADY_SELECTED');
+        return transaction.candidateCourseSelection.update({
+          where: { id: existing.id },
+          data: { sectionId: section.id },
+          include: selectionInclude,
+        });
+      });
+    } catch (error) {
+      if (error instanceof CandidateSelectionConflict) {
+        conflictError(response, error.message);
+        return;
+      }
+      throw error;
     }
-
-    const selection = await prisma.candidateCourseSelection.update({
-      where: { id: existing.id },
-      data: { sectionId: section.id },
-      include: selectionInclude,
-    });
     const workspace = await loadOwnedWorkspace(existing.candidateSemester.workspaceId, userId);
     const savedCandidate = workspace?.candidates.find(
       (candidate) => candidate.id === existing.candidateSemester.id,

@@ -158,6 +158,19 @@ describe('Phase 2 planning foundation', () => {
     });
     expect(await prisma?.semesterPreferences.count({ where: { workspaceId } })).toBe(1);
 
+    // Phase 0 workspaces may predate the required one-to-one preference row.
+    // Updating preferences must repair that legacy state instead of failing.
+    await prisma?.semesterPreferences.delete({ where: { workspaceId } });
+    const repairedPreferences = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/preferences`)
+      .set('Cookie', ownerCookie)
+      .send({ workloadPriority: 0.4 });
+    expect(repairedPreferences.status).toBe(200);
+    expect(repairedPreferences.body.preferences).toMatchObject({
+      workloadPriority: 0.4,
+      schedulePriority: 0.5,
+    });
+
     const invalidCandidate = await request(app)
       .post(`/api/workspaces/${workspaceId}/candidates`)
       .set('Cookie', ownerCookie)
@@ -185,15 +198,36 @@ describe('Phase 2 planning foundation', () => {
 
     const catalogue = await request(app)
       .get('/api/catalogue')
-      .query({ term: 'Fall 2026', q: 'CS' })
+      .query({ termId: fall2026.id, q: 'CS' })
       .set('Cookie', ownerCookie);
     expect(catalogue.status).toBe(200);
+    expect(catalogue.body.term.id).toBe(fall2026.id);
     const courseWithMultipleSections = catalogue.body.courses.find(
       (course: { sections: unknown[] }) => course.sections.length >= 2,
     );
     expect(courseWithMultipleSections).toBeDefined();
     const firstSectionId = courseWithMultipleSections.sections[0].id as string;
     const secondSectionId = courseWithMultipleSections.sections[1].id as string;
+
+    const concurrentCandidate = await request(app)
+      .post(`/api/workspaces/${workspaceId}/candidates`)
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Concurrent writes' });
+    const concurrentSelections = await Promise.all([
+      request(app)
+        .post(`/api/candidates/${concurrentCandidate.body.candidate.id}/selections`)
+        .set('Cookie', ownerCookie)
+        .send({ sectionId: firstSectionId }),
+      request(app)
+        .post(`/api/candidates/${concurrentCandidate.body.candidate.id}/selections`)
+        .set('Cookie', ownerCookie)
+        .send({ sectionId: secondSectionId }),
+    ]);
+    expect(concurrentSelections.map((response) => response.status).sort()).toEqual([201, 409]);
+    await request(app)
+      .patch(`/api/candidates/${concurrentCandidate.body.candidate.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ isArchived: true });
 
     const selection = await request(app)
       .post(`/api/candidates/${optionA.body.candidate.id}/selections`)

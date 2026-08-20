@@ -1,11 +1,12 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 2 — Semester Planning Core (complete)
+**Current Phase:** Phase 2 — Semester Planning Core (complete and audited)
 **Next Build Objective:** Phase 3 — Semester Intelligence (not started)
 **Product Status:** Product and technical design are complete. Phase 0 is
-complete, the Phase 1 catalogue acceptance audit is complete, and all Phase 2
-planning requirements are implemented. Phase 3 has not started.
+complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
+planning requirements are implemented, and the post-Phase 2 Sol architecture
+checkpoint is complete. Phase 3 has not started.
 
 ---
 
@@ -43,7 +44,9 @@ planning requirements are implemented. Phase 3 has not started.
   hard-commitment timetable overlaps.
 - Weekly Monday-to-Friday timetable showing selected course meetings and
   persisted commitment meetings as visually distinct blocks, including
-  conflict emphasis and a compact time scale.
+  conflict emphasis and an aligned 08:00–21:00 time scale that covers the
+  imported Fall 2026 schedule. The planning surface remains page-width-safe at
+  a 390-pixel viewport while the timetable itself scrolls when necessary.
 - Commitment workbench for adding, editing, and removing recurring personal
   obligations with category, weekly effort, flexibility, and optional meeting
   times.
@@ -61,9 +64,15 @@ planning requirements are implemented. Phase 3 has not started.
 - API authentication routes are registered before JSON parsing, as required by
   the Better Auth Express handler.
 - Protected `GET /api/catalogue` search endpoint for course code, title, or
-  department, plus `GET /api/catalogue/:offeringId` detail endpoint.
+  department, with exact academic-term ID scoping for planning workspaces and
+  term-name compatibility for the Phase 1 catalogue, plus
+  `GET /api/catalogue/:offeringId` detail endpoint.
 - Validated, transactional, idempotent JSON catalogue importer at
-  `npm run catalogue:import --workspace @semora/api -- <file.json>`.
+  `npm run catalogue:import --workspace @semora/api -- <file.json>`. Repeat
+  imports preserve referenced section identities, replace their meetings,
+  remove stale unreferenced records, and retain selected historical records.
+  Malformed intervals and duplicate courses, sections, or meetings are
+  rejected before mutation.
 - LUMS class-schedule PDF adapter at `catalogue:convert-lums`; the adapter
   preserves cross-listed aliases, expands compact day codes, and resolves
   duplicate official section labels without dropping schedule rows.
@@ -73,8 +82,10 @@ planning requirements are implemented. Phase 3 has not started.
   archive. Duplication copies persisted section selections when present.
 - Ownership-checked candidate-selection APIs for adding, switching, and
   removing sections. Selection writes are term-scoped and enforce at most one
-  selected section per course offering; candidate responses derive credits from
-  the persisted section selections.
+  selected section per course offering, including under concurrent alternate-
+  section requests through a candidate-scoped transactional advisory lock;
+  candidate responses derive credits through deterministic Semester Engine
+  arithmetic from the persisted section selections.
 - Ownership-checked candidate timetable validation endpoint backed by the pure
   Semester Engine. It checks selected course meetings against one another and
   against persisted HARD commitment meetings; SOFT and FLEXIBLE commitments do
@@ -86,7 +97,8 @@ planning requirements are implemented. Phase 3 has not started.
   (including full recurring-meeting replacement), and delete operations. Invalid
   intervals, duplicate recurring meetings, and cross-user access are rejected.
 - Ownership-checked preferences update API validates normalized 0–1 values and
-  persists the typed `SemesterPreferences` record for the workspace.
+  upserts the typed `SemesterPreferences` record, so a legacy workspace missing
+  its preference row is repaired with defaults during the update.
 
 ### Database
 
@@ -103,27 +115,33 @@ planning requirements are implemented. Phase 3 has not started.
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
   cascade/restrict boundaries.
-- The `@semora/semester-engine` package now contains deterministic timetable
-  interval validation and its unit-test matrix; it has no database or HTTP
+- The `@semora/semester-engine` package contains deterministic timetable
+  interval validation and credit arithmetic with a unit-test matrix; it
+  validates even isolated meeting intervals and has no database or HTTP
   dependencies.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
   on port 5432: 520 course offerings, 823 section/component records, and 1,441
   day-specific meetings.
-- A complete term import removes stale offerings from that term while leaving
-  other universities and academic terms untouched.
+- Development seeding is bootstrap-only: an already-populated Fall 2026 term is
+  left unchanged, while a clean database receives 10 offerings, 20 sections,
+  and 40 meetings. It no longer overwrites or supplements an official import.
+- A complete term import removes stale unreferenced offerings from that term,
+  retains referenced historical selections, and leaves other universities and
+  academic terms untouched.
 - Optional Docker Compose PostgreSQL remains available on host port 5433.
 
 ---
 
 ## Tests and verification
 
-The following baseline suite passes after the current Phase 2 implementation:
+The following quality suite passes after the Phase 2 architecture audit:
 
 ```text
 npm run typecheck
 npm run test
 npm run build
 npm run format:check
+npm run lint
 ```
 
 Current API integration coverage verifies:
@@ -145,16 +163,22 @@ Current API integration coverage verifies:
   and rejection of cross-user workspace/candidate access.
 - candidate course/section selection, live credit totals, alternate-section
   switching, removal, duplicate preservation, same-offering rejection, and
-  cross-user selection rejection.
+  cross-user selection rejection, including concurrent alternate-section
+  writes against the same candidate and offering.
 - timetable engine overlap boundaries (overlap, back-to-back, different-day,
-  and hard-versus-flexible commitments) plus the authorized candidate
+  and hard-versus-soft/flexible commitments), isolated malformed-interval
+  rejection, stable decimal credit totals, and the authorized candidate
   validation endpoint.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
   cross-user authorization coverage.
 - default preference creation, normalized preference updates, invalid-value
-  rejection, persistence on workspace reload, and cross-user rejection.
+  rejection, legacy-row repair, persistence on workspace reload, and cross-user
+  rejection.
+- catalogue imports reject malformed or duplicate source records and preserve a
+  selected section's stable identity across a repeated import while updating
+  its meetings.
 
 ### Phase 2 implementation status
 
@@ -177,12 +201,26 @@ Phase 2 acceptance status:
 SATISFIED
 ```
 
-Phase 3 has not started. The Sol architecture checkpoint described in
-`BUILDPLAN.md` remains a review task before new Phase 3 feature work.
+Phase 3 has not started. Checkpoint A, the Sol architecture review described in
+`BUILDPLAN.md`, is complete. It found and corrected high-value Phase 0–2 issues
+without adding Phase 3 behavior: destructive development seeding, unstable
+selected-section identities during catalogue re-import, ambiguous term-name
+planning searches, concurrent same-offering selection writes, incomplete
+engine input validation/credit arithmetic, missing-preference-row recovery,
+and schedule range/alignment defects.
 
-- Browser verification covered the first-time setup, workspace transition,
-  empty candidate state, create and rename actions, duplication, desktop
-  layout, and a 390-pixel mobile layout against the local Fall 2026 data.
+- Browser verification covered sign-in, first-time setup, exact-term catalogue
+  navigation, preference persistence, candidate creation/duplication, real
+  section selection, live credits, hard-commitment clash warnings, the
+  08:00–21:00 timetable, desktop layout, and a page-width-safe 390-pixel mobile
+  layout against the local Fall 2026 data. No browser console errors appeared.
+- All four migrations, the corrected clean-database seed, and the API suite
+  were verified against a temporary PostgreSQL database. The temporary database
+  was removed after verification.
+- The official local catalogue was restored to 520 offerings, 823 sections,
+  and 1,441 meetings after the audit discovered that the old seed had mutated
+  it. A full catalogue fingerprint was unchanged before and after running the
+  corrected seed against that populated term.
 
 ### Phase 1 acceptance audit
 
@@ -252,6 +290,16 @@ the Semester Engine, the weekly schedule renders persisted course and
 commitment blocks, commitment CRUD updates both the schedule and clash
 analysis, and normalized preferences are editable per workspace. Preference
 values are stored now but are not consumed by scoring until Phase 3.
+
+`packages/domain` remains an intentionally empty workspace package. Current
+Phase 2 calculations are isolated in `packages/semester-engine`, while API and
+UI transport shapes remain local to their consumers. Phase 3 should introduce
+shared domain contracts only where its stable engine inputs make them genuinely
+reusable; the checkpoint did not invent those later-phase contracts early.
+
+API integration runs currently emit a `pg` deprecation warning about concurrent
+queries on one client. The exercised requests and assertions pass, but the
+adapter/driver usage should be revisited when dependencies are upgraded.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -289,5 +337,5 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Phase 2 is complete. Before beginning Phase 3, perform the documented Sol
-architecture checkpoint; no Phase 3 scoring or comparison has been started.
+Phase 2 and the documented Sol architecture checkpoint are complete. Phase 3 is
+the next objective; no Phase 3 scoring or comparison has been started.
