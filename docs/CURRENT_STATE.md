@@ -4,8 +4,9 @@
 **Current Phase:** Phase 1 — Academic Catalogue (in progress)
 **Next Build Phase:** Phase 2 — Semester Planning Core
 **Product Status:** Product and technical design are complete. Phase 0 is
-complete and the Phase 1 catalogue slice is implemented pending the official
-LUMS source-data import.
+complete and the official Fall 2026 LUMS class schedule is imported. Phase 1
+remains in final data-quality verification because the memo workbook is
+unavailable and outline-derived descriptions have not been added.
 
 ---
 
@@ -46,6 +47,9 @@ LUMS source-data import.
   department, plus `GET /api/catalogue/:offeringId` detail endpoint.
 - Validated, transactional, idempotent JSON catalogue importer at
   `npm run catalogue:import --workspace @semora/api -- <file.json>`.
+- LUMS class-schedule PDF adapter at `catalogue:convert-lums`; the adapter
+  preserves cross-listed aliases, expands compact day codes, and resolves
+  duplicate official section labels without dropping schedule rows.
 
 ### Database
 
@@ -57,8 +61,11 @@ LUMS source-data import.
   - `20260819210243_init_phase0`
   - `20260819212143_add_auth_tables`
   - `20260819212415_add_auth_account_issuer`
-- Idempotent LUMS / Fall 2026 development seed applied to the local PostgreSQL
-  service on port 5432.
+- Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
+  on port 5432: 520 course offerings, 823 section/component records, and 1,441
+  day-specific meetings.
+- A complete term import removes stale offerings from that term while leaving
+  other universities and academic terms untouched.
 - Optional Docker Compose PostgreSQL remains available on host port 5433.
 
 ---
@@ -83,6 +90,11 @@ Current API integration coverage verifies:
 - authenticated catalogue search and course-detail responses.
 - importer validation and repeat execution were verified with the checked-in
   example JSON fixture; the second run reused the same canonical records.
+- the official schedule converted to exactly 520 course-code rows and was
+  imported twice without duplication; database counts remained 520 offerings,
+  823 sections, and 1,441 meetings.
+- LUMS schedule parsing covers wrapped titles, cross-listed aliases, compact
+  day codes, and duplicate source section labels.
 
 ---
 
@@ -105,9 +117,18 @@ or its secret.
 ## Known issues and deviations
 
 ```text
-The repository does not contain the official LUMS course memo/timing source
-files yet. The importer accepts a documented canonical JSON shape and is ready
-for those files; the checked-in development seed remains synthetic fixture data.
+The official class-schedule PDF is available locally and has been imported. It
+does not contain course descriptions, capacities, locations, or reliable
+primary/secondary component relationships. The unavailable memo workbook would
+normally provide some of this information.
+
+The schedule PDF contains 22 physical pages while its footer says 23 pages.
+This may be an RO export numbering defect or one missing logical page.
+
+The local outline audit found 392 readable PDFs, six byte-identical duplicate
+pairs, and 92 primary timetable codes without a matching outline filename. A
+non-destructive cleaned folder contains 386 unique PDFs. `LUMS_data/` is ignored
+by Git because these are locally obtained institutional source documents.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -124,7 +145,9 @@ apps/api/src/app.ts
 apps/api/src/auth.ts
 apps/api/src/app.test.ts
 apps/api/src/catalogue/importer.ts
+apps/api/src/catalogue/lums-schedule.ts
 apps/api/src/import-catalogue.ts
+apps/api/src/convert-lums-schedule.ts
 apps/web/src/App.tsx
 apps/web/src/auth-client.ts
 apps/web/src/styles.css
@@ -140,6 +163,7 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Obtain the official Fall 2026 LUMS course memo/timing files, convert them to the
-catalogue JSON import shape, run the importer, and verify the resulting browse
-experience. Then audit Phase 1 acceptance criteria before beginning Phase 2.
+Finish Phase 1 data-quality verification: manually inspect the real catalogue
+UI, decide whether outline-derived catalogue descriptions are required before
+phase completion, and keep unavailable capacity/location/component data marked
+unknown. Do not begin Phase 2 until the Phase 1 acceptance audit is recorded.

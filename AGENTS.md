@@ -9,7 +9,7 @@ platform. Its lifecycle is:
 PLAN → LOCK → NAVIGATE
 ```
 
-The current implementation phase is **Phase 0 — Repository Foundation**.
+The current implementation phase is **Phase 1 — Academic Catalogue**.
 
 ## Developer workflow and model roles
 

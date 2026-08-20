@@ -12,3 +12,4 @@ coverage/
 apps/api/src/generated/
 prisma/*.db
 prisma/*.db-journal
+LUMS_data/

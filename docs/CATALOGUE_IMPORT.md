@@ -10,6 +10,21 @@ Run it from the repository root:
 npm run catalogue:import --workspace @semora/api -- path/to/catalogue.json
 ```
 
+For the official LUMS class-schedule PDF, first convert it to the canonical
+JSON shape, then run the importer:
+
+```powershell
+npm run catalogue:convert-lums --workspace @semora/api -- "LUMS_data/Fall Semester 2026 - Class Schedule.pdf" "LUMS_data/catalogue/fall-2026.catalogue.json"
+npm run catalogue:import --workspace @semora/api -- "LUMS_data/catalogue/fall-2026.catalogue.json"
+```
+
+The LUMS adapter preserves every timetable code, duplicates the canonical
+meeting set for official `w/` cross-listed aliases, splits compact day strings
+such as `MW`, and disambiguates repeated source section labels with deterministic
+occurrence suffixes. The class-schedule PDF does not contain descriptions,
+capacities, locations, or primary/secondary component relationships, so these
+must remain unknown until another official source supplies them.
+
 Required shape:
 
 ```json

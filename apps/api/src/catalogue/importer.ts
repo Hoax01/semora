@@ -200,120 +200,118 @@ export function validateCatalogueImport(input: unknown): CatalogueImport {
 export async function importCatalogue(prisma: PrismaClient, input: unknown) {
   const catalogue = validateCatalogueImport(input);
 
-  return prisma.$transaction(async (transaction) => {
-    const university = await transaction.university.upsert({
-      where: { shortName: catalogue.university.shortName },
-      update: catalogue.university,
-      create: catalogue.university,
-    });
-    const term = await transaction.academicTerm.upsert({
-      where: { universityId_name: { universityId: university.id, name: catalogue.term.name } },
-      update: {
-        termType: catalogue.term.termType as never,
-        academicYear: catalogue.term.academicYear,
-        startDate: isoDate(catalogue.term.startDate, 'term.startDate'),
-        endDate: isoDate(catalogue.term.endDate, 'term.endDate'),
-        addDropEndDate: catalogue.term.addDropEndDate
-          ? isoDate(catalogue.term.addDropEndDate, 'term.addDropEndDate')
-          : null,
-        examStartDate: catalogue.term.examStartDate
-          ? isoDate(catalogue.term.examStartDate, 'term.examStartDate')
-          : null,
-        examEndDate: catalogue.term.examEndDate
-          ? isoDate(catalogue.term.examEndDate, 'term.examEndDate')
-          : null,
-      },
-      create: {
-        universityId: university.id,
-        name: catalogue.term.name,
-        termType: catalogue.term.termType as never,
-        academicYear: catalogue.term.academicYear,
-        startDate: isoDate(catalogue.term.startDate, 'term.startDate'),
-        endDate: isoDate(catalogue.term.endDate, 'term.endDate'),
-        addDropEndDate: catalogue.term.addDropEndDate
-          ? isoDate(catalogue.term.addDropEndDate, 'term.addDropEndDate')
-          : null,
-        examStartDate: catalogue.term.examStartDate
-          ? isoDate(catalogue.term.examStartDate, 'term.examStartDate')
-          : null,
-        examEndDate: catalogue.term.examEndDate
-          ? isoDate(catalogue.term.examEndDate, 'term.examEndDate')
-          : null,
-      },
-    });
-
-    for (const course of catalogue.courses) {
-      const persistedCourse = await transaction.course.upsert({
-        where: {
-          universityId_courseCode: { universityId: university.id, courseCode: course.courseCode },
-        },
+  return prisma.$transaction(
+    async (transaction) => {
+      const university = await transaction.university.upsert({
+        where: { shortName: catalogue.university.shortName },
+        update: catalogue.university,
+        create: catalogue.university,
+      });
+      const term = await transaction.academicTerm.upsert({
+        where: { universityId_name: { universityId: university.id, name: catalogue.term.name } },
         update: {
-          title: course.title,
-          description: course.description ?? null,
-          department: course.department ?? null,
-          creditHoursDefault: course.creditHoursDefault,
+          termType: catalogue.term.termType as never,
+          academicYear: catalogue.term.academicYear,
+          startDate: isoDate(catalogue.term.startDate, 'term.startDate'),
+          endDate: isoDate(catalogue.term.endDate, 'term.endDate'),
+          addDropEndDate: catalogue.term.addDropEndDate
+            ? isoDate(catalogue.term.addDropEndDate, 'term.addDropEndDate')
+            : null,
+          examStartDate: catalogue.term.examStartDate
+            ? isoDate(catalogue.term.examStartDate, 'term.examStartDate')
+            : null,
+          examEndDate: catalogue.term.examEndDate
+            ? isoDate(catalogue.term.examEndDate, 'term.examEndDate')
+            : null,
         },
         create: {
           universityId: university.id,
-          courseCode: course.courseCode,
-          title: course.title,
-          description: course.description ?? null,
-          department: course.department ?? null,
-          creditHoursDefault: course.creditHoursDefault,
+          name: catalogue.term.name,
+          termType: catalogue.term.termType as never,
+          academicYear: catalogue.term.academicYear,
+          startDate: isoDate(catalogue.term.startDate, 'term.startDate'),
+          endDate: isoDate(catalogue.term.endDate, 'term.endDate'),
+          addDropEndDate: catalogue.term.addDropEndDate
+            ? isoDate(catalogue.term.addDropEndDate, 'term.addDropEndDate')
+            : null,
+          examStartDate: catalogue.term.examStartDate
+            ? isoDate(catalogue.term.examStartDate, 'term.examStartDate')
+            : null,
+          examEndDate: catalogue.term.examEndDate
+            ? isoDate(catalogue.term.examEndDate, 'term.examEndDate')
+            : null,
         },
       });
-      await transaction.courseOffering.upsert({
-        where: {
-          courseId_academicTermId: { courseId: persistedCourse.id, academicTermId: term.id },
-        },
-        update: {
-          creditHours: course.creditHours ?? course.creditHoursDefault,
-          sections: {
-            deleteMany: {},
-            create: course.sections.map((section) => ({
-              sectionCode: section.sectionCode,
-              capacity: section.capacity ?? null,
-              instructorDisplay: section.instructorDisplay ?? null,
-              meetings: {
-                create: section.meetings.map((meeting) => ({
-                  dayOfWeek: meeting.dayOfWeek as never,
-                  startTime: timeValue(meeting.startTime, 'meeting.startTime'),
-                  endTime: timeValue(meeting.endTime, 'meeting.endTime'),
-                  meetingType: meeting.meetingType as never,
-                  location: meeting.location ?? null,
-                })),
-              },
-            })),
-          },
-        },
-        create: {
-          courseId: persistedCourse.id,
-          academicTermId: term.id,
-          creditHours: course.creditHours ?? course.creditHoursDefault,
-          sections: {
-            create: course.sections.map((section) => ({
-              sectionCode: section.sectionCode,
-              capacity: section.capacity ?? null,
-              instructorDisplay: section.instructorDisplay ?? null,
-              meetings: {
-                create: section.meetings.map((meeting) => ({
-                  dayOfWeek: meeting.dayOfWeek as never,
-                  startTime: timeValue(meeting.startTime, 'meeting.startTime'),
-                  endTime: timeValue(meeting.endTime, 'meeting.endTime'),
-                  meetingType: meeting.meetingType as never,
-                  location: meeting.location ?? null,
-                })),
-              },
-            })),
-          },
-        },
-      });
-    }
 
-    return {
-      universityId: university.id,
-      academicTermId: term.id,
-      courseCount: catalogue.courses.length,
-    };
-  });
+      const importedCourseIds: string[] = [];
+      for (const course of catalogue.courses) {
+        const persistedCourse = await transaction.course.upsert({
+          where: {
+            universityId_courseCode: { universityId: university.id, courseCode: course.courseCode },
+          },
+          update: {
+            title: course.title,
+            description: course.description ?? null,
+            department: course.department ?? null,
+            creditHoursDefault: course.creditHoursDefault,
+          },
+          create: {
+            universityId: university.id,
+            courseCode: course.courseCode,
+            title: course.title,
+            description: course.description ?? null,
+            department: course.department ?? null,
+            creditHoursDefault: course.creditHoursDefault,
+          },
+        });
+        importedCourseIds.push(persistedCourse.id);
+        const offering = await transaction.courseOffering.upsert({
+          where: {
+            courseId_academicTermId: { courseId: persistedCourse.id, academicTermId: term.id },
+          },
+          update: {
+            creditHours: course.creditHours ?? course.creditHoursDefault,
+          },
+          create: {
+            courseId: persistedCourse.id,
+            academicTermId: term.id,
+            creditHours: course.creditHours ?? course.creditHoursDefault,
+          },
+        });
+        await transaction.section.deleteMany({ where: { courseOfferingId: offering.id } });
+        for (const section of course.sections) {
+          await transaction.section.create({
+            data: {
+              courseOfferingId: offering.id,
+              sectionCode: section.sectionCode,
+              capacity: section.capacity ?? null,
+              instructorDisplay: section.instructorDisplay ?? null,
+              meetings: {
+                create: section.meetings.map((meeting) => ({
+                  dayOfWeek: meeting.dayOfWeek as never,
+                  startTime: timeValue(meeting.startTime, 'meeting.startTime'),
+                  endTime: timeValue(meeting.endTime, 'meeting.endTime'),
+                  meetingType: meeting.meetingType as never,
+                  location: meeting.location ?? null,
+                })),
+              },
+            },
+          });
+        }
+      }
+      await transaction.courseOffering.deleteMany({
+        where: {
+          academicTermId: term.id,
+          courseId: { notIn: importedCourseIds },
+        },
+      });
+
+      return {
+        universityId: university.id,
+        academicTermId: term.id,
+        courseCount: catalogue.courses.length,
+      };
+    },
+    { maxWait: 10_000, timeout: 120_000 },
+  );
 }

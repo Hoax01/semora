@@ -52,14 +52,17 @@ describe('email/password authentication', () => {
 
     expect(catalogue.status).toBe(200);
     expect(catalogue.body.courses.length).toBeGreaterThan(0);
-    expect(catalogue.body.courses[0]).toMatchObject({
+    const csCourse = catalogue.body.courses.find((course: { courseCode: string }) =>
+      course.courseCode.startsWith('CS'),
+    );
+    expect(csCourse).toMatchObject({
       courseCode: expect.stringMatching(/^CS/),
       credits: 3,
     });
-    expect(catalogue.body.courses[0].sections[0].meetings.length).toBeGreaterThan(0);
+    expect(csCourse.sections[0].meetings.length).toBeGreaterThan(0);
 
     const courseDetails = await request(app)
-      .get(`/api/catalogue/${catalogue.body.courses[0].id}`)
+      .get(`/api/catalogue/${csCourse.id}`)
       .set('Cookie', sessionCookie);
 
     expect(courseDetails.status).toBe(200);
