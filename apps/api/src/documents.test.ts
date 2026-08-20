@@ -41,7 +41,7 @@ describe('Phase 5 document storage', () => {
     const workspaceId = workspaceResponse.body.workspace.id as string;
     const offering = await prisma?.courseOffering.findFirstOrThrow({
       where: { academicTermId: fall2026.id },
-      include: { sections: { orderBy: { sectionCode: 'asc' }, take: 1 } },
+      include: { course: true, sections: { orderBy: { sectionCode: 'asc' }, take: 1 } },
     });
     const section = offering.sections[0];
     expect(section).toBeDefined();
@@ -104,6 +104,44 @@ describe('Phase 5 document storage', () => {
     expect(processed.status).toBe(200);
     expect(processed.body.extractionJob.status).toBe('FAILED');
     expect(processed.body.extractionJob.failureReason).toMatch(/^PARSING_FAILED:/);
+    await removePrivateDocument(storedKey);
+    storedKey = undefined;
+
+    const textBytes = Buffer.from(
+      [
+        `${offering.course.courseCode} ${offering.course.title}`,
+        'Instructor: Ada Lovelace',
+        'Assignments: 30%',
+        'Midterm: 30%',
+        'Final Exam: 40%',
+        'Absolute grading with letter grade thresholds',
+      ].join('\n\n'),
+    );
+    const textUpload = await request(app)
+      .post(`/api/active-selections/${activeSelection.id}/outline`)
+      .set('Cookie', ownerCookie)
+      .set('Content-Type', 'text/plain')
+      .set('X-File-Name', 'Operating Systems Outline.txt')
+      .send(textBytes);
+    expect(textUpload.status).toBe(201);
+    storedKey = (
+      await prisma?.document.findUniqueOrThrow({ where: { id: textUpload.body.document.id } })
+    ).storageKey;
+
+    const locallyProcessed = await request(app)
+      .post(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/process`)
+      .set('Cookie', ownerCookie);
+    expect(locallyProcessed.status).toBe(200);
+    expect(locallyProcessed.body.extractionJob).toMatchObject({
+      status: 'REVIEW_REQUIRED',
+      modelIdentifier: 'local-deterministic-v0',
+      draft: {
+        payload: {
+          courseIdentity: { courseCode: offering.course.courseCode },
+          gradingScheme: { categories: expect.any(Array) },
+        },
+      },
+    });
 
     const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
       name: 'Document Intruder',

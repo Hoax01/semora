@@ -338,3 +338,5 @@ export async function parseDocument(
 }
 
 export * from './provider.js';
+export * from './local-provider.js';
+export * from './validation.js';

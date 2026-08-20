@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LocalDeterministicExtractionProvider,
   SchemaConstrainedExtractionProvider,
   courseDocumentExtractionSchema,
+  validateCourseDocumentExtraction,
   type NormalizedDocument,
 } from './index.js';
 
@@ -82,5 +84,70 @@ describe('schema-constrained extraction provider', () => {
         overallConfidence: 1.5,
       }),
     ).toThrow();
+  });
+
+  it('extracts a conservative draft locally without a network provider', async () => {
+    const provider = new SchemaConstrainedExtractionProvider(
+      new LocalDeterministicExtractionProvider(),
+    );
+    const result = await provider.extractCourseDocument(
+      {
+        ...document,
+        text: [
+          'CS 370 Operating Systems',
+          'Instructor: Ada Lovelace',
+          'Assignments: 30%',
+          'Midterm: 30%',
+          'Final Exam: 40%',
+          'Absolute grading with letter grade thresholds',
+        ].join('\n\n'),
+        blocks: [
+          { kind: 'heading', text: 'CS 370 Operating Systems' },
+          { kind: 'paragraph', text: 'Instructor: Ada Lovelace' },
+          { kind: 'paragraph', text: 'Assignments: 30%' },
+          { kind: 'paragraph', text: 'Midterm: 30%' },
+          { kind: 'paragraph', text: 'Final Exam: 40%' },
+          { kind: 'paragraph', text: 'Absolute grading with letter grade thresholds' },
+        ],
+      },
+      { documentId: 'document-1' },
+    );
+
+    expect(result.modelIdentifier).toBe('local-deterministic-v0');
+    expect(result.courseIdentity.courseCode).toBe('CS 370');
+    expect(result.gradingScheme.categories).toHaveLength(3);
+    expect(result.assessments.map((assessment) => assessment.type)).toEqual([
+      'ASSIGNMENT',
+      'MIDTERM',
+      'FINAL',
+    ]);
+    expect(result.gradingScheme.gradingMode).toBe('ABSOLUTE');
+  });
+
+  it('adds deterministic validation warnings and blocking conflicts to the draft', () => {
+    const base = extraction();
+    const firstCategory = base.gradingScheme.categories[0];
+    if (!firstCategory) throw new Error('Test fixture is missing a grading category.');
+    const result = validateCourseDocumentExtraction(
+      {
+        ...base,
+        courseIdentity: { ...base.courseIdentity, courseCode: 'CS 371' },
+        gradingScheme: {
+          ...base.gradingScheme,
+          categories: [
+            ...base.gradingScheme.categories,
+            { ...firstCategory, name: 'Final Exam', weightPercentage: 70 },
+          ],
+        },
+      },
+      { expectedCourseCode: 'CS 370' },
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.blockingIssues).toEqual(
+      expect.arrayContaining(['COURSE_MISMATCH', 'WEIGHT_TOTAL_EXCEEDS_100']),
+    );
+    expect(result.extraction.conflicts.length).toBeGreaterThanOrEqual(2);
+    expect(result.extraction.overallConfidence).toBe(0.4);
   });
 });

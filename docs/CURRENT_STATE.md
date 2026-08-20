@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 5 — Course Outline Extraction (in progress)
-**Next Build Objective:** Phase 5.5 — Concrete AI Provider Adapter
+**Next Build Objective:** Phase 5.8 — Mandatory Review UI
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -13,9 +13,9 @@ comparison, recommendation tags, and bounded what-if exploration are
 implemented and regression-covered. Phase 4 lock, Add/Drop, and
 active-semester UI requirements are now implemented. The deterministic Phase 5
 document-normalization foundation, private outline upload/storage, extraction
-job state, and schema-constrained provider contracts are now implemented;
-concrete model extraction, review, and canonical persistence remain
-incomplete.
+job state, a free local deterministic provider, deterministic validation, and
+schema-constrained provider contracts are now implemented; review UI and
+canonical persistence remain incomplete.
 
 ---
 
@@ -214,8 +214,16 @@ incomplete.
   passes the normalized document through an `AcademicExtractionProvider`
   contract. Provider output is runtime-validated by the schema-constrained
   extraction contract before an `ExtractionDraft` can be persisted.
-- No concrete AI vendor/model is configured yet. The default provider fails
-  explicitly as unconfigured; tests do not make live or paid model calls.
+- The default provider is `local-deterministic-v0`, a no-network heuristic
+  extractor for course identity, instructors, grading categories, assessments,
+  grading mode, thresholds, and drop rules. It emits page-aware evidence where
+  available and explicit confidence/warning metadata. No paid AI vendor, API
+  key, or external service is required for the baseline workflow.
+- Deterministic validation adds warnings for incomplete weights or missing
+  course identity and blocking conflicts for course mismatches, duplicate
+  categories/assessments, over-100% weights, and invalid grade thresholds.
+  Validated drafts still stop at `REVIEW_REQUIRED`; validation never writes
+  canonical academic data.
 
 ### Database
 
@@ -346,8 +354,10 @@ Current API integration coverage verifies:
   rejection.
 - Extraction job integration coverage verifies persisted `PENDING` jobs,
   authorized status/process access, parser failure isolation, and explicit
-  failed-job state. Provider unit coverage verifies schema-constrained output
-  and rejection of malformed confidence values.
+  failed-job state, plus successful local processing into `REVIEW_REQUIRED`
+  with a draft. Provider unit coverage verifies schema-constrained output,
+  rejection of malformed confidence values, local extraction evidence, and
+  deterministic validation conflicts.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
@@ -447,13 +457,13 @@ Implemented in this phase so far:
 5.4 Normalized Document foundation
 5.5 Extraction Job and Provider Boundary foundation
 5.6 Schema-Constrained Extraction Contract foundation
+5.5 Local Deterministic Provider (free baseline)
+5.7 Deterministic Validation foundation
 ```
 
 Still incomplete in this phase:
 
 ```text
-5.5 Concrete AI Provider Adapter
-5.7 Deterministic Validation
 5.8 Mandatory Review UI
 5.9 Canonical Persistence after verification
 5.10 Extraction Benchmark
@@ -463,10 +473,10 @@ Phase 5 acceptance status:
 
 ```text
 IN PROGRESS — deterministic normalization, private user-owned storage,
-persisted extraction jobs, and schema-constrained provider boundaries work for
-PDF, DOCX, and plain text, including a real LUMS outline smoke check. A concrete
-AI provider, useful course-structure drafts, deterministic validation,
-evidence/warnings, user review, verification, and canonical persistence remain.
+persisted extraction jobs, a free local course-structure draft provider, and
+deterministic validation work for PDF, DOCX, and plain text, including a real
+LUMS outline smoke check. Mandatory review UI, verification, canonical
+persistence, and benchmark coverage remain.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -587,10 +597,10 @@ under the ignored `storage/` directory (or `SEMORA_FILE_STORAGE_PATH` when
 configured); production private object storage and file deletion/retention
 flows are not implemented yet.
 
-The extraction process endpoint currently has no configured concrete AI provider
-and therefore fails explicitly after successful parsing with an unconfigured
-provider error. This is intentional until a provider choice and secret are
-configured; no draft or canonical academic data is fabricated.
+The default extraction provider is intentionally heuristic and local rather
+than a paid AI service. It handles common outline patterns and exposes
+uncertainty, but unusual layouts and ambiguous grading tables require review;
+no external AI adapter is configured or needed for the baseline workflow.
 
 The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
 DOCX page references are therefore unavailable, and complex layout semantics
@@ -644,6 +654,8 @@ packages/extraction/src/index.ts
 packages/extraction/src/index.test.ts
 packages/extraction/src/provider.ts
 packages/extraction/src/provider.test.ts
+packages/extraction/src/local-provider.ts
+packages/extraction/src/validation.ts
 apps/api/src/documents.ts
 apps/api/src/document-storage.ts
 apps/api/src/documents.test.ts
@@ -664,8 +676,9 @@ Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
 and the basic active-semester UI are now complete. Phase 5 Course Outline
 Extraction is in progress. Document metadata, private local development
 storage, and the authenticated active-course upload boundary are complete. The
-extraction-job/provider boundary and schema-constrained draft contract are now
-in place. The next objective is to configure one concrete AI provider, then add
-deterministic validation and review. Course-outline-derived workload enrichment
-and later NAVIGATE intelligence remain out of scope until the documented Phase 5
-verification path exists.
+extraction-job/provider boundary, the schema-constrained draft contract, a free
+local deterministic provider, and deterministic validation are now in place.
+The next objective is the mandatory review UI and verification action; only
+verified user-approved data may proceed to canonical persistence. Course-outline-
+derived workload enrichment and later NAVIGATE intelligence remain out of scope
+until the documented Phase 5 verification path exists.

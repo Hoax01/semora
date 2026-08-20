@@ -526,3 +526,21 @@ and explain:
 * which parts of the product are affected.
 
 This document exists to preserve architectural and product reasoning across implementation threads.
+
+---
+
+# D-031 — No Paid AI Dependency for Baseline Outline Extraction
+
+**Decision:** Semora V1 must remain useful without a paid external AI vendor or
+an API key. The default course-outline provider is a deterministic local
+extractor that operates on the normalized document and emits evidence,
+confidence, warnings, and conflicts for mandatory user review.
+
+The `AcademicExtractionProvider` boundary remains in place so an optional local
+model or external provider can be added later without changing the review or
+canonical-persistence boundaries. No provider may write canonical academic data
+directly, and the baseline flow must not make network calls.
+
+**Reason:** The product should have zero recurring AI-vendor cost for its core
+workflow and should remain usable for development, dogfooding, and ordinary
+course outlines without external service availability.

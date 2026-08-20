@@ -2,29 +2,19 @@ import { readFile } from 'node:fs/promises';
 import type express from 'express';
 import {
   ExtractionParseError,
-  courseDocumentExtractionSchema,
+  LocalDeterministicExtractionProvider,
   parseDocument,
   type AcademicExtractionProvider,
+  SchemaConstrainedExtractionProvider,
+  validateCourseDocumentExtraction,
 } from '@semora/extraction';
 import { prisma } from './db.js';
 import { privateDocumentPath } from './document-storage.js';
 import { requireUserId } from './session.js';
 
-const UNCONFIGURED_PROVIDER = 'unconfigured';
-
-class ExtractionProviderNotConfiguredError extends Error {
-  constructor() {
-    super('No course-outline extraction provider is configured.');
-    this.name = 'ExtractionProviderNotConfiguredError';
-  }
-}
-
-const unconfiguredProvider: AcademicExtractionProvider = {
-  modelIdentifier: UNCONFIGURED_PROVIDER,
-  async extractCourseDocument() {
-    throw new ExtractionProviderNotConfiguredError();
-  },
-};
+const defaultProvider: AcademicExtractionProvider = new SchemaConstrainedExtractionProvider(
+  new LocalDeterministicExtractionProvider(),
+);
 
 type ExtractionJobRecord = {
   id: string;
@@ -96,7 +86,7 @@ async function ownedJob(jobId: string, userId: string) {
 export async function processExtractionJob(
   jobId: string,
   userId: string,
-  provider: AcademicExtractionProvider = unconfiguredProvider,
+  provider: AcademicExtractionProvider = defaultProvider,
 ) {
   if (!prisma) return null;
   const job = await ownedJob(jobId, userId);
@@ -136,7 +126,14 @@ export async function processExtractionJob(
         ? { courseTitle: job.document.courseOffering.course.title }
         : {}),
     });
-    const validated = courseDocumentExtractionSchema.parse(extraction);
+    const validated = validateCourseDocumentExtraction(extraction, {
+      ...(job.document.courseOffering?.course.courseCode
+        ? { expectedCourseCode: job.document.courseOffering.course.courseCode }
+        : {}),
+      ...(job.document.courseOffering?.course.title
+        ? { expectedCourseTitle: job.document.courseOffering.course.title }
+        : {}),
+    }).extraction;
     const completedAt = new Date();
     const saved = await prisma.$transaction(async (transaction) => {
       await transaction.extractionDraft.upsert({
