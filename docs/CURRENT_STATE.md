@@ -1,12 +1,11 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 1 — Academic Catalogue (in progress)
+**Current Phase:** Phase 1 — Academic Catalogue (complete)
 **Next Build Phase:** Phase 2 — Semester Planning Core
 **Product Status:** Product and technical design are complete. Phase 0 is
-complete and the official Fall 2026 LUMS class schedule is imported. Phase 1
-remains in final data-quality verification because the memo workbook is
-unavailable and outline-derived descriptions have not been added.
+complete, and the Phase 1 catalogue acceptance audit is complete. Phase 2 has
+not started.
 
 ---
 
@@ -96,6 +95,27 @@ Current API integration coverage verifies:
 - LUMS schedule parsing covers wrapped titles, cross-listed aliases, compact
   day codes, and duplicate source section labels.
 
+### Phase 1 acceptance audit
+
+- The authenticated web UI was manually reviewed against the imported local
+  database. Sign-up and sign-out worked, the Fall 2026 catalogue loaded, a
+  `CS 370` search returned the expected course, and its detail view showed
+  credits, both sections, instructors, and day/time meetings.
+- The official schedule conversion/import is repeatable and currently contains
+  520 offerings, 823 sections/components, and 1,441 day-specific meetings.
+- The outline audit produced 386 unique PDFs from 392 readable source PDFs by
+  excluding only six byte-identical duplicate pairs. The original folder was
+  preserved unchanged.
+- The 92 primary timetable codes without matching outline filename tokens are
+  logged in `LUMS_data/audit/OUTLINE_AUDIT.md`. They are primarily executive,
+  graduate, foundation, laboratory, or advanced-course codes and do not block
+  the Phase 1 catalogue contract; they remain explicit coverage gaps for later
+  enrichment.
+- The unavailable memo workbook was not required to satisfy the Phase 1
+  catalogue contract. Descriptions, capacities, locations, and reliable
+  primary/secondary component relationships remain unknown and are rendered as
+  such rather than inferred.
+
 ---
 
 ## Configuration required for local development
@@ -163,7 +183,6 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Finish Phase 1 data-quality verification: manually inspect the real catalogue
-UI, decide whether outline-derived catalogue descriptions are required before
-phase completion, and keep unavailable capacity/location/component data marked
-unknown. Do not begin Phase 2 until the Phase 1 acceptance audit is recorded.
+Begin Phase 2 — Semester Planning Core only when explicitly instructed. Do not
+silently expand the Phase 1 catalogue with guessed descriptions, capacities,
+locations, or component relationships.
