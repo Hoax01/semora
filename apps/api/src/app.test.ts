@@ -228,6 +228,15 @@ describe('Phase 2 planning foundation', () => {
       type: 'COURSE_HARD_COMMITMENT',
       second: { kind: 'COMMITMENT', label: 'TAship' },
     });
+    const workspaceWithCommitment = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', ownerCookie);
+    expect(workspaceWithCommitment.status).toBe(200);
+    expect(workspaceWithCommitment.body.workspace.commitments).toHaveLength(1);
+    expect(workspaceWithCommitment.body.workspace.commitments[0]).toMatchObject({
+      name: 'TAship',
+      flexibility: 'HARD',
+    });
     if (hardCommitment) await prisma?.commitment.delete({ where: { id: hardCommitment.id } });
 
     const duplicated = await request(app)

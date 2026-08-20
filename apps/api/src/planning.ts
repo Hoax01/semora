@@ -36,6 +36,10 @@ const selectionInclude = {
 
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
+  commitments: {
+    include: { meetings: true },
+    orderBy: { createdAt: 'asc' as const },
+  },
   candidates: {
     where: { isArchived: false },
     include: {
@@ -78,6 +82,19 @@ type CandidateRecord = {
   selections?: SelectionRecord[];
 };
 
+type CommitmentRecord = {
+  id: string;
+  name: string;
+  category: string;
+  weeklyEffortHours: { toString(): string };
+  flexibility: string;
+  meetings: Array<{
+    dayOfWeek: string;
+    startTime: Date;
+    endTime: Date;
+  }>;
+};
+
 type WorkspaceRecord = {
   id: string;
   state: string;
@@ -90,6 +107,7 @@ type WorkspaceRecord = {
     endDate: Date;
     university: { id: string; name: string; shortName: string };
   };
+  commitments: CommitmentRecord[];
   candidates: CandidateRecord[];
 };
 
@@ -137,6 +155,21 @@ function serializeSelection(selection: SelectionRecord) {
   };
 }
 
+function serializeCommitment(commitment: CommitmentRecord) {
+  return {
+    id: commitment.id,
+    name: commitment.name,
+    category: commitment.category,
+    weeklyEffortHours: Number(commitment.weeklyEffortHours),
+    flexibility: commitment.flexibility,
+    meetings: commitment.meetings.map((meeting) => ({
+      day: meeting.dayOfWeek,
+      startTime: formatTime(meeting.startTime),
+      endTime: formatTime(meeting.endTime),
+    })),
+  };
+}
+
 function serializeWorkspace(workspace: WorkspaceRecord) {
   return {
     id: workspace.id,
@@ -150,6 +183,7 @@ function serializeWorkspace(workspace: WorkspaceRecord) {
       endDate: workspace.academicTerm.endDate.toISOString().slice(0, 10),
       university: workspace.academicTerm.university,
     },
+    commitments: workspace.commitments.map(serializeCommitment),
     candidates: workspace.candidates.map(serializeCandidate),
   };
 }

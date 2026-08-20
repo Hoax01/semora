@@ -410,6 +410,177 @@ h1 {
   font-size: 0.9rem;
 }
 
+.weekly-schedule-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.schedule-legend-item::before {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-right: 0.35rem;
+  border-radius: 0.2rem;
+  content: '';
+  vertical-align: -0.05rem;
+}
+
+.course-legend::before {
+  background: var(--accent);
+}
+
+.commitment-legend::before {
+  border: 1px dashed #e0b36a;
+  background: #e0b36a18;
+}
+
+.schedule-board {
+  display: grid;
+  grid-template-columns: 3.3rem repeat(5, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  min-width: 50rem;
+  margin-top: 1.5rem;
+}
+
+.weekly-schedule-panel {
+  overflow-x: auto;
+}
+
+.schedule-time-axis {
+  position: relative;
+  height: 30rem;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+
+.schedule-time-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.schedule-time-axis span:nth-child(1) {
+  top: 0;
+  transform: none;
+}
+
+.schedule-time-axis span:nth-child(2) {
+  top: 16.666%;
+}
+
+.schedule-time-axis span:nth-child(3) {
+  top: 33.333%;
+}
+
+.schedule-time-axis span:nth-child(4) {
+  top: 50%;
+}
+
+.schedule-time-axis span:nth-child(5) {
+  top: 66.666%;
+}
+
+.schedule-time-axis span:nth-child(6) {
+  top: 83.333%;
+}
+
+.schedule-time-axis span:nth-child(7) {
+  top: 100%;
+}
+
+.schedule-day h3 {
+  height: 1.5rem;
+  margin: 0 0 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.schedule-track {
+  position: relative;
+  height: 30rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.55rem;
+  background: #0d1014;
+  overflow: hidden;
+}
+
+.schedule-grid-line {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid #252b3480;
+}
+
+.schedule-block {
+  position: absolute;
+  right: 0.25rem;
+  left: 0.25rem;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 0.15rem;
+  min-height: 1.7rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid #9a8fff;
+  border-radius: 0.35rem;
+  color: var(--text-primary);
+  background: #5f54c766;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+.schedule-block strong,
+.schedule-block small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-block small {
+  color: #d8d4ff;
+  font-size: 0.63rem;
+}
+
+.commitment-block {
+  border-color: #e0b36a;
+  background: repeating-linear-gradient(
+    -45deg,
+    #e0b36a20,
+    #e0b36a20 0.3rem,
+    #e0b36a08 0.3rem,
+    #e0b36a08 0.6rem
+  );
+}
+
+.commitment-block small {
+  color: #f0d49c;
+}
+
+.conflict-block {
+  z-index: 2;
+  border-color: #ff7777;
+  box-shadow: 0 0 0 2px #ff777755;
+  background: #9a303055;
+}
+
+.schedule-empty {
+  margin: 1.5rem 0 0;
+  color: var(--text-secondary);
+}
+
 .candidate-workbench {
   display: grid;
   grid-template-columns: minmax(17rem, 0.7fr) minmax(24rem, 1.3fr);

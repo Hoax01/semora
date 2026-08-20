@@ -2,7 +2,7 @@
 
 **Last Updated:** August 20, 2026
 **Current Phase:** Phase 2 — Semester Planning Core (in progress)
-**Next Build Objective:** Phase 2 — Weekly Schedule UI
+**Next Build Objective:** Phase 2 — Commitment CRUD/UI
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, and the first
 Phase 2 planning slices are implemented. Phase 2 is not yet complete.
@@ -41,6 +41,9 @@ Phase 2 planning slices are implemented. Phase 2 is not yet complete.
   removal actions.
 - Candidate validation warning surface that identifies course-course and
   hard-commitment timetable overlaps.
+- Weekly Monday-to-Friday timetable showing selected course meetings and
+  persisted commitment meetings as visually distinct blocks, including
+  conflict emphasis and a compact time scale.
 
 ### API and authentication
 
@@ -70,6 +73,9 @@ Phase 2 planning slices are implemented. Phase 2 is not yet complete.
   Semester Engine. It checks selected course meetings against one another and
   against persisted HARD commitment meetings; SOFT and FLEXIBLE commitments do
   not invalidate a candidate.
+- Workspace responses include owned commitment names, categories, flexibility,
+  weekly effort, and recurring meeting blocks for schedule rendering. No
+  commitment mutation API is exposed yet.
 
 ### Database
 
@@ -132,6 +138,8 @@ Current API integration coverage verifies:
 - timetable engine overlap boundaries (overlap, back-to-back, different-day,
   and hard-versus-flexible commitments) plus the authorized candidate
   validation endpoint.
+- workspace commitment serialization and the Monday-to-Friday schedule
+  rendering contract.
 
 ### Phase 2 implementation status
 
@@ -143,12 +151,12 @@ Complete in this phase:
 2.3 Candidate Semester CRUD
 2.4 Course Selection
 2.5 Timetable Clash Detection
+2.6 Weekly Schedule UI
 ```
 
 Not yet implemented:
 
 ```text
-2.6 Weekly Schedule UI
 2.7 Commitment CRUD/UI and schedule participation
 2.8 Preferences onboarding/editing
 ```
@@ -224,8 +232,8 @@ The planning schema can persist course preferences and recurring commitments,
 but their APIs and UI are intentionally deferred to their remaining Phase 2
 requirements. Candidate selections support add, switch, remove, duplication,
 and same-offering enforcement. Timetable validation now runs deterministically
-through the Semester Engine, but the weekly visual schedule and commitment
-CRUD remain deferred.
+through the Semester Engine, and the weekly schedule renders persisted course
+and commitment blocks. Commitment CRUD remains deferred.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -263,6 +271,6 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Continue Phase 2 with the weekly Monday-to-Friday schedule UI for selected
-course blocks and persisted commitment blocks. Keep the engine/UI boundary
-explicit, and do not begin Phase 3 scoring or comparison.
+Continue Phase 2 with commitment CRUD and schedule participation controls for
+recurring user commitments. Keep the engine/UI boundary explicit, and do not
+begin Phase 3 scoring or comparison.

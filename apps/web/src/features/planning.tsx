@@ -73,7 +73,17 @@ type Workspace = {
     endDate: string;
     university: { id: string; name: string; shortName: string };
   };
+  commitments: Commitment[];
   candidates: Candidate[];
+};
+
+type Commitment = {
+  id: string;
+  name: string;
+  category: string;
+  weeklyEffortHours: number;
+  flexibility: string;
+  meetings: Meeting[];
 };
 
 type University = {
@@ -87,6 +97,36 @@ type University = {
     endDate: string;
     status: string;
   }>;
+};
+
+const scheduleDays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
+const scheduleStartMinutes = 8 * 60;
+const scheduleEndMinutes = 20 * 60;
+
+function timeToMinutes(value: string) {
+  const [hoursText, minutesText] = value.split(':');
+  const hours = Number(hoursText ?? 0);
+  const minutes = Number(minutesText ?? 0);
+  return hours * 60 + minutes;
+}
+
+function scheduleBlockStyle(meeting: Meeting) {
+  const start = Math.max(scheduleStartMinutes, timeToMinutes(meeting.startTime));
+  const end = Math.min(scheduleEndMinutes, timeToMinutes(meeting.endTime));
+  const total = scheduleEndMinutes - scheduleStartMinutes;
+  return {
+    top: `${((start - scheduleStartMinutes) / total) * 100}%`,
+    height: `${Math.max(((end - start) / total) * 100, 3)}%`,
+  };
+}
+
+type ScheduleEntry = {
+  key: string;
+  kind: 'course' | 'commitment';
+  sourceId: string;
+  label: string;
+  detail: string;
+  meeting: Meeting;
 };
 
 function formatMeeting(meeting: Meeting) {
@@ -379,6 +419,31 @@ export function PlanningPage() {
   const activeSelection = selectedCandidate?.selections.find(
     (selection) => selection.courseOfferingId === activeOfferingId,
   );
+  const conflictIds = new Set(
+    candidateValidation?.clashes.flatMap((clash) => [clash.first.id, clash.second.id]) ?? [],
+  );
+  const scheduleEntries: ScheduleEntry[] = [
+    ...(selectedCandidate?.selections.flatMap((selection) =>
+      selection.meetings.map((meeting, index) => ({
+        key: `${selection.id}-${meeting.day}-${index}`,
+        kind: 'course' as const,
+        sourceId: selection.id,
+        label: selection.courseCode,
+        detail: `Section ${selection.sectionCode} · ${meeting.startTime}–${meeting.endTime}`,
+        meeting,
+      })),
+    ) ?? []),
+    ...(workspace?.commitments.flatMap((commitment) =>
+      commitment.meetings.map((meeting, index) => ({
+        key: `${commitment.id}-${meeting.day}-${index}`,
+        kind: 'commitment' as const,
+        sourceId: commitment.id,
+        label: commitment.name,
+        detail: `${meeting.startTime}–${meeting.endTime}`,
+        meeting,
+      })),
+    ) ?? []),
+  ];
 
   if (!workspace && !error)
     return (
@@ -461,6 +526,61 @@ export function PlanningPage() {
 
           {selectedCandidate ? (
             <>
+              <section className="weekly-schedule-panel" aria-labelledby="weekly-schedule-title">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">WEEKLY TIMETABLE</p>
+                    <h2 id="weekly-schedule-title">Your fixed week</h2>
+                  </div>
+                  <span className="schedule-legend">
+                    <span className="schedule-legend-item course-legend">Course</span>
+                    <span className="schedule-legend-item commitment-legend">Commitment</span>
+                  </span>
+                </div>
+                {scheduleEntries.length ? (
+                  <div className="schedule-board">
+                    <div className="schedule-time-axis" aria-hidden="true">
+                      {[8, 10, 12, 14, 16, 18, 20].map((hour) => (
+                        <span key={hour}>{String(hour).padStart(2, '0')}:00</span>
+                      ))}
+                    </div>
+                    {scheduleDays.map((day) => (
+                      <section className="schedule-day" key={day} aria-label={day}>
+                        <h3>{day.slice(0, 1) + day.slice(1).toLowerCase()}</h3>
+                        <div className="schedule-track">
+                          {[0, 1, 2, 3, 4, 5].map((line) => (
+                            <span
+                              className="schedule-grid-line"
+                              key={line}
+                              style={{ top: `${(line / 6) * 100}%` }}
+                            />
+                          ))}
+                          {scheduleEntries
+                            .filter((entry) => entry.meeting.day === day)
+                            .map((entry) => (
+                              <article
+                                className={`schedule-block ${entry.kind === 'commitment' ? 'commitment-block' : 'course-block'}${conflictIds.has(entry.sourceId) ? ' conflict-block' : ''}`}
+                                key={entry.key}
+                                style={scheduleBlockStyle(entry.meeting)}
+                              >
+                                {conflictIds.has(entry.sourceId) ? (
+                                  <span aria-label="Clash">⚠</span>
+                                ) : null}
+                                <strong>{entry.label}</strong>
+                                <small>{entry.detail}</small>
+                              </article>
+                            ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="schedule-empty">
+                    Add course sections to see the fixed shape of this candidate week.
+                  </p>
+                )}
+              </section>
+
               <section className="candidate-workbench">
                 <div className="candidate-summary">
                   <p className="eyebrow">CURRENT OPTION</p>
