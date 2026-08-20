@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 4 — Lock Semester (complete)
-**Next Build Objective:** Phase 5 — Course Outline Extraction
+**Current Phase:** Phase 5 — Course Outline Extraction (in progress)
+**Next Build Objective:** Phase 5.2 — Document Metadata and Local Storage
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -11,7 +11,9 @@ complete; preliminary workload profiles, course-preference fit summaries,
 workload interaction penalties, candidate metrics, structured findings,
 comparison, recommendation tags, and bounded what-if exploration are
 implemented and regression-covered. Phase 4 lock, Add/Drop, and
-active-semester UI requirements are now implemented.
+active-semester UI requirements are now implemented. The deterministic Phase 5
+document-normalization foundation is now implemented; outline upload, AI
+extraction, review, and canonical persistence remain incomplete.
 
 ---
 
@@ -171,6 +173,23 @@ active-semester UI requirements are now implemented.
   credit totals, and simple Add/Drop and section-switch controls. Candidate
   planning data remains separate from active-semester mutations.
 
+### Extraction foundation
+
+- `packages/extraction` validates supported PDF, DOCX, and plain-text files,
+  records deterministic file metadata including SHA-256, and returns a shared
+  versioned `NormalizedDocument` representation.
+- PDF normalization preserves page boundaries and page-aware paragraph/heading
+  blocks. DOCX normalization preserves paragraphs, heading levels, and practical
+  table row/cell relationships. Plain-text normalization preserves paragraph
+  order.
+- Parser failures are explicit and distinguish empty files, size limits,
+  unsupported formats, parsing failures, and documents with no extractable
+  content. Binary input is normalized at the parser boundary for both Node
+  buffers and ordinary `Uint8Array` callers.
+- This package is deterministic and format-focused. It does not own API
+  transport, file storage, AI provider calls, review state, or canonical course
+  persistence.
+
 ### Database
 
 - PostgreSQL + Prisma schema for universities, terms, courses, offerings,
@@ -214,12 +233,15 @@ active-semester UI requirements are now implemented.
   retains referenced historical selections, and leaves other universities and
   academic terms untouched.
 - Optional Docker Compose PostgreSQL remains available on host port 5433.
+- No Phase 5 database migration has been added yet; document metadata and local
+  storage are the next implementation slice.
 
 ---
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 4 active-semester completion:
+The following quality suite passes after the Phase 5 deterministic extraction
+foundation:
 
 ```text
 npm run typecheck
@@ -285,6 +307,13 @@ Current API integration coverage verifies:
   non-invalidating.
 - workspace commitment serialization and the Monday-to-Friday schedule
   rendering contract.
+- `@semora/extraction` unit coverage verifies format detection, deterministic
+  metadata, plain-text normalization, PDF page/heading extraction, DOCX
+  paragraph/table normalization, and clear invalid-input errors.
+- A real deduplicated LUMS outline was parsed successfully in smoke verification:
+  six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
+  characters. The local `LUMS_data/` corpus remains ignored and is not a test
+  dependency.
 - commitment create/edit/delete, recurring meeting validation, and
   cross-user authorization coverage.
 - default preference creation, normalized preference updates, invalid-value
@@ -366,6 +395,37 @@ Phase 4 acceptance status:
 SATISFIED — students can compare and lock a candidate, see the active semester,
 and add, switch, or drop active courses while candidate planning data remains
 preserved.
+```
+
+### Phase 5 implementation status
+
+Implemented in this phase so far:
+
+```text
+5.1 Extraction Package foundation
+5.3 PDF + DOCX Parsing foundation
+5.4 Normalized Document foundation
+```
+
+Still incomplete in this phase:
+
+```text
+5.2 File Storage and Document Metadata
+5.5 AI Provider Adapter
+5.6 Extraction Schema
+5.7 Deterministic Validation
+5.8 Mandatory Review UI
+5.9 Canonical Persistence after verification
+5.10 Extraction Benchmark
+```
+
+Phase 5 acceptance status:
+
+```text
+IN PROGRESS — deterministic document normalization works for PDF, DOCX, and
+plain text, including a real LUMS outline smoke check. Upload/storage, useful
+course-structure extraction, evidence/warnings, user review, verification, and
+canonical persistence remain to be implemented.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -481,6 +541,13 @@ calculations and their stable contracts are isolated in
 their consumers. The Phase 3 audit did not add an unnecessary second contract
 layer.
 
+The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
+DOCX page references are therefore unavailable, and complex layout semantics
+remain intentionally limited to practical paragraph and table preservation.
+PDF heading detection is deterministic and heuristic, so extraction review
+must remain responsible for confirming heading meaning before any canonical
+course data is persisted.
+
 Course hardness and predictive grade-risk data do not exist in the current
 Phase 3 input model. Therefore `maximumHardCourses`,
 `maxPreferredHardCourses`, and `gradeSafetyPriority` cannot yet influence
@@ -522,6 +589,8 @@ prisma/migrations/
 docs/BUILDPLAN.md
 docs/CURRENT_STATE.md
 docs/CATALOGUE_IMPORT.md
+packages/extraction/src/index.ts
+packages/extraction/src/index.test.ts
 ```
 
 ---
@@ -533,6 +602,9 @@ is complete through schedule analysis, preliminary profiles,
 course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
 Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
-and the basic active-semester UI are now complete. The next objective is Phase
-5 Course Outline Extraction; course-outline-derived workload enrichment and
-later NAVIGATE intelligence remain out of scope until that phase.
+and the basic active-semester UI are now complete. Phase 5 Course Outline
+Extraction is in progress. The next objective is to add document metadata and
+local development storage, then create the synchronous upload-to-extraction-job
+boundary before adding provider extraction or review. Course-outline-derived
+workload enrichment and later NAVIGATE intelligence remain out of scope until
+the documented Phase 5 verification path exists.
