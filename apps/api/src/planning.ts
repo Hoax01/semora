@@ -81,6 +81,24 @@ const commitmentRequestSchema = z
     }
   });
 
+const preferenceValueSchema = z.number().finite().min(0).max(1);
+const preferenceUpdateSchema = z
+  .object({
+    workloadPriority: preferenceValueSchema.optional(),
+    schedulePriority: preferenceValueSchema.optional(),
+    careerPriority: preferenceValueSchema.optional(),
+    interestPriority: preferenceValueSchema.optional(),
+    gradeSafetyPriority: preferenceValueSchema.optional(),
+    projectPreference: preferenceValueSchema.optional(),
+    examPreference: preferenceValueSchema.optional(),
+    continuousAssessmentPreference: preferenceValueSchema.optional(),
+    freeDayPriority: preferenceValueSchema.optional(),
+    earlyClassAversion: preferenceValueSchema.optional(),
+    lateClassAversion: preferenceValueSchema.optional(),
+    maxPreferredHardCourses: z.number().int().min(0).max(20).nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+
 const selectionInclude = {
   section: {
     include: {
@@ -94,6 +112,7 @@ const commitmentInclude = { meetings: true } as const;
 
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
+  preferences: true,
   commitments: {
     include: commitmentInclude,
     orderBy: { createdAt: 'asc' as const },
@@ -153,6 +172,23 @@ type CommitmentRecord = {
   }>;
 };
 
+type PreferencesRecord = {
+  id: string;
+  updatedAt: Date;
+  workloadPriority: { toString(): string };
+  schedulePriority: { toString(): string };
+  careerPriority: { toString(): string };
+  interestPriority: { toString(): string };
+  gradeSafetyPriority: { toString(): string };
+  projectPreference: { toString(): string };
+  examPreference: { toString(): string };
+  continuousAssessmentPreference: { toString(): string };
+  freeDayPriority: { toString(): string };
+  earlyClassAversion: { toString(): string };
+  lateClassAversion: { toString(): string };
+  maxPreferredHardCourses: number | null;
+};
+
 type WorkspaceRecord = {
   id: string;
   state: string;
@@ -165,6 +201,7 @@ type WorkspaceRecord = {
     endDate: Date;
     university: { id: string; name: string; shortName: string };
   };
+  preferences: PreferencesRecord | null;
   commitments: CommitmentRecord[];
   candidates: CandidateRecord[];
 };
@@ -228,6 +265,25 @@ function serializeCommitment(commitment: CommitmentRecord) {
   };
 }
 
+function serializePreferences(preferences: PreferencesRecord) {
+  return {
+    id: preferences.id,
+    updatedAt: preferences.updatedAt.toISOString(),
+    workloadPriority: Number(preferences.workloadPriority),
+    schedulePriority: Number(preferences.schedulePriority),
+    careerPriority: Number(preferences.careerPriority),
+    interestPriority: Number(preferences.interestPriority),
+    gradeSafetyPriority: Number(preferences.gradeSafetyPriority),
+    projectPreference: Number(preferences.projectPreference),
+    examPreference: Number(preferences.examPreference),
+    continuousAssessmentPreference: Number(preferences.continuousAssessmentPreference),
+    freeDayPriority: Number(preferences.freeDayPriority),
+    earlyClassAversion: Number(preferences.earlyClassAversion),
+    lateClassAversion: Number(preferences.lateClassAversion),
+    maxPreferredHardCourses: preferences.maxPreferredHardCourses,
+  };
+}
+
 function commitmentMeetingData(meeting: z.infer<typeof commitmentMeetingSchema>) {
   return {
     dayOfWeek: meeting.dayOfWeek,
@@ -249,6 +305,7 @@ function serializeWorkspace(workspace: WorkspaceRecord) {
       endDate: workspace.academicTerm.endDate.toISOString().slice(0, 10),
       university: workspace.academicTerm.university,
     },
+    preferences: workspace.preferences ? serializePreferences(workspace.preferences) : null,
     commitments: workspace.commitments.map(serializeCommitment),
     candidates: workspace.candidates.map(serializeCandidate),
   };
@@ -457,6 +514,70 @@ export function registerPlanningRoutes(app: express.Express) {
     }
 
     response.status(200).json({ workspace: serializeWorkspace(workspace) });
+  });
+
+  app.patch('/api/workspaces/:workspaceId/preferences', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+
+    const parsed = preferenceUpdateSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const workspace = await loadOwnedWorkspace(request.params.workspaceId, userId);
+    if (!workspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+
+    const preferenceData: {
+      workloadPriority?: number;
+      schedulePriority?: number;
+      careerPriority?: number;
+      interestPriority?: number;
+      gradeSafetyPriority?: number;
+      projectPreference?: number;
+      examPreference?: number;
+      continuousAssessmentPreference?: number;
+      freeDayPriority?: number;
+      earlyClassAversion?: number;
+      lateClassAversion?: number;
+      maxPreferredHardCourses?: number | null;
+    } = {};
+    if (parsed.data.workloadPriority !== undefined)
+      preferenceData.workloadPriority = parsed.data.workloadPriority;
+    if (parsed.data.schedulePriority !== undefined)
+      preferenceData.schedulePriority = parsed.data.schedulePriority;
+    if (parsed.data.careerPriority !== undefined)
+      preferenceData.careerPriority = parsed.data.careerPriority;
+    if (parsed.data.interestPriority !== undefined)
+      preferenceData.interestPriority = parsed.data.interestPriority;
+    if (parsed.data.gradeSafetyPriority !== undefined)
+      preferenceData.gradeSafetyPriority = parsed.data.gradeSafetyPriority;
+    if (parsed.data.projectPreference !== undefined)
+      preferenceData.projectPreference = parsed.data.projectPreference;
+    if (parsed.data.examPreference !== undefined)
+      preferenceData.examPreference = parsed.data.examPreference;
+    if (parsed.data.continuousAssessmentPreference !== undefined)
+      preferenceData.continuousAssessmentPreference = parsed.data.continuousAssessmentPreference;
+    if (parsed.data.freeDayPriority !== undefined)
+      preferenceData.freeDayPriority = parsed.data.freeDayPriority;
+    if (parsed.data.earlyClassAversion !== undefined)
+      preferenceData.earlyClassAversion = parsed.data.earlyClassAversion;
+    if (parsed.data.lateClassAversion !== undefined)
+      preferenceData.lateClassAversion = parsed.data.lateClassAversion;
+    if (parsed.data.maxPreferredHardCourses !== undefined)
+      preferenceData.maxPreferredHardCourses = parsed.data.maxPreferredHardCourses;
+    const preferences = await prisma.semesterPreferences.update({
+      where: { workspaceId: workspace.id },
+      data: preferenceData,
+    });
+    response.status(200).json({ preferences: serializePreferences(preferences) });
   });
 
   app.post('/api/workspaces/:workspaceId/commitments', async (request, response) => {

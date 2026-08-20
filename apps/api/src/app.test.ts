@@ -113,8 +113,38 @@ describe('Phase 2 planning foundation', () => {
       state: 'PLANNING',
       term: { name: 'Fall 2026', university: { shortName: 'LUMS' } },
       candidates: [],
+      preferences: { workloadPriority: 0.5, schedulePriority: 0.5 },
     });
     const workspaceId = firstWorkspaceRequest.body.workspace.id as string;
+
+    const invalidPreferences = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/preferences`)
+      .set('Cookie', ownerCookie)
+      .send({ workloadPriority: 1.2 });
+    expect(invalidPreferences.status).toBe(400);
+
+    const savedPreferences = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/preferences`)
+      .set('Cookie', ownerCookie)
+      .send({
+        workloadPriority: 0.9,
+        schedulePriority: 0.75,
+        careerPriority: 0.8,
+        interestPriority: 0.6,
+        projectPreference: 0.25,
+        examPreference: 0.75,
+        freeDayPriority: 1,
+        earlyClassAversion: 0.5,
+        lateClassAversion: 0.25,
+      });
+    expect(savedPreferences.status).toBe(200);
+    expect(savedPreferences.body.preferences).toMatchObject({
+      workloadPriority: 0.9,
+      schedulePriority: 0.75,
+      projectPreference: 0.25,
+      examPreference: 0.75,
+      freeDayPriority: 1,
+    });
 
     const repeatedWorkspaceRequest = await request(app)
       .post('/api/workspaces')
@@ -122,6 +152,10 @@ describe('Phase 2 planning foundation', () => {
       .send({ academicTermId: fall2026.id });
     expect(repeatedWorkspaceRequest.status).toBe(200);
     expect(repeatedWorkspaceRequest.body.workspace.id).toBe(workspaceId);
+    expect(repeatedWorkspaceRequest.body.workspace.preferences).toMatchObject({
+      workloadPriority: 0.9,
+      schedulePriority: 0.75,
+    });
     expect(await prisma?.semesterPreferences.count({ where: { workspaceId } })).toBe(1);
 
     const invalidCandidate = await request(app)
@@ -346,5 +380,11 @@ describe('Phase 2 planning foundation', () => {
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
       .set('Cookie', intruderCookie);
     expect(foreignValidation.status).toBe(404);
+
+    const foreignPreferences = await request(app)
+      .patch(`/api/workspaces/${workspaceId}/preferences`)
+      .set('Cookie', intruderCookie)
+      .send({ workloadPriority: 0.1 });
+    expect(foreignPreferences.status).toBe(404);
   });
 });

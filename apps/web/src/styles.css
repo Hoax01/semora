@@ -737,6 +737,70 @@ h1 {
   color: var(--text-primary);
 }
 
+.preferences-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.preferences-form {
+  margin-top: 1.5rem;
+}
+
+.preferences-intro {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.preference-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+}
+
+.preference-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.preference-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  font: inherit;
+  font-weight: 400;
+}
+
+.preferences-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.preferences-actions p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.preferences-actions button {
+  flex-shrink: 0;
+}
+
 .candidate-workbench {
   display: grid;
   grid-template-columns: minmax(17rem, 0.7fr) minmax(24rem, 1.3fr);
@@ -1263,6 +1327,15 @@ h1 {
 
   .commitment-meeting-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  }
+
+  .preference-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preferences-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .selected-course-row,

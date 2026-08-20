@@ -1,11 +1,11 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 20, 2026
-**Current Phase:** Phase 2 — Semester Planning Core (in progress)
-**Next Build Objective:** Phase 2 — Preferences onboarding/editing
+**Current Phase:** Phase 2 — Semester Planning Core (complete)
+**Next Build Objective:** Phase 3 — Semester Intelligence (not started)
 **Product Status:** Product and technical design are complete. Phase 0 is
-complete, the Phase 1 catalogue acceptance audit is complete, and the first
-Phase 2 planning slices are implemented. Phase 2 is not yet complete.
+complete, the Phase 1 catalogue acceptance audit is complete, and all Phase 2
+planning requirements are implemented. Phase 3 has not started.
 
 ---
 
@@ -47,6 +47,9 @@ Phase 2 planning slices are implemented. Phase 2 is not yet complete.
 - Commitment workbench for adding, editing, and removing recurring personal
   obligations with category, weekly effort, flexibility, and optional meeting
   times.
+- Concise per-semester preferences form using normalized low/medium/high
+  choices for workload, schedule, career, interest, assessment style, free-day,
+  and early/late-class priorities.
 
 ### API and authentication
 
@@ -82,6 +85,8 @@ Phase 2 planning slices are implemented. Phase 2 is not yet complete.
 - Ownership-checked commitment CRUD APIs support validated create, atomic edit
   (including full recurring-meeting replacement), and delete operations. Invalid
   intervals, duplicate recurring meetings, and cross-user access are rejected.
+- Ownership-checked preferences update API validates normalized 0–1 values and
+  persists the typed `SemesterPreferences` record for the workspace.
 
 ### Database
 
@@ -148,6 +153,8 @@ Current API integration coverage verifies:
   rendering contract.
 - commitment create/edit/delete, recurring meeting validation, and
   cross-user authorization coverage.
+- default preference creation, normalized preference updates, invalid-value
+  rejection, persistence on workspace reload, and cross-user rejection.
 
 ### Phase 2 implementation status
 
@@ -161,15 +168,17 @@ Complete in this phase:
 2.5 Timetable Clash Detection
 2.6 Weekly Schedule UI
 2.7 Commitment CRUD/UI and schedule participation
-```
-
-Not yet implemented:
-
-```text
 2.8 Preferences onboarding/editing
 ```
 
-The Phase 2 acceptance criteria are therefore not yet satisfied.
+Phase 2 acceptance status:
+
+```text
+SATISFIED
+```
+
+Phase 3 has not started. The Sol architecture checkpoint described in
+`BUILDPLAN.md` remains a review task before new Phase 3 feature work.
 
 - Browser verification covered the first-time setup, workspace transition,
   empty candidate state, create and rename actions, duplication, desktop
@@ -236,13 +245,13 @@ phase sequencing and defines candidate planning as Phase 2, which is also
 consistent with this file. Implementation follows `BUILDPLAN.md` to avoid
 product or architecture drift.
 
-The planning schema can persist course preferences and recurring commitments,
-but their APIs and UI are intentionally deferred to their remaining Phase 2
-requirements. Candidate selections support add, switch, remove, duplication,
-and same-offering enforcement. Timetable validation now runs deterministically
-through the Semester Engine, the weekly schedule renders persisted course and
-commitment blocks, and commitment CRUD updates both the schedule and clash
-analysis. Preferences remain deferred.
+The planning schema can persist course preferences and recurring commitments.
+Candidate selections support add, switch, remove, duplication, and
+same-offering enforcement. Timetable validation runs deterministically through
+the Semester Engine, the weekly schedule renders persisted course and
+commitment blocks, commitment CRUD updates both the schedule and clash
+analysis, and normalized preferences are editable per workspace. Preference
+values are stored now but are not consumed by scoring until Phase 3.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -280,7 +289,5 @@ docs/CATALOGUE_IMPORT.md
 
 ## Next objective
 
-Continue Phase 2 with concise preferences onboarding/editing for workload,
-schedule, interest, career, assessment style, free-day, and early/late-class
-priorities. Keep the engine/UI boundary explicit, and do not begin Phase 3
-scoring or comparison.
+Phase 2 is complete. Before beginning Phase 3, perform the documented Sol
+architecture checkpoint; no Phase 3 scoring or comparison has been started.

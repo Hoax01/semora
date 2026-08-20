@@ -73,9 +73,29 @@ type Workspace = {
     endDate: string;
     university: { id: string; name: string; shortName: string };
   };
+  preferences: Preferences | null;
   commitments: Commitment[];
   candidates: Candidate[];
 };
+
+type Preferences = {
+  id: string;
+  updatedAt: string;
+  workloadPriority: number;
+  schedulePriority: number;
+  careerPriority: number;
+  interestPriority: number;
+  gradeSafetyPriority: number;
+  projectPreference: number;
+  examPreference: number;
+  continuousAssessmentPreference: number;
+  freeDayPriority: number;
+  earlyClassAversion: number;
+  lateClassAversion: number;
+  maxPreferredHardCourses: number | null;
+};
+
+type PreferenceDraft = Omit<Preferences, 'id' | 'updatedAt'>;
 
 type Commitment = {
   id: string;
@@ -134,6 +154,34 @@ const commitmentDays = [
   'SATURDAY',
   'SUNDAY',
 ];
+const preferenceChoices = [
+  { value: 0, label: 'Low' },
+  { value: 0.5, label: 'Medium' },
+  { value: 1, label: 'High' },
+];
+
+function defaultPreferenceDraft(): PreferenceDraft {
+  return {
+    workloadPriority: 0.5,
+    schedulePriority: 0.5,
+    careerPriority: 0.5,
+    interestPriority: 0.5,
+    gradeSafetyPriority: 0.5,
+    projectPreference: 0.5,
+    examPreference: 0.5,
+    continuousAssessmentPreference: 0.5,
+    freeDayPriority: 0.5,
+    earlyClassAversion: 0.5,
+    lateClassAversion: 0.5,
+    maxPreferredHardCourses: null,
+  };
+}
+
+function preferenceDraftFrom(preferences: Preferences | null): PreferenceDraft {
+  if (!preferences) return defaultPreferenceDraft();
+  const { id: _id, updatedAt: _updatedAt, ...draft } = preferences;
+  return draft;
+}
 
 function emptyCommitmentDraft(): CommitmentDraft {
   return {
@@ -306,6 +354,7 @@ export function PlanningPage() {
   const [candidateValidation, setCandidateValidation] = useState<CandidateValidation>();
   const [validationRefresh, setValidationRefresh] = useState(0);
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>(emptyCommitmentDraft);
+  const [preferenceDraft, setPreferenceDraft] = useState<PreferenceDraft>(defaultPreferenceDraft);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
 
@@ -335,6 +384,10 @@ export function PlanningPage() {
   useEffect(() => {
     setEditedName(selectedCandidate?.name ?? '');
   }, [selectedCandidate?.id, selectedCandidate?.name]);
+
+  useEffect(() => {
+    setPreferenceDraft(preferenceDraftFrom(workspace?.preferences ?? null));
+  }, [workspace?.preferences?.updatedAt]);
 
   useEffect(() => {
     if (!selectedCandidateId) {
@@ -545,6 +598,42 @@ export function PlanningPage() {
     void runMutation('delete-commitment', async () => {
       await apiRequest(`/api/commitments/${commitment.id}`, { method: 'DELETE' });
       if (commitmentDraft.id === commitment.id) setCommitmentDraft(emptyCommitmentDraft());
+    });
+  }
+
+  function updatePreference(field: keyof PreferenceDraft, value: number) {
+    setPreferenceDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function assessmentStyle() {
+    if (preferenceDraft.projectPreference > preferenceDraft.examPreference + 0.1) {
+      return 'PROJECTS';
+    }
+    if (preferenceDraft.examPreference > preferenceDraft.projectPreference + 0.1) {
+      return 'EXAMS';
+    }
+    return 'BALANCED';
+  }
+
+  function updateAssessmentStyle(value: string) {
+    const next =
+      value === 'PROJECTS'
+        ? { projectPreference: 1, examPreference: 0 }
+        : value === 'EXAMS'
+          ? { projectPreference: 0, examPreference: 1 }
+          : { projectPreference: 0.5, examPreference: 0.5 };
+    setPreferenceDraft((current) => ({ ...current, ...next }));
+  }
+
+  function savePreferences(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId) return;
+    void runMutation('preferences', async () => {
+      const result = await apiRequest<{ preferences: Preferences }>(
+        `/api/workspaces/${workspaceId}/preferences`,
+        { method: 'PATCH', body: JSON.stringify(preferenceDraft) },
+      );
+      setPreferenceDraft(preferenceDraftFrom(result.preferences));
     });
   }
 
@@ -905,6 +994,66 @@ export function PlanningPage() {
                     </button>
                   </form>
                 </div>
+              </section>
+
+              <section className="preferences-panel" aria-labelledby="preferences-title">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">YOUR PRIORITIES</p>
+                    <h2 id="preferences-title">Shape the semester around you</h2>
+                  </div>
+                  <span className="course-meta">Saved per semester</span>
+                </div>
+                <form className="preferences-form" onSubmit={savePreferences}>
+                  <p className="preferences-intro">
+                    Choose what matters most. These preferences will guide later semester
+                    comparisons without forcing you through a long setup.
+                  </p>
+                  <div className="preference-grid">
+                    {(
+                      [
+                        ['workloadPriority', 'Manageable workload'],
+                        ['schedulePriority', 'Compact schedule'],
+                        ['careerPriority', 'Career relevance'],
+                        ['interestPriority', 'Subject interest'],
+                        ['freeDayPriority', 'Free-day importance'],
+                        ['earlyClassAversion', 'Avoid early classes'],
+                        ['lateClassAversion', 'Avoid late classes'],
+                      ] as Array<[keyof PreferenceDraft, string]>
+                    ).map(([field, label]) => (
+                      <label key={field}>
+                        {label}
+                        <select
+                          onChange={(event) => updatePreference(field, Number(event.target.value))}
+                          value={String(preferenceDraft[field])}
+                        >
+                          {preferenceChoices.map((choice) => (
+                            <option key={choice.value} value={choice.value}>
+                              {choice.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                    <label>
+                      Assessment style
+                      <select
+                        onChange={(event) => updateAssessmentStyle(event.target.value)}
+                        value={assessmentStyle()}
+                      >
+                        <option value="BALANCED">Balanced projects and exams</option>
+                        <option value="PROJECTS">Prefer projects</option>
+                        <option value="EXAMS">Prefer exams</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="preferences-actions">
+                    <p>Values are stored on a normalized low / medium / high scale.</p>
+                    <button disabled={busyAction === 'preferences'} type="submit">
+                      Save preferences
+                    </button>
+                  </div>
+                </form>
               </section>
 
               <section className="candidate-workbench">
