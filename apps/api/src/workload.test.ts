@@ -121,6 +121,22 @@ describe('Phase 6 workload calculations', () => {
     });
     expect(result.body.workload.summary.commitmentOccurrenceCount).toBeGreaterThan(1);
     expect(result.body.workload.summary.commitmentPressure).toBeGreaterThan(0);
+    expect(result.body.workload.currentDayPressure).toMatchObject({
+      date: '2026-09-01',
+      pressure: expect.any(Number),
+      band: expect.any(String),
+      drivers: expect.arrayContaining([expect.any(String)]),
+    });
+    expect(result.body.workload.dailyPressure.length).toBeGreaterThan(7);
+    expect(result.body.workload.dailyPressure).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          date: '2026-09-04',
+          estimatedDemandHours: expect.any(Number),
+          drivers: expect.arrayContaining([expect.any(String)]),
+        }),
+      ]),
+    );
     expect(result.body.workload.assessments).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

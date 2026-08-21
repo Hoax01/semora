@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.5 complete)
-**Next Build Objective:** Phase 6.6 — Daily Pressure
+**Current Phase:** Phase 6 — Semester Command Center (6.6 complete)
+**Next Build Objective:** Phase 6.7 — Weekly Pressure
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -18,8 +18,8 @@ mandatory review/verification flow, canonical persistence, and an opt-in
 ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
 6.1 pure deterministic Workload Engine package, Phase 6.2 manual assessment
 management, Phase 6.3 personal effort estimates, Phase 6.4 one-off commitment
-events, and Phase 6.5 workload calculations are now implemented and
-regression-covered; daily and weekly pressure surfaces and the full
+events, Phase 6.5 workload calculations, and Phase 6.6 daily pressure are now
+implemented and regression-covered; weekly pressure surfaces and the full
 command-center forecast UI remain incomplete.
 
 ---
@@ -191,6 +191,9 @@ command-center forecast UI remain incomplete.
   and one-off events into engine demand, resolve assessment effort provenance,
   and return explainable preparation, urgency, compression, overlap, and task
   pressure factors for the active workspace.
+- The workload response also returns the current day and deterministic daily
+  pressure series, including pressure band, estimated demand when complete,
+  and contributing driver IDs.
 - The planner exposes a deliberate Lock Semester panel and an active-semester
   dashboard with selected-course cards, a Monday-to-Friday timetable, active
   credit totals, and simple Add/Drop and section-switch controls. Candidate
@@ -201,16 +204,18 @@ command-center forecast UI remain incomplete.
   work done, and cancel an assessment while retaining it in the timeline.
 - The active-semester dashboard includes a workload-calculation summary with
   factor-level demand explanations for dated assessments and commitment
-  pressure contribution. Daily/weekly pressure arrays and findings remain
-  deferred to their later Phase 6 requirements.
+  pressure contribution, plus a compact next-seven-days daily pressure view.
+  Weekly pressure arrays and findings remain deferred to their later Phase 6
+  requirements.
 - Assessment effort resolves through the Workload Engine's centralized type
   defaults, preserves outline-derived effort separately, and supports a
   user-scoped personal estimate that can be cleared to restore the fallback.
   The timeline labels personal, outline, default, and unknown effort sources.
 - The planner's commitments panel supports date-specific one-off events linked
   to a recurring commitment. Events have title, start/end timestamps,
-  estimated effort, and an optional flexibility override; they are kept out of
-  the recurring timetable and candidate clash model until pressure integration.
+  estimated effort, and an optional flexibility override; they feed workload
+  calculations while remaining out of the recurring timetable and candidate
+  clash model.
 
 ### Extraction foundation
 
@@ -368,7 +373,7 @@ command-center forecast UI remain incomplete.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 6.5 workload-calculation
+The following quality suite passes after the Phase 6.6 daily-pressure
 implementation:
 
 ```text
@@ -744,10 +749,9 @@ queries on one client. The exercised requests and assertions pass, but the
 adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
-against real student workload feedback. Phase 6.5 exposes factor-level workload
-calculations and aggregate commitment pressure, but daily/weekly pressure
-series, findings, heatmap, and forecast surfaces remain intentionally deferred
-to later Phase 6 chunks.
+against real student workload feedback. Phase 6.6 exposes daily pressure but
+does not yet provide weekly pressure, findings, heatmap, or forecast surfaces;
+those remain intentionally deferred to later Phase 6 chunks.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -835,5 +839,6 @@ effort uses centralized type defaults, preserves verified outline estimates,
 and supports reversible personal overrides. Phase 6.4 is complete: users can
 create, edit, and remove one-off dated events linked to commitments. Phase 6.5
 is complete: owned active-semester data now produces explainable workload
-factors and aggregate commitment pressure. The next objective is Phase 6.6,
-daily pressure.
+factors and aggregate commitment pressure. Phase 6.6 is complete: the active
+workspace exposes current and upcoming daily pressure values. The next
+objective is Phase 6.7, weekly pressure.

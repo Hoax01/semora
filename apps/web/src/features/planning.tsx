@@ -282,11 +282,21 @@ type WorkloadCalculation = {
   status: string;
 };
 
+type DailyPressure = {
+  date: string;
+  pressure: number;
+  band: 'LIGHT' | 'MANAGEABLE' | 'MODERATE' | 'HIGH' | 'SEVERE';
+  estimatedDemandHours: number | null;
+  drivers: string[];
+};
+
 type Workload = {
   engineVersion: string;
   asOf: string;
   confidence: number;
   completeness: number;
+  currentDayPressure: DailyPressure | null;
+  dailyPressure: DailyPressure[];
   assessments: WorkloadCalculation[];
   summary: {
     assessmentCount: number;
@@ -576,6 +586,15 @@ function formatMetric(value: number | null) {
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function formatPressureDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
 function findingTitle(type: string) {
@@ -3403,6 +3422,41 @@ function ActiveSemesterView({
         {isWorkloadLoading ? <p className="assessment-empty">Calculating workload…</p> : null}
         {!isWorkloadLoading && workload ? (
           <>
+            <div className="daily-pressure-heading">
+              <div>
+                <p className="eyebrow">NEXT DAYS</p>
+                <h3>Daily pressure</h3>
+              </div>
+              {workload.currentDayPressure ? (
+                <span className="course-meta">
+                  Today {workload.currentDayPressure.pressure.toFixed(1)} ·{' '}
+                  {workload.currentDayPressure.band}
+                </span>
+              ) : null}
+            </div>
+            {workload.dailyPressure.length ? (
+              <div className="daily-pressure-grid" aria-label="Daily workload pressure">
+                {workload.dailyPressure.slice(0, 7).map((day) => (
+                  <article
+                    className={`daily-pressure-day daily-pressure-${day.band.toLowerCase()}`}
+                    key={day.date}
+                    aria-label={`${formatPressureDate(day.date)}: ${day.pressure.toFixed(1)} ${day.band}`}
+                  >
+                    <time dateTime={day.date}>{formatPressureDate(day.date)}</time>
+                    <strong>{day.pressure.toFixed(1)}</strong>
+                    <span>{day.band}</span>
+                    <small>
+                      {day.estimatedDemandHours === null
+                        ? 'Demand uncertain'
+                        : `${day.estimatedDemandHours}h demand`}{' '}
+                      · {day.drivers.length} driver{day.drivers.length === 1 ? '' : 's'}
+                    </small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="assessment-empty">No daily pressure is scheduled yet.</p>
+            )}
             <div className="workload-calculation-summary">
               <div>
                 <strong>{workload.summary.remainingEffortHours}h</strong>

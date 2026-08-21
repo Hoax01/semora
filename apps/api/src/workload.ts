@@ -3,6 +3,7 @@ import {
   analyzeWorkload,
   DEFAULT_WORKLOAD_ENGINE_CONFIG,
   type AssessmentType,
+  type DailyPressure,
   type WorkloadAssessment,
   type WorkloadCommitment,
 } from '@semora/workload-engine';
@@ -136,6 +137,16 @@ function effortSource(
   return 'UNKNOWN' as const;
 }
 
+function serializeDailyPressure(day: DailyPressure) {
+  return {
+    date: day.date,
+    pressure: day.pressure,
+    band: day.band,
+    estimatedDemandHours: day.estimatedDemandHours,
+    drivers: day.drivers,
+  };
+}
+
 export function registerWorkloadRoutes(app: express.Express) {
   app.get('/api/workspaces/:workspaceId/workload', async (request, response) => {
     if (!prisma) {
@@ -237,6 +248,10 @@ export function registerWorkloadRoutes(app: express.Express) {
       assessments: workloadAssessments,
       commitments: workloadCommitments,
     });
+    const dailyPressure = analysis.dailyPressure.map(serializeDailyPressure);
+    const currentDayPressure = analysis.currentDayPressure
+      ? serializeDailyPressure(analysis.currentDayPressure)
+      : null;
     const pressureByCommitmentId = new Map<string, number>();
     for (const day of analysis.dailyPressure) {
       for (const contribution of day.contributions) {
@@ -278,6 +293,8 @@ export function registerWorkloadRoutes(app: express.Express) {
         asOf: currentAt.toISOString(),
         confidence: analysis.confidence,
         completeness: analysis.completeness,
+        currentDayPressure,
+        dailyPressure,
         assessments: upcomingAssessments,
         summary: {
           assessmentCount: workloadAssessments.length,

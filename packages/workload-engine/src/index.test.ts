@@ -91,6 +91,23 @@ describe('workload engine', () => {
     expect(done.upcomingAssessments).toHaveLength(0);
   });
 
+  it('distributes assessment demand across the preparation horizon', () => {
+    const result = analyzeWorkload({ ...baseInput, assessments: [assessment()] });
+    const preparationDay = result.dailyPressure.find((day) => day.date === '2026-09-02');
+    const dueDay = result.dailyPressure.find((day) => day.date === '2026-09-07');
+
+    expect(preparationDay).toMatchObject({
+      estimatedDemandHours: expect.any(Number),
+      drivers: ['assessment-1'],
+    });
+    expect(dueDay).toMatchObject({
+      estimatedDemandHours: expect.any(Number),
+      drivers: ['assessment-1'],
+    });
+    expect(preparationDay?.pressure).toBeGreaterThan(0);
+    expect(dueDay?.pressure).toBeGreaterThan(0);
+  });
+
   it('raises pressure when preparation windows overlap', () => {
     const single = analyzeWorkload({ ...baseInput, assessments: [assessment()] });
     const overlapping = analyzeWorkload({
