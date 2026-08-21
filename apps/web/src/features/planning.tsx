@@ -309,6 +309,15 @@ type WeeklyPressure = {
   driverDetails: PressureDriverDetails[];
 };
 
+type PressurePeak = {
+  weekStart: string;
+  weekEnd: string;
+  pressure: number;
+  band: WeeklyPressure['band'];
+  drivers: string[];
+  driverDetails: PressureDriverDetails[];
+};
+
 type PressureFinding = {
   type: string;
   severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -329,6 +338,7 @@ type Workload = {
   dailyPressure: DailyPressure[];
   currentWeekPressure: WeeklyPressure | null;
   weeklyPressure: WeeklyPressure[];
+  peakPeriods: PressurePeak[];
   findings: PressureFinding[];
   assessments: WorkloadCalculation[];
   summary: {
@@ -3426,6 +3436,33 @@ function ActiveSemesterView({
   const selectedWeek = workload?.weeklyPressure.find(
     (week) => week.weekStart === selectedWeekStart,
   );
+  const dueSoonAssessments = workload
+    ? [...workload.assessments]
+        .filter((assessment) => assessment.dueAt !== null)
+        .sort((first, second) => first.dueAt!.localeCompare(second.dueAt!))
+        .slice(0, 4)
+    : [];
+  const mattersNowAssessments = workload
+    ? [...workload.assessments]
+        .sort(
+          (first, second) =>
+            (second.taskPressure ?? -1) - (first.taskPressure ?? -1) ||
+            (first.dueAt ?? '9999-12-31').localeCompare(second.dueAt ?? '9999-12-31'),
+        )
+        .slice(0, 4)
+    : [];
+  const currentWeekStart = workload?.currentWeekPressure?.weekStart;
+  const nextPressurePeak = workload
+    ? ([...workload.peakPeriods]
+        .filter((peak) => !currentWeekStart || peak.weekStart > currentWeekStart)
+        .sort((first, second) => first.weekStart.localeCompare(second.weekStart))[0] ??
+      workload.peakPeriods[0])
+    : undefined;
+  const upcomingPressureWeeks = workload
+    ? workload.weeklyPressure
+        .filter((week) => !currentWeekStart || week.weekStart >= currentWeekStart)
+        .slice(0, 4)
+    : [];
 
   return (
     <main className="planner-page active-semester-page">
@@ -3460,6 +3497,153 @@ function ActiveSemesterView({
       </section>
 
       {error ? <p className="form-error planner-error">{error}</p> : null}
+
+      {!isWorkloadLoading && workload ? (
+        <section className="command-center-panel" aria-labelledby="command-center-title">
+          <div className="command-center-heading">
+            <div>
+              <p className="eyebrow">NAVIGATE / COMMAND CENTER</p>
+              <h2 id="command-center-title">What matters now?</h2>
+              <p>See the next hard period before it arrives.</p>
+            </div>
+            <span className="course-meta">
+              Forecast as of {formatPressureDate(workload.asOf.slice(0, 10))}
+            </span>
+          </div>
+
+          <div className="command-center-metrics">
+            <article className="command-center-metric">
+              <span>Today</span>
+              {workload.currentDayPressure ? (
+                <>
+                  <strong>{workload.currentDayPressure.pressure.toFixed(1)}</strong>
+                  <small>{workload.currentDayPressure.band}</small>
+                </>
+              ) : (
+                <strong className="command-center-unknown">No data</strong>
+              )}
+            </article>
+            <article className="command-center-metric">
+              <span>This week</span>
+              {workload.currentWeekPressure ? (
+                <>
+                  <strong>{workload.currentWeekPressure.pressure.toFixed(1)}</strong>
+                  <small>{workload.currentWeekPressure.band}</small>
+                </>
+              ) : (
+                <strong className="command-center-unknown">No data</strong>
+              )}
+            </article>
+            <article className="command-center-metric command-center-peak-metric">
+              <span>Next pressure peak</span>
+              {nextPressurePeak ? (
+                <>
+                  <strong>{nextPressurePeak.pressure.toFixed(1)}</strong>
+                  <small>
+                    {formatPressureRange(nextPressurePeak.weekStart, nextPressurePeak.weekEnd)} ·{' '}
+                    {nextPressurePeak.band}
+                  </small>
+                </>
+              ) : (
+                <strong className="command-center-unknown">No peak yet</strong>
+              )}
+            </article>
+          </div>
+
+          <div className="command-center-columns">
+            <section className="command-center-card" aria-labelledby="due-soon-title">
+              <div className="command-center-card-heading">
+                <div>
+                  <p className="eyebrow">UP NEXT</p>
+                  <h3 id="due-soon-title">Due soon</h3>
+                </div>
+                <span className="course-meta">{dueSoonAssessments.length} shown</span>
+              </div>
+              {dueSoonAssessments.length ? (
+                <ul className="command-center-list">
+                  {dueSoonAssessments.map((assessment) => (
+                    <li key={assessment.id}>
+                      <div>
+                        <span className="course-code">
+                          {assessment.courseCode ?? 'Course unknown'}
+                        </span>
+                        <strong>{assessment.title}</strong>
+                      </div>
+                      <span>
+                        {formatPressureDate(assessment.dueAt!)} ·{' '}
+                        {assessment.remainingEffortHours === null
+                          ? 'effort unknown'
+                          : `${assessment.remainingEffortHours}h left`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="assessment-empty">No dated assessments are coming up yet.</p>
+              )}
+            </section>
+
+            <section className="command-center-card" aria-labelledby="matters-now-title">
+              <div className="command-center-card-heading">
+                <div>
+                  <p className="eyebrow">ENGINE RANKING</p>
+                  <h3 id="matters-now-title">What matters now</h3>
+                </div>
+                <span className="course-meta">By task pressure</span>
+              </div>
+              {mattersNowAssessments.length ? (
+                <ul className="command-center-list">
+                  {mattersNowAssessments.map((assessment) => (
+                    <li key={assessment.id}>
+                      <div>
+                        <span className="course-code">
+                          {assessment.courseCode ?? 'Course unknown'}
+                        </span>
+                        <strong>{assessment.title}</strong>
+                      </div>
+                      <span>
+                        {assessment.taskPressure === null
+                          ? 'pressure unknown'
+                          : `${assessment.taskPressure.toFixed(1)} pressure`}{' '}
+                        · {assessment.preparationDays}d prep
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="assessment-empty">Add dated assessments to rank what matters.</p>
+              )}
+            </section>
+          </div>
+
+          <div className="command-center-forecast" aria-labelledby="upcoming-pressure-title">
+            <div className="command-center-card-heading">
+              <div>
+                <p className="eyebrow">FORECAST</p>
+                <h3 id="upcoming-pressure-title">Upcoming pressure</h3>
+              </div>
+              {nextPressurePeak ? (
+                <span className="course-meta">
+                  Peak drivers: {nextPressurePeak.driverDetails.length}
+                </span>
+              ) : null}
+            </div>
+            {upcomingPressureWeeks.length ? (
+              <div className="command-center-forecast-list">
+                {upcomingPressureWeeks.map((week) => (
+                  <div key={week.weekStart}>
+                    <span>{formatPressureRange(week.weekStart, week.weekEnd)}</span>
+                    <strong>{week.pressure.toFixed(1)}</strong>
+                    <small>{week.band}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="assessment-empty">No weekly pressure is available yet.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <section className="weekly-schedule-panel" aria-labelledby="active-weekly-schedule-title">
         <div className="panel-heading-row">

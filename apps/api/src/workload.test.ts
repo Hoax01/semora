@@ -158,6 +158,21 @@ describe('Phase 6 workload calculations', () => {
         }),
       ]),
     );
+    expect(result.body.workload.peakPeriods).toEqual(expect.any(Array));
+    if (result.body.workload.peakPeriods.length) {
+      expect(result.body.workload.peakPeriods).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            weekStart: expect.any(String),
+            weekEnd: expect.any(String),
+            pressure: expect.any(Number),
+            band: expect.any(String),
+            drivers: expect.any(Array),
+            driverDetails: expect.any(Array),
+          }),
+        ]),
+      );
+    }
     expect(result.body.workload.findings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'ASSESSMENT_CLUSTER', severity: 'HIGH' }),

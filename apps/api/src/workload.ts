@@ -5,6 +5,7 @@ import {
   type AssessmentType,
   type DailyPressure,
   type PressureFinding,
+  type PressurePeak,
   type WeeklyPressure,
   type WorkloadAssessment,
   type WorkloadCommitment,
@@ -170,6 +171,28 @@ function serializeWeeklyPressure(
     uniqueCourseCount: week.uniqueCourseCount,
     drivers: week.drivers,
     driverDetails: week.drivers.map(
+      (id) =>
+        driverDetails.get(id) ?? {
+          id,
+          kind: 'UNKNOWN' as const,
+          label: 'Unknown demand',
+          courseCode: null,
+        },
+    ),
+  };
+}
+
+function serializePressurePeak(
+  peak: PressurePeak,
+  driverDetails: ReadonlyMap<string, WorkloadDriverDetails>,
+) {
+  return {
+    weekStart: peak.weekStart,
+    weekEnd: peak.weekEnd,
+    pressure: peak.pressure,
+    band: peak.band,
+    drivers: peak.drivers,
+    driverDetails: peak.drivers.map(
       (id) =>
         driverDetails.get(id) ?? {
           id,
@@ -369,6 +392,7 @@ export function registerWorkloadRoutes(app: express.Express) {
         dailyPressure,
         currentWeekPressure,
         weeklyPressure,
+        peakPeriods: analysis.peakPeriods.map((peak) => serializePressurePeak(peak, driverDetails)),
         findings: analysis.findings.map(serializePressureFinding),
         assessments: upcomingAssessments,
         summary: {
