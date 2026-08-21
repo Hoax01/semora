@@ -155,6 +155,12 @@ describe('Phase 6 workload calculations', () => {
         }),
       ]),
     );
+    expect(result.body.workload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'ASSESSMENT_CLUSTER', severity: 'HIGH' }),
+        expect.objectContaining({ type: 'MAJOR_DEADLINE_OVERLAP', severity: 'HIGH' }),
+      ]),
+    );
     expect(result.body.workload.assessments).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

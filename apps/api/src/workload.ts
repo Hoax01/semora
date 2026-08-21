@@ -4,6 +4,7 @@ import {
   DEFAULT_WORKLOAD_ENGINE_CONFIG,
   type AssessmentType,
   type DailyPressure,
+  type PressureFinding,
   type WeeklyPressure,
   type WorkloadAssessment,
   type WorkloadCommitment,
@@ -161,6 +162,19 @@ function serializeWeeklyPressure(week: WeeklyPressure) {
   };
 }
 
+function serializePressureFinding(finding: PressureFinding) {
+  return {
+    type: finding.type,
+    severity: finding.severity,
+    messageKey: finding.messageKey,
+    windowStart: finding.windowStart,
+    windowEnd: finding.windowEnd,
+    pressure: finding.pressure,
+    assessmentIds: finding.assessmentIds,
+    commitmentIds: finding.commitmentIds,
+  };
+}
+
 export function registerWorkloadRoutes(app: express.Express) {
   app.get('/api/workspaces/:workspaceId/workload', async (request, response) => {
     if (!prisma) {
@@ -315,6 +329,7 @@ export function registerWorkloadRoutes(app: express.Express) {
         dailyPressure,
         currentWeekPressure,
         weeklyPressure,
+        findings: analysis.findings.map(serializePressureFinding),
         assessments: upcomingAssessments,
         summary: {
           assessmentCount: workloadAssessments.length,

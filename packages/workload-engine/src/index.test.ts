@@ -145,6 +145,9 @@ describe('workload engine', () => {
     expect(overlapping.findings.some((finding) => finding.type === 'ASSESSMENT_CLUSTER')).toBe(
       true,
     );
+    expect(overlapping.findings.some((finding) => finding.type === 'MAJOR_DEADLINE_OVERLAP')).toBe(
+      true,
+    );
     expect(overlapping.upcomingAssessments.every((item) => item.overlapCount === 1)).toBe(true);
   });
 
@@ -160,6 +163,19 @@ describe('workload engine', () => {
       urgency: expect.any(Number),
       deadlineCompression: expect.any(Number),
     });
+    expect(result.findings.some((finding) => finding.type === 'DEADLINE_COMPRESSION')).toBe(true);
+  });
+
+  it('emits pressure-spike and early-start findings deterministically', () => {
+    const result = analyzeWorkload({
+      ...baseInput,
+      assessments: [assessment({ dueAt: '2026-09-12', estimatedEffortHours: 20 })],
+      config: { peakThreshold: 0 },
+    });
+
+    expect(result.findings.map((finding) => finding.type)).toEqual(
+      expect.arrayContaining(['UPCOMING_PRESSURE_SPIKE', 'EARLY_START_OPPORTUNITY']),
+    );
   });
 
   it('adds dated commitment demand and a collision finding', () => {

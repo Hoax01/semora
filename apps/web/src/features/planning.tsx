@@ -301,6 +301,17 @@ type WeeklyPressure = {
   drivers: string[];
 };
 
+type PressureFinding = {
+  type: string;
+  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  messageKey: string;
+  windowStart: string | null;
+  windowEnd: string | null;
+  pressure: number | null;
+  assessmentIds: string[];
+  commitmentIds: string[];
+};
+
 type Workload = {
   engineVersion: string;
   asOf: string;
@@ -310,6 +321,7 @@ type Workload = {
   dailyPressure: DailyPressure[];
   currentWeekPressure: WeeklyPressure | null;
   weeklyPressure: WeeklyPressure[];
+  findings: PressureFinding[];
   assessments: WorkloadCalculation[];
   summary: {
     assessmentCount: number;
@@ -626,6 +638,62 @@ function formatPressureRange(start: string, end: string) {
   return month === endMonth
     ? `${month} ${startDay}–${endDay}`
     : `${month} ${startDay}–${endMonth} ${endDay}`;
+}
+
+const pressureFindingTitles: Record<string, string> = {
+  UPCOMING_PRESSURE_SPIKE: 'Upcoming pressure spike',
+  ASSESSMENT_CLUSTER: 'Assessment cluster',
+  MAJOR_DEADLINE_OVERLAP: 'Major deadline overlap',
+  DEADLINE_COMPRESSION: 'Deadline compression',
+  COMMITMENT_COLLISION: 'Commitment collision',
+  EARLY_START_OPPORTUNITY: 'Early-start opportunity',
+  UNKNOWN_DATES_REDUCE_CONFIDENCE: 'Unknown dates reduce confidence',
+};
+
+const pressureSeverityRank: Record<PressureFinding['severity'], number> = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+  INFO: 4,
+};
+
+function pressureFindingTitle(type: string) {
+  return pressureFindingTitles[type] ?? 'Pressure observation';
+}
+
+function pressureFindingDescription(finding: PressureFinding, workload: Workload) {
+  const assessmentTitles = finding.assessmentIds
+    .map((id) => workload.assessments.find((assessment) => assessment.id === id)?.title)
+    .filter((title): title is string => Boolean(title));
+  const assessmentSubject = assessmentTitles.length
+    ? assessmentTitles.join(', ')
+    : `${finding.assessmentIds.length} assessment${finding.assessmentIds.length === 1 ? '' : 's'}`;
+  const window =
+    finding.windowStart && finding.windowEnd
+      ? `Window: ${formatPressureRange(finding.windowStart, finding.windowEnd)}.`
+      : 'The affected dates are not fully known.';
+  const pressure =
+    finding.pressure === null ? '' : ` Modeled pressure: ${finding.pressure.toFixed(1)}.`;
+
+  switch (finding.messageKey) {
+    case 'upcoming_pressure_spike':
+      return `${window}${pressure} ${assessmentSubject} and other demand make this period unusually heavy.`;
+    case 'assessment_cluster':
+      return `${assessmentSubject} fall within the same deadline cluster. ${window}`;
+    case 'major_deadline_overlap':
+      return `${assessmentSubject} have major deadlines close together. ${window}`;
+    case 'deadline_compression':
+      return `${assessmentSubject} has limited time left for its remaining effort. ${window}`;
+    case 'commitment_collision':
+      return `${assessmentSubject} overlap${assessmentSubject.includes(',') ? '' : 's'} a commitment window. ${window}`;
+    case 'early_start_opportunity':
+      return `Starting ${assessmentSubject.toLowerCase()} early could reduce deadline pressure. ${window}`;
+    case 'unknown_dates_reduce_confidence':
+      return `${finding.assessmentIds.length} assessment${finding.assessmentIds.length === 1 ? '' : 's'} lack precise dates, so future pressure is less complete.`;
+    default:
+      return `${window}${pressure}`;
+  }
 }
 
 function findingTitle(type: string) {
@@ -3529,6 +3597,50 @@ function ActiveSemesterView({
             ) : (
               <p className="assessment-empty">No weekly pressure is scheduled yet.</p>
             )}
+            <section
+              className="findings-panel workload-findings-panel"
+              aria-labelledby="pressure-findings-title"
+            >
+              <div className="interaction-pressure-heading">
+                <div>
+                  <p className="eyebrow">STRUCTURED FINDINGS</p>
+                  <h3 id="pressure-findings-title">What to watch</h3>
+                </div>
+                <span className="course-meta">
+                  {workload.findings.length
+                    ? `${workload.findings.length} observation${workload.findings.length === 1 ? '' : 's'}`
+                    : 'No flagged patterns'}
+                </span>
+              </div>
+              {workload.findings.length ? (
+                <ul className="finding-list">
+                  {[...workload.findings]
+                    .sort(
+                      (first, second) =>
+                        pressureSeverityRank[first.severity] -
+                        pressureSeverityRank[second.severity],
+                    )
+                    .slice(0, 6)
+                    .map((finding, index) => (
+                      <li key={`${finding.type}-${finding.windowStart ?? 'open'}-${index}`}>
+                        <span
+                          className={`finding-severity finding-severity-${finding.severity.toLowerCase()}`}
+                        >
+                          {finding.severity}
+                        </span>
+                        <div>
+                          <strong>{pressureFindingTitle(finding.type)}</strong>
+                          <p>{pressureFindingDescription(finding, workload)}</p>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="interaction-pressure-help">
+                  No pressure spikes, deadline conflicts, or confidence warnings were detected.
+                </p>
+              )}
+            </section>
             <div className="workload-calculation-summary">
               <div>
                 <strong>{workload.summary.remainingEffortHours}h</strong>
