@@ -132,6 +132,17 @@ describe('Phase 6 and 7 assessment management', () => {
       .set('Cookie', ownerCookie)
       .send({ mean: 69, minimum: 90, maximum: 80 });
     expect(invalidClassStatistics.status).toBe(400);
+    const upcoming = await request(app)
+      .post('/api/active-selections/' + selection.id + '/assessments')
+      .set('Cookie', ownerCookie)
+      .send({
+        title: 'Final project',
+        assessmentType: 'FINAL',
+        weightPercentage: 20,
+        dueDate: '2026-12-15',
+      });
+    expect(upcoming.status).toBe(201);
+    const upcomingAssessmentId = upcoming.body.assessment.id as string;
     const thresholdDocument = await prisma.document.create({
       data: {
         userId: ownerId,
@@ -237,11 +248,21 @@ describe('Phase 6 and 7 assessment management', () => {
       expect.arrayContaining([
         expect.objectContaining({
           totalExpectedWeight: 100,
+          remainingAssessments: [
+            expect.objectContaining({
+              assessmentId: upcomingAssessmentId,
+              title: 'Final project',
+              assessmentType: 'FINAL',
+              dueDate: '2026-12-15',
+              weightPercentage: 20,
+              status: 'UPCOMING',
+            }),
+          ],
           weightedPointsEarned: 6.56,
           gradedWeight: 8,
           remainingWeight: 92,
           currentPerformance: 82,
-          assessmentCount: 1,
+          assessmentCount: 2,
           gradedAssessmentCount: 1,
           currentGrade: 'B+',
           categories: [

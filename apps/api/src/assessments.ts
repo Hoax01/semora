@@ -350,6 +350,20 @@ function calculateGradeSummaries(
       targetAnalyses: [] as GradeTargetAnalysis[],
       categories: [] as GradeCategoryResult[],
       relativeStatistics: [] as GradeRelativeStatistic[],
+      remainingAssessments: courseAssessments
+        .filter(
+          (assessment) =>
+            !['GRADED', 'EXCUSED', 'DROPPED', 'CANCELLED'].includes(assessment.status),
+        )
+        .map((assessment) => ({
+          assessmentId: assessment.id,
+          title: assessment.title,
+          assessmentType: assessment.assessmentType,
+          dueDate: assessment.dueAt?.toISOString().slice(0, 10) ?? null,
+          datePrecision: assessment.datePrecision,
+          weightPercentage: decimalOrNull(assessment.weightPercentage),
+          status: assessment.status,
+        })),
       warnings: [
         ...(gradingScheme?.gradingMode === 'ABSOLUTE' &&
         (gradingScheme.thresholds?.length ?? 0) === 0

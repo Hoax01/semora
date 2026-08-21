@@ -315,6 +315,15 @@ type GradeSummary = {
     differenceFromMean: number;
     zScore: number | null;
   }>;
+  remainingAssessments: Array<{
+    assessmentId: string;
+    title: string;
+    assessmentType: string;
+    dueDate: string | null;
+    datePrecision: string;
+    weightPercentage: number | null;
+    status: string;
+  }>;
   warnings: string[];
 };
 type AssessmentDraft = {
@@ -4553,6 +4562,51 @@ function ActiveSemesterView({
                         ))}
                       </div>
                     ) : null}
+                    <div
+                      className="grade-remaining-assessments"
+                      aria-label={'Remaining assessments for ' + summary.courseCode}
+                    >
+                      <div className="grade-remaining-heading">
+                        <strong>Remaining assessments</strong>
+                        <span>
+                          {summary.remainingAssessments.length
+                            ? summary.remainingAssessments.length + ' to go'
+                            : 'Nothing pending'}
+                        </span>
+                      </div>
+                      {summary.remainingAssessments.length ? (
+                        <div className="grade-remaining-list">
+                          {summary.remainingAssessments.map((assessment) => (
+                            <div className="grade-remaining-row" key={assessment.assessmentId}>
+                              <div>
+                                <strong>{assessment.title}</strong>
+                                <small>
+                                  {assessment.assessmentType.toLowerCase()} ·{' '}
+                                  {assessment.dueDate
+                                    ? assessment.dueDate.slice(5)
+                                    : 'Date unknown'}{' '}
+                                  ·{' '}
+                                  {assessment.weightPercentage === null
+                                    ? 'Weight unknown'
+                                    : assessment.weightPercentage.toFixed(1) + '%'}
+                                </small>
+                              </div>
+                              <span>
+                                {assessment.status === 'SUBMITTED'
+                                  ? 'Awaiting grade'
+                                  : assessment.status === 'MISSING'
+                                    ? 'Missing score'
+                                    : 'Upcoming'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="grade-remaining-empty">
+                          No ungraded assessments are recorded for this course.
+                        </p>
+                      )}
+                    </div>
                     <div className="grade-performance-stats">
                       <div>
                         <span>Weighted points earned</span>

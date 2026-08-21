@@ -692,6 +692,77 @@ h1 {
   text-align: right;
 }
 
+.grade-remaining-assessments {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.grade-remaining-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.grade-remaining-heading strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.grade-remaining-heading span {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.grade-remaining-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.grade-remaining-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.grade-remaining-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.grade-remaining-row strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grade-remaining-row small {
+  color: var(--text-secondary);
+  font-size: 0.69rem;
+}
+
+.grade-remaining-row > span {
+  flex-shrink: 0;
+  color: var(--accent-soft);
+  font-size: 0.69rem;
+  font-weight: 650;
+  text-align: right;
+}
+
+.grade-remaining-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+}
 .grade-performance-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3456,6 +3527,15 @@ h1 {
     grid-template-columns: 1fr;
   }
 
+  .grade-remaining-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .grade-remaining-row > span {
+    text-align: left;
+  }
   .active-course-card {
     flex-direction: column;
   }

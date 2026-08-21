@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 22, 2026
-**Current Phase:** Phase 7 — Grade Intelligence (in progress)
-**Next Build Objective:** Phase 7.9 — Grade Dashboard
+**Current Phase:** Phase 7 — Grade Intelligence (complete)
+**Next Build Objective:** Phase 8.1 — UX Pass
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -22,7 +22,7 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, and Phase 7.8 relative grading are implemented and regression-covered; the Grade Dashboard is next. A full
+Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, Phase 7.8 relative grading, and Phase 7.9 Grade Dashboard are implemented and regression-covered. Phase 7 acceptance criteria are satisfied; Phase 8 product polish is next. A full
 Phase 6 acceptance audit was also completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
@@ -374,7 +374,7 @@ events.
 - The active-semester assessment timeline provides points/percentage entry,
   save, replacement, and clear controls, with local validation and responsive
   layout.
-- Relative statistics and the grade dashboard remain later Phase 7 work.
+- Relative statistics are available through the owned class-statistics flow. The active-semester Grade Dashboard now also shows the remaining assessments for each course.
 
 ### Current performance
 
@@ -411,7 +411,7 @@ events.
   course summaries, and the active-semester grade card presents them in a calm
   target table. Impossible targets are labeled without implying a probability or
   prediction.
-- Relative statistics and broader dashboard findings remain later Phase 7 work.
+- Relative statistics and the per-course Grade Dashboard are now implemented. Broader product-polish work remains in Phase 8.
 
 ### What-if scenarios
 
@@ -439,6 +439,17 @@ events.
 - No Prisma migration was required; the existing nullable `rule_parameter_n`
   field already represents the documented rule configuration.
 
+### Grade dashboard
+
+- Phase 7.9 extends the active-semester grade cards into the documented Grade
+  Dashboard surface. Each course shows current performance, graded weight,
+  target calculations, and a server-mapped list of remaining assessments.
+- Remaining assessments include upcoming, submitted-but-ungraded, and missing
+  academic results while excluding graded, excused, dropped, and cancelled
+  records. Each row shows title, type, due-date certainty, weight when known,
+  and a calm status label.
+- The dashboard remains derived from owned assessment data; no grade-dashboard
+  snapshot or duplicate persistence layer was added.
 ### Database
 
 - PostgreSQL + Prisma schema for universities, terms, courses, offerings,
@@ -903,7 +914,7 @@ performance, weighted points, graded weight, and remaining weight display,
 Phase 7.4 provides confirmed absolute-threshold current-grade equivalents, and
 Phase 7.5 provides deterministic target requirements and reachability, Phase 7.6
 provides temporary hypothetical assessment previews without mutating real grade
-data, and Phase 7.7 provides conservative BEST_N/DROP_LOWEST_N aggregation with transparent category summaries. Phase 7.8 provides owned class-statistics persistence, safe score-vs-mean differences, positive-SD z-scores, and relative grade context without predicting letter grades. The Grade Dashboard remains the next Phase 7 requirement.
+data, and Phase 7.7 provides conservative BEST_N/DROP_LOWEST_N aggregation with transparent category summaries. Phase 7.8 provides owned class-statistics persistence, safe score-vs-mean differences, positive-SD z-scores, and relative grade context without predicting letter grades. Phase 7.9 provides the per-course Grade Dashboard with server-mapped remaining assessments. Phase 7 is complete; Phase 8 product polish is next.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -1013,4 +1024,4 @@ the heatmap, and gives accessible forecast feedback. Phase 6 is complete.
 Phase 7.1 is complete: the pure Grade Engine calculates score normalization,
 weighted points, graded and remaining weight, category aggregation, current
 performance, and safe handling of ungraded/missing results. Phase 7.2 is complete: personal AssessmentScore persistence, owned score endpoints, points/percentage validation, and active-semester score entry are implemented
-and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. Phase 7.8 is complete: owned class-statistics persistence, safe relative differences, positive-SD z-scores, and active-semester relative context are implemented without letter-grade prediction. The next objective is Phase 7.9, Grade Dashboard.
+and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. Phase 7.8 is complete: owned class-statistics persistence, safe relative differences, positive-SD z-scores, and active-semester relative context are implemented without letter-grade prediction. Phase 7.9 is complete: each course now shows current performance, graded weight, target calculations, and remaining assessments in the active-semester Grade Dashboard. The next objective is Phase 8.1, UX Pass.
