@@ -76,6 +76,33 @@ describe('Phase 6 assessment management', () => {
     });
 
     const assessmentId = created.body.assessment.id as string;
+    const initialWorkload = await request(app)
+      .get(`/api/workspaces/${workspace.id}/workload?asOf=2026-09-01T09:00:00.000Z`)
+      .set('Cookie', ownerCookie);
+    expect(initialWorkload.status).toBe(200);
+    expect(initialWorkload.body.workload.assessments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: assessmentId, dueAt: '2026-09-18' })]),
+    );
+    const movedDeadline = await request(app)
+      .patch(`/api/assessments/${assessmentId}`)
+      .set('Cookie', ownerCookie)
+      .send({ dueDate: '2026-09-25' });
+    expect(movedDeadline.status).toBe(200);
+    expect(movedDeadline.body.assessment).toMatchObject({
+      dueDate: '2026-09-25',
+      datePrecision: 'EXACT',
+    });
+    const updatedWorkload = await request(app)
+      .get(`/api/workspaces/${workspace.id}/workload?asOf=2026-09-01T09:00:00.000Z`)
+      .set('Cookie', ownerCookie);
+    expect(updatedWorkload.status).toBe(200);
+    expect(updatedWorkload.body.workload.assessments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: assessmentId, dueAt: '2026-09-25' })]),
+    );
+    expect(updatedWorkload.body.workload.weeklyPressure).not.toEqual(
+      initialWorkload.body.workload.weeklyPressure,
+    );
+
     const personalEstimate = await request(app)
       .patch(`/api/assessments/${assessmentId}`)
       .set('Cookie', ownerCookie)
