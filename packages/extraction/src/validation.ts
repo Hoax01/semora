@@ -18,6 +18,10 @@ function normalized(value: string) {
     .trim();
 }
 
+function normalizedThresholdLabel(value: string) {
+  return value.toUpperCase().replace(/\s+/g, '').trim();
+}
+
 function normalizedCourseCode(value: string) {
   return value
     .toUpperCase()
@@ -128,7 +132,7 @@ export function validateCourseDocumentExtraction(
   const thresholdLabels = new Set<string>();
   let previousThreshold: number | undefined;
   for (const threshold of extraction.gradingScheme.thresholds) {
-    const label = normalized(threshold.label);
+    const label = normalizedThresholdLabel(threshold.label);
     if (thresholdLabels.has(label)) {
       addConflict(
         'gradingScheme.thresholds',

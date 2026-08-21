@@ -1,0 +1,289 @@
+{
+  "version": "0.1",
+  "source": "LUMS_data/outlines",
+  "semester": "Fall 2026",
+  "notes": "Manually reviewed benchmark labels for real local LUMS outlines. The corpus is intentionally not committed; the file names resolve against the local LUMS_data directory. Dates are included only when the outline provides a usable calendar date; ANTH 253's year is inferred from the Fall 2026 outline context.",
+  "cases": [
+    {
+      "id": "acct-100",
+      "fileName": "ACCT 100-Principles of Financial Accounting.pdf",
+      "expected": {
+        "courseCode": "ACCT 100",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Quiz(s)", "weight": 20 },
+          { "name": "Class Participation", "weight": 10 },
+          { "name": "Attendance", "weight": 5 },
+          { "name": "Midterm Examination", "weight": 30 },
+          { "name": "Final Examination", "weight": 35 }
+        ],
+        "assessments": [
+          { "title": "Quiz(s)", "type": "QUIZ" },
+          { "title": "Class Participation", "type": "PARTICIPATION" },
+          { "title": "Attendance", "type": "PARTICIPATION" },
+          { "title": "Midterm Examination", "type": "MIDTERM" },
+          { "title": "Final Examination", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": ["n-1 quiz"]
+      },
+      "notes": "Five quizzes are graded on an n-1 basis."
+    },
+    {
+      "id": "ai-500",
+      "fileName": "AI 500-Foundations of AI-Hassan Mohy-ud-Din.pdf",
+      "expected": {
+        "courseCode": "AI 500",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Assignments", "weight": 20 },
+          { "name": "Quizzes", "weight": 25 },
+          { "name": "Midterm Exam", "weight": 25 },
+          { "name": "Final Exam", "weight": 30 }
+        ],
+        "assessments": [
+          { "title": "Assignments", "type": "ASSIGNMENT" },
+          { "title": "Quizzes", "type": "QUIZ" },
+          { "title": "Midterm Exam", "type": "MIDTERM" },
+          { "title": "Final Exam", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": []
+      },
+      "notes": "The outline gives assignment grace days, not a grading drop rule."
+    },
+    {
+      "id": "anth-100",
+      "fileName": "ANTH 100 - Introduction to Cultural Anthropology - Sadaf Ahmad.pdf",
+      "expected": {
+        "courseCode": "ANTH 100",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Attendance", "weight": 10 },
+          { "name": "In-class Assignments", "weight": 16 },
+          { "name": "Kinship Assignment(s)", "weight": 24 },
+          { "name": "Quiz(s)", "weight": 25 },
+          { "name": "End-of-Semester Scrapbook Project", "weight": 25 }
+        ],
+        "assessments": [
+          { "title": "Attendance", "type": "PARTICIPATION" },
+          { "title": "In-class Assignments", "type": "ASSIGNMENT" },
+          { "title": "Kinship Assignment(s)", "type": "ASSIGNMENT" },
+          { "title": "Quiz(s)", "type": "QUIZ" },
+          { "title": "End-of-Semester Scrapbook Project", "type": "PROJECT" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": ["n-1 assignment", "n-1 quiz"]
+      }
+    },
+    {
+      "id": "anth-253",
+      "fileName": "ANTH 253-GSS 212-Womens Lives Across Cultures-Rabia Kamal.pdf",
+      "expected": {
+        "courseCode": "ANTH 253",
+        "gradingMode": "RELATIVE",
+        "weights": [
+          { "name": "Attendance", "weight": 5 },
+          { "name": "Class Participation", "weight": 10 },
+          { "name": "Reading Assessments", "weight": 25 },
+          { "name": "Class Assignments", "weight": 25 },
+          { "name": "Research Project", "weight": 35 }
+        ],
+        "assessments": [
+          { "title": "Attendance", "type": "PARTICIPATION" },
+          { "title": "Class Participation", "type": "PARTICIPATION" },
+          { "title": "Reading Assessments", "type": "OTHER" },
+          { "title": "Class Assignments", "type": "ASSIGNMENT" },
+          { "title": "Research Project", "type": "PROJECT" }
+        ],
+        "dates": [{ "title": "Research Project", "dueDate": "2026-12-16" }],
+        "thresholds": [],
+        "dropRules": ["n-2 reading assessment"]
+      },
+      "notes": "The outline states relative grading and gives a final project submission deadline of Dec 16."
+    },
+    {
+      "id": "bio-101",
+      "fileName": "BIO 101-Introductory Biology-Amir Faisal-Muhammad Tariq-Safee Ullah Chaudhary.pdf",
+      "expected": {
+        "courseCode": "BIO 101",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Assignment(s)", "weight": 10 },
+          { "name": "Attendance/Quiz", "weight": 10 },
+          { "name": "Midterm Examination", "weight": 40 },
+          { "name": "Final Examination", "weight": 40 }
+        ],
+        "assessments": [
+          { "title": "Assignment(s)", "type": "ASSIGNMENT" },
+          { "title": "Attendance/Quiz", "type": "QUIZ" },
+          { "title": "Midterm Examination", "type": "MIDTERM" },
+          { "title": "Final Examination", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": []
+      },
+      "notes": "Midterm and final weights are each split across two named exams."
+    },
+    {
+      "id": "chem-101",
+      "fileName": "CHEM 101-Principles of Chemistry-Basit Yameen.pdf",
+      "expected": {
+        "courseCode": "CHEM 101",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Announced Quizzes", "weight": 20 },
+          { "name": "Unannounced quizzes", "weight": 5 },
+          { "name": "Midterm Examination I", "weight": 25 },
+          { "name": "Midterm Examination II", "weight": 25 },
+          { "name": "Final Examination", "weight": 25 }
+        ],
+        "assessments": [
+          { "title": "Announced Quizzes", "type": "QUIZ" },
+          { "title": "Unannounced quizzes", "type": "QUIZ" },
+          { "title": "Midterm Examination I", "type": "MIDTERM" },
+          { "title": "Midterm Examination II", "type": "MIDTERM" },
+          { "title": "Final Examination", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": []
+      },
+      "notes": "The grading components are numbered prose lines rather than simple percentage-ending lines."
+    },
+    {
+      "id": "clca-1000",
+      "fileName": "CLCA 1000-Adab and Literature-Bilal Tanweer-Fatima Fayyaz.pdf",
+      "expected": {
+        "courseCode": "CLCA 1000",
+        "gradingMode": "ABSOLUTE",
+        "weights": [
+          { "name": "Attendance and class presence", "weight": 10 },
+          { "name": "Response papers and annotations for selected readings", "weight": 25 },
+          { "name": "Writing Assignments", "weight": 50 },
+          { "name": "Short film/ Visual Art Group Project", "weight": 15 }
+        ],
+        "assessments": [
+          { "title": "Attendance and class presence", "type": "PARTICIPATION" },
+          { "title": "Response papers and annotations for selected readings", "type": "OTHER" },
+          { "title": "Writing Assignments", "type": "ASSIGNMENT" },
+          { "title": "Short film/ Visual Art Group Project", "type": "PROJECT" }
+        ],
+        "dates": [],
+        "thresholds": [
+          { "label": "A", "minimumPercentage": 93 },
+          { "label": "A-", "minimumPercentage": 90 },
+          { "label": "B+", "minimumPercentage": 88 },
+          { "label": "B", "minimumPercentage": 83 },
+          { "label": "B-", "minimumPercentage": 80 },
+          { "label": "C+", "minimumPercentage": 78 },
+          { "label": "C", "minimumPercentage": 75 },
+          { "label": "C-", "minimumPercentage": 70 },
+          { "label": "D", "minimumPercentage": 60 }
+        ],
+        "dropRules": []
+      }
+    },
+    {
+      "id": "cs-100",
+      "fileName": "CS 100-Computational Problem Solving-Muhammad Hamad Alizai-Malik Jahan Khan.pdf",
+      "expected": {
+        "courseCode": "CS 100",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Quizzes", "weight": 10 },
+          { "name": "Labs", "weight": 30 },
+          { "name": "Attendance", "weight": 10 },
+          { "name": "Mid Term Exam", "weight": 20 },
+          { "name": "Final Exam", "weight": 30 }
+        ],
+        "assessments": [
+          { "title": "Quizzes", "type": "QUIZ" },
+          { "title": "Labs", "type": "OTHER" },
+          { "title": "Attendance", "type": "PARTICIPATION" },
+          { "title": "Mid Term Exam", "type": "MIDTERM" },
+          { "title": "Final Exam", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": ["two quizzes dropped", "two labs dropped"]
+      }
+    },
+    {
+      "id": "econ-100",
+      "fileName": "ECON 100-Principles of Economics-Nadia Mukhtar.pdf",
+      "expected": {
+        "courseCode": "ECON 100",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Quiz(s)", "weight": 30 },
+          { "name": "Midterm Examination", "weight": 25 },
+          { "name": "Project", "weight": 10 },
+          { "name": "In class written CP", "weight": 5 },
+          { "name": "Final Examination", "weight": 30 }
+        ],
+        "assessments": [
+          { "title": "Quiz(s)", "type": "QUIZ" },
+          { "title": "Midterm Examination", "type": "MIDTERM" },
+          { "title": "Project", "type": "PROJECT" },
+          { "title": "In class written CP", "type": "PARTICIPATION" },
+          { "title": "Final Examination", "type": "FINAL" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": ["n-1 quiz", "n-2 in class written CP"]
+      },
+      "notes": "The outline states four quizzes, each worth 10%, with n-1 grading."
+    },
+    {
+      "id": "engl-1000",
+      "fileName": "ENGL 1000 - Introduction to Literature in English - Sadia Zulfiqar.pdf",
+      "expected": {
+        "courseCode": "ENGL 1000",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Response Papers/Tests", "weight": 20 },
+          { "name": "Presentations", "weight": 20 },
+          { "name": "Final Examination", "weight": 35 },
+          { "name": "Class-Participation", "weight": 15 },
+          { "name": "Attendance", "weight": 10 }
+        ],
+        "assessments": [
+          { "title": "Response Papers/Tests", "type": "OTHER" },
+          { "title": "Presentations", "type": "PRESENTATION" },
+          { "title": "Final Examination", "type": "FINAL" },
+          { "title": "Class-Participation", "type": "PARTICIPATION" },
+          { "title": "Attendance", "type": "PARTICIPATION" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": []
+      }
+    },
+    {
+      "id": "engg-100",
+      "fileName": "ENGG 100-Measurement and Design Lab-Hamza Humayun-Muhammad Faryad.pdf",
+      "expected": {
+        "courseCode": "ENGG 100",
+        "gradingMode": "UNKNOWN",
+        "weights": [
+          { "name": "Weeks 1 – 5 (Skills Based Learning)", "weight": 20 },
+          { "name": "Weeks 6 – 14 (Experiential Learning)", "weight": 70 },
+          { "name": "Attendance", "weight": 10 }
+        ],
+        "assessments": [
+          { "title": "Weeks 1 – 5 (Skills Based Learning)", "type": "OTHER" },
+          { "title": "Weeks 6 – 14 (Experiential Learning)", "type": "OTHER" },
+          { "title": "Attendance", "type": "PARTICIPATION" }
+        ],
+        "dates": [],
+        "thresholds": [],
+        "dropRules": []
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 5 — Course Outline Extraction (in progress)
-**Next Build Objective:** Phase 5.10 — Extraction Benchmark
+**Current Phase:** Phase 5 — Course Outline Extraction (complete)
+**Next Build Objective:** Phase 6.1 — Workload Engine Package
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -14,8 +14,8 @@ implemented and regression-covered. Phase 4 lock, Add/Drop, and
 active-semester UI requirements are now implemented. The deterministic Phase 5
 document-normalization foundation, private outline upload/storage, extraction
 job state, a free local deterministic provider, deterministic validation, the
-mandatory review/verification flow, and canonical persistence are now
-implemented; benchmark coverage remains incomplete.
+mandatory review/verification flow, canonical persistence, and an opt-in
+ground-truth benchmark are now implemented. Phase 5 is complete.
 
 ---
 
@@ -236,9 +236,8 @@ implemented; benchmark coverage remains incomplete.
   two-column evidence-backed review workspace.
 - Every successful extraction intentionally enters review. The fraction that
   needs human correction is not yet a measured product percentage; it requires
-  the Phase 5 benchmark against a ground-truth outline sample. Current tests
-  prove one ordinary local outline can reach review and verification without a
-  paid AI API.
+  production correction tracking. The opt-in Phase 5.10 benchmark now compares
+  11 manually labelled real LUMS outlines without a paid AI API.
 
 ### Database
 
@@ -382,10 +381,16 @@ Current API integration coverage verifies:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
   dependency.
-- A read-only smoke sample of the first 20 local LUMS outlines parsed all 20;
-  15/20 (75%) produced grading categories and assessments, while all 20 (100%)
-  emitted at least one warning or conflict. This is a coverage signal, not a
-  ground-truth accuracy benchmark; the full 5.10 benchmark remains pending.
+- The opt-in Phase 5.10 benchmark runs against 11 manually labelled real LUMS
+  outlines and parsed all 11 successfully. It measured 100% course-code
+  accuracy, 90.9% grading-mode accuracy, 52.6% weight accuracy, 52.6%
+  assessment recall, 97.5% assessment-type accuracy among matched assessments,
+  100% threshold accuracy, 0% blocking-conflict rate, and a 90.9% correction
+  proxy. The correction proxy is benchmark mismatch coverage, not a measured
+  production user-correction rate. Date accuracy was 0% on the one labelled
+  date; the local provider currently does not reliably extract calendar dates.
+  Re-run it explicitly with `npm run benchmark --workspace @semora/extraction`;
+  ordinary `npm test` remains corpus-independent.
 - commitment create/edit/delete, recurring meeting validation, and
   cross-user authorization coverage.
 - default preference creation, normalized preference updates, invalid-value
@@ -485,22 +490,24 @@ Implemented in this phase so far:
 5.7 Deterministic Validation foundation
 5.8 Mandatory Review UI and Verification
 5.9 Canonical Persistence after Verification
+5.10 Extraction Benchmark
 ```
 
 Still incomplete in this phase:
 
 ```text
-5.10 Extraction Benchmark
+None
 ```
 
 Phase 5 acceptance status:
 
 ```text
-IN PROGRESS — deterministic normalization, private user-owned storage,
-persisted extraction jobs, a free local course-structure draft provider,
-deterministic validation, mandatory evidence-backed review/verification, and
-transactional canonical persistence for PDF, DOCX, and plain text, including a
-real LUMS outline smoke check. The extraction benchmark remains.
+SATISFIED — deterministic normalization, private user-owned storage, persisted
+extraction jobs, a free local course-structure draft provider, deterministic
+validation, mandatory evidence-backed review/verification, transactional
+canonical persistence, and an opt-in ground-truth benchmark for PDF, DOCX, and
+plain text boundaries. The benchmark is intentionally separate from ordinary
+tests and does not require paid AI access.
 ```
 
 The optional Phase 3 Sol behavior audit is complete. It corrected weekend
@@ -626,11 +633,12 @@ than a paid AI service. It handles common outline patterns and exposes
 uncertainty, but unusual layouts and ambiguous grading tables require review;
 no external AI adapter is configured or needed for the baseline workflow.
 
-The review-rate percentage is not yet known. `REVIEW_REQUIRED` is a deliberate
-state for every successful extraction, not a measure of extraction failure;
-canonical persistence now occurs only after confirmation, while the benchmark
-must separately measure correction rate and blocking-conflict rate across
-representative outlines.
+`REVIEW_REQUIRED` is a deliberate state for every successful extraction, not a
+measure of extraction failure. The 90.9% Phase 5.10 correction proxy reflects
+field mismatches against 11 manually labelled outlines; it must not be
+presented as a production review-rate percentage. The local provider still
+needs better handling for prose/table grading layouts, calendar dates, and
+drop-rule language.
 
 The Phase 5 parser currently uses Mammoth HTML conversion for DOCX structure;
 DOCX page references are therefore unavailable, and complex layout semantics
@@ -686,6 +694,9 @@ packages/extraction/src/provider.ts
 packages/extraction/src/provider.test.ts
 packages/extraction/src/local-provider.ts
 packages/extraction/src/validation.ts
+packages/extraction/src/benchmark.ts
+packages/extraction/src/run-benchmark.ts
+packages/extraction/benchmarks/lums-fall-2026.json
 apps/api/src/documents.ts
 apps/api/src/document-storage.ts
 apps/api/src/documents.test.ts
@@ -707,11 +718,10 @@ course-preference fit, interaction penalties, candidate metrics, structured
 findings, comparison, recommendation tags, and bounded scenario exploration.
 Phase 4 active-semester schema, transactional lock workflow, Add/Drop support,
 and the basic active-semester UI are now complete. Phase 5 Course Outline
-Extraction is in progress. Document metadata, private local development
-storage, and the authenticated active-course upload boundary are complete. The
-extraction-job/provider boundary, the schema-constrained draft contract, a free
-local deterministic provider, deterministic validation, mandatory review/
-verification, and canonical persistence from verified drafts are now in place.
-The next objective is the Phase 5.10 extraction benchmark. Course-outline-
-derived workload enrichment and later NAVIGATE intelligence remain out of
-scope until the documented Phase 5 verification path exists.
+Extraction is complete through the opt-in ground-truth benchmark. Document
+metadata, private local development storage, the authenticated active-course
+upload boundary, extraction-job/provider contracts, deterministic validation,
+mandatory review/verification, canonical persistence, and benchmark reporting
+are in place. The next objective is Phase 6.1, a deterministic Workload Engine
+that consumes verified canonical assessment data; draft JSON remains out of
+scope for engine inputs.
