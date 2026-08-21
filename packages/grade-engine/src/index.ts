@@ -20,6 +20,14 @@ export type GradeThreshold = {
   inclusive?: boolean;
 };
 
+export type GradeTargetAnalysis = {
+  target: string;
+  threshold: number;
+  requiredRemainingAverage: number | null;
+  reachable: boolean;
+  secured: boolean;
+};
+
 export type GradeAssessment = {
   id: string;
   title: string;
@@ -84,6 +92,7 @@ export type GradeEngineResult = {
   remainingWeight: number;
   currentPerformance: number | null;
   currentGrade: string | null;
+  targetAnalyses: GradeTargetAnalysis[];
   categories: GradeCategoryResult[];
   assessments: GradeAssessmentResult[];
   warnings: string[];
@@ -171,6 +180,51 @@ function currentGradeFor(currentPerformance: number | null, thresholds: readonly
         : currentPerformance >= threshold.minimumPercentage,
     )?.letterGrade ?? null
   );
+}
+function targetAnalysesFor(
+  weightedPointsEarned: number,
+  remainingWeight: number,
+  thresholds: readonly GradeThreshold[],
+): GradeTargetAnalysis[] {
+  return [...thresholds]
+    .sort((left, right) => right.minimumPercentage - left.minimumPercentage)
+    .map((threshold) => {
+      const secured =
+        threshold.inclusive === false
+          ? weightedPointsEarned > threshold.minimumPercentage
+          : weightedPointsEarned >= threshold.minimumPercentage;
+      if (secured) {
+        return {
+          target: threshold.letterGrade,
+          threshold: threshold.minimumPercentage,
+          requiredRemainingAverage: 0,
+          reachable: true,
+          secured: true,
+        };
+      }
+      if (remainingWeight <= 0) {
+        return {
+          target: threshold.letterGrade,
+          threshold: threshold.minimumPercentage,
+          requiredRemainingAverage: null,
+          reachable: false,
+          secured: false,
+        };
+      }
+      const requiredRemainingAverage =
+        ((threshold.minimumPercentage - weightedPointsEarned) / remainingWeight) * 100;
+      const reachable =
+        threshold.inclusive === false
+          ? requiredRemainingAverage < 100
+          : requiredRemainingAverage <= 100;
+      return {
+        target: threshold.letterGrade,
+        threshold: threshold.minimumPercentage,
+        requiredRemainingAverage: round(requiredRemainingAverage),
+        reachable,
+        secured: false,
+      };
+    });
 }
 function validateInput(input: GradeEngineInput, totalExpectedWeight: number) {
   if (!Number.isFinite(totalExpectedWeight) || totalExpectedWeight <= 0) {
@@ -394,6 +448,11 @@ export function calculateGrade(input: GradeEngineInput): GradeEngineResult {
       gradedWeight > 0 ? round((weightedPointsEarned / gradedWeight) * 100) : null,
     currentGrade: currentGradeFor(
       gradedWeight > 0 ? round((weightedPointsEarned / gradedWeight) * 100) : null,
+      input.gradingMode === 'ABSOLUTE' ? (input.thresholds ?? []) : [],
+    ),
+    targetAnalyses: targetAnalysesFor(
+      weightedPointsEarned,
+      Math.max(0, totalExpectedWeight - gradedWeight),
       input.gradingMode === 'ABSOLUTE' ? (input.thresholds ?? []) : [],
     ),
     categories: categoryResults,

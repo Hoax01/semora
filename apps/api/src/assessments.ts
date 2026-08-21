@@ -6,6 +6,7 @@ import {
   type GradeAssessmentStatus,
   type GradeCategory,
   type GradeAggregationRule as EngineGradeAggregationRule,
+  type GradeTargetAnalysis,
 } from '@semora/grade-engine';
 import { DEFAULT_WORKLOAD_ENGINE_CONFIG, type AssessmentType } from '@semora/workload-engine';
 import { prisma } from './db.js';
@@ -276,6 +277,7 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
       remainingWeight: null as number | null,
       currentPerformance: null as number | null,
       currentGrade: null as string | null,
+      targetAnalyses: [] as GradeTargetAnalysis[],
       warnings: [
         ...(gradingScheme?.gradingMode === 'ABSOLUTE' &&
         (gradingScheme.thresholds?.length ?? 0) === 0
@@ -352,6 +354,7 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
         remainingWeight: result.remainingWeight,
         currentPerformance: result.currentPerformance,
         currentGrade: result.currentGrade,
+        targetAnalyses: result.targetAnalyses,
         gradedAssessmentCount:
           categoryGradedCount +
           result.assessments.filter((assessment) => assessment.reason === 'GRADED').length,

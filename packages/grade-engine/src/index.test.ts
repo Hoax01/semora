@@ -232,6 +232,7 @@ describe('grade engine level 1', () => {
     });
 
     expect(relative.currentGrade).toBeNull();
+    expect(relative.targetAnalyses).toEqual([]);
     expect(ungraded.currentGrade).toBeNull();
   });
 
@@ -254,6 +255,10 @@ describe('grade engine level 1', () => {
     });
 
     expect(result.currentGrade).toBe('B+');
+    expect(result.targetAnalyses.find((target) => target.target === 'A')).toMatchObject({
+      secured: false,
+      reachable: true,
+    });
     expect(() =>
       calculateGrade({
         gradingMode: 'ABSOLUTE',
@@ -264,5 +269,84 @@ describe('grade engine level 1', () => {
         assessments: [],
       }),
     ).toThrow('Duplicate grade threshold');
+  });
+
+  it('calculates reachable and impossible target requirements', () => {
+    const result = calculateGrade({
+      gradingMode: 'ABSOLUTE',
+      thresholds: [
+        { letterGrade: 'A', minimumPercentage: 90 },
+        { letterGrade: 'A-', minimumPercentage: 85 },
+        { letterGrade: 'B+', minimumPercentage: 80 },
+        { letterGrade: 'A+', minimumPercentage: 100 },
+      ],
+      assessments: [
+        {
+          id: 'graded',
+          title: 'Graded work',
+          weightPercentage: 40,
+          status: 'GRADED',
+          score: { percentage: 81.25 },
+        },
+        { id: 'remaining', title: 'Remaining work', weightPercentage: 60 },
+      ],
+    });
+
+    expect(result.targetAnalyses).toEqual([
+      {
+        target: 'A+',
+        threshold: 100,
+        requiredRemainingAverage: 112.5,
+        reachable: false,
+        secured: false,
+      },
+      {
+        target: 'A',
+        threshold: 90,
+        requiredRemainingAverage: 95.83,
+        reachable: true,
+        secured: false,
+      },
+      {
+        target: 'A-',
+        threshold: 85,
+        requiredRemainingAverage: 87.5,
+        reachable: true,
+        secured: false,
+      },
+      {
+        target: 'B+',
+        threshold: 80,
+        requiredRemainingAverage: 79.17,
+        reachable: true,
+        secured: false,
+      },
+    ]);
+  });
+
+  it('marks a target already secured when earned weighted points meet its threshold', () => {
+    const result = calculateGrade({
+      gradingMode: 'ABSOLUTE',
+      thresholds: [{ letterGrade: 'B+', minimumPercentage: 80 }],
+      assessments: [
+        {
+          id: 'finalized',
+          title: 'Finalized work',
+          weightPercentage: 100,
+          status: 'GRADED',
+          score: { percentage: 82 },
+        },
+      ],
+    });
+
+    expect(result.targetAnalyses).toEqual([
+      {
+        target: 'B+',
+        threshold: 80,
+        requiredRemainingAverage: 0,
+        reachable: true,
+        secured: true,
+      },
+    ]);
   });
 });

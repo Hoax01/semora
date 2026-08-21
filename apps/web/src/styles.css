@@ -647,6 +647,40 @@ h1 {
   font-weight: 700;
 }
 
+.grade-targets {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.grade-targets-heading,
+.grade-target-row {
+  display: grid;
+  grid-template-columns: minmax(3rem, 0.35fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.grade-targets-heading {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.grade-target-row {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.grade-target-row span {
+  color: var(--text-secondary);
+  text-align: right;
+}
+
 .grade-performance-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

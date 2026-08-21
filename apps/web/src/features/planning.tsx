@@ -271,6 +271,13 @@ type GradeSummary = {
   remainingWeight: number | null;
   currentPerformance: number | null;
   currentGrade: string | null;
+  targetAnalyses: Array<{
+    target: string;
+    threshold: number;
+    requiredRemainingAverage: number | null;
+    reachable: boolean;
+    secured: boolean;
+  }>;
   warnings: string[];
 };
 type AssessmentDraft = {
@@ -4334,6 +4341,31 @@ function ActiveSemesterView({
                           ? 'Letter grade is not predicted for relative grading.'
                           : 'Letter grade unavailable until the grading method is confirmed.'}
                   </p>
+                  {summary.targetAnalyses.length ? (
+                    <div className="grade-targets" aria-label="Grade targets">
+                      <div className="grade-targets-heading">
+                        <span>Target</span>
+                        <span>Required on remaining</span>
+                      </div>
+                      {summary.targetAnalyses.map((target) => (
+                        <div className="grade-target-row" key={target.target}>
+                          <strong>{target.target}</strong>
+                          <span>
+                            {target.secured
+                              ? 'Already secured'
+                              : target.reachable
+                                ? target.requiredRemainingAverage === null
+                                  ? '—'
+                                  : target.requiredRemainingAverage.toFixed(1) + '% average'
+                                : target.requiredRemainingAverage === null
+                                  ? 'Not reachable'
+                                  : target.requiredRemainingAverage.toFixed(1) +
+                                    '% — not reachable'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="grade-performance-stats">
                     <div>
                       <span>Weighted points earned</span>

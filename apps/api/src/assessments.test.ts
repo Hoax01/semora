@@ -176,6 +176,15 @@ describe('Phase 6 and 7 assessment management', () => {
         expect.objectContaining({
           gradingMode: 'ABSOLUTE',
           currentGrade: 'B+',
+          targetAnalyses: expect.arrayContaining([
+            expect.objectContaining({
+              target: 'A-',
+              threshold: 85,
+              requiredRemainingAverage: 85.26,
+              reachable: true,
+              secured: false,
+            }),
+          ]),
         }),
       ]),
     );
