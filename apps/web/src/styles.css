@@ -640,6 +640,13 @@ h1 {
   margin: 0;
 }
 
+.grade-performance-grade {
+  margin: -0.2rem 0 0;
+  color: var(--accent-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .grade-performance-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

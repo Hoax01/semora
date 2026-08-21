@@ -14,6 +14,12 @@ export type GradeScore = {
   percentage?: number | null;
 };
 
+export type GradeThreshold = {
+  letterGrade: string;
+  minimumPercentage: number;
+  inclusive?: boolean;
+};
+
 export type GradeAssessment = {
   id: string;
   title: string;
@@ -33,6 +39,8 @@ export type GradeCategory = {
 
 export type GradeEngineInput = {
   totalExpectedWeight?: number;
+  gradingMode?: GradingMode;
+  thresholds?: readonly GradeThreshold[];
   categories?: readonly GradeCategory[];
   assessments: readonly GradeAssessment[];
 };
@@ -75,6 +83,7 @@ export type GradeEngineResult = {
   gradedWeight: number;
   remainingWeight: number;
   currentPerformance: number | null;
+  currentGrade: string | null;
   categories: GradeCategoryResult[];
   assessments: GradeAssessmentResult[];
   warnings: string[];
@@ -136,10 +145,39 @@ function assessmentPercentage(assessment: GradeAssessment) {
   return ((score.pointsEarned as number) / pointsPossible) * 100;
 }
 
+function validateThresholds(thresholds: readonly GradeThreshold[]) {
+  const letters = new Set<string>();
+  for (const threshold of thresholds) {
+    if (!threshold.letterGrade.trim()) {
+      throw new Error('Grade thresholds require a letter grade.');
+    }
+    if (letters.has(threshold.letterGrade)) {
+      throw new Error('Duplicate grade threshold: ' + threshold.letterGrade + '.');
+    }
+    letters.add(threshold.letterGrade);
+    assertPercentage(threshold.minimumPercentage, 'Grade threshold ' + threshold.letterGrade);
+  }
+}
+
+function currentGradeFor(currentPerformance: number | null, thresholds: readonly GradeThreshold[]) {
+  if (currentPerformance === null || thresholds.length === 0) return null;
+  const ordered = [...thresholds].sort(
+    (left, right) => right.minimumPercentage - left.minimumPercentage,
+  );
+  return (
+    ordered.find((threshold) =>
+      threshold.inclusive === false
+        ? currentPerformance > threshold.minimumPercentage
+        : currentPerformance >= threshold.minimumPercentage,
+    )?.letterGrade ?? null
+  );
+}
 function validateInput(input: GradeEngineInput, totalExpectedWeight: number) {
   if (!Number.isFinite(totalExpectedWeight) || totalExpectedWeight <= 0) {
     throw new Error('Total expected weight must be greater than zero.');
   }
+
+  validateThresholds(input.thresholds ?? []);
 
   const categoryIds = new Set<string>();
   for (const category of input.categories ?? []) {
@@ -354,6 +392,10 @@ export function calculateGrade(input: GradeEngineInput): GradeEngineResult {
     remainingWeight: round(Math.max(0, totalExpectedWeight - gradedWeight)),
     currentPerformance:
       gradedWeight > 0 ? round((weightedPointsEarned / gradedWeight) * 100) : null,
+    currentGrade: currentGradeFor(
+      gradedWeight > 0 ? round((weightedPointsEarned / gradedWeight) * 100) : null,
+      input.gradingMode === 'ABSOLUTE' ? (input.thresholds ?? []) : [],
+    ),
     categories: categoryResults,
     assessments: directResults,
     warnings,

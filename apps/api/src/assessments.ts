@@ -107,7 +107,7 @@ const assessmentInclude = {
   scores: true,
   activeCourseState: {
     include: {
-      gradingScheme: { include: { categories: true } },
+      gradingScheme: { include: { categories: true, thresholds: true } },
       activeCourseSelection: {
         include: {
           section: {
@@ -159,6 +159,11 @@ type AssessmentRecord = {
         name: string;
         weightPercentage: { toString(): string } | null;
         aggregationRule: string;
+      }>;
+      thresholds: Array<{
+        letterGrade: string;
+        minimumPercentage: { toString(): string };
+        inclusive: boolean;
       }>;
     } | null;
     activeCourseSelection: {
@@ -270,7 +275,13 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
       gradedWeight: null as number | null,
       remainingWeight: null as number | null,
       currentPerformance: null as number | null,
-      warnings: [] as string[],
+      currentGrade: null as string | null,
+      warnings: [
+        ...(gradingScheme?.gradingMode === 'ABSOLUTE' &&
+        (gradingScheme.thresholds?.length ?? 0) === 0
+          ? ['Absolute grade thresholds are not confirmed for this course.']
+          : []),
+      ] as string[],
     };
 
     if (unsupportedCategory) {
@@ -317,6 +328,16 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
     try {
       const result = calculateGrade({
         totalExpectedWeight,
+        ...(gradingScheme?.gradingMode === 'ABSOLUTE'
+          ? {
+              gradingMode: 'ABSOLUTE' as const,
+              thresholds: (gradingScheme.thresholds ?? []).map((threshold) => ({
+                letterGrade: threshold.letterGrade,
+                minimumPercentage: Number(threshold.minimumPercentage),
+                inclusive: threshold.inclusive,
+              })),
+            }
+          : {}),
         categories,
         assessments: engineAssessments,
       });
@@ -330,10 +351,11 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
         gradedWeight: result.gradedWeight,
         remainingWeight: result.remainingWeight,
         currentPerformance: result.currentPerformance,
+        currentGrade: result.currentGrade,
         gradedAssessmentCount:
           categoryGradedCount +
           result.assessments.filter((assessment) => assessment.reason === 'GRADED').length,
-        warnings: result.warnings,
+        warnings: [...baseSummary.warnings, ...result.warnings],
       };
     } catch (error) {
       return {

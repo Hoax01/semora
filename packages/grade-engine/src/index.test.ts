@@ -187,4 +187,82 @@ describe('grade engine level 1', () => {
       }).currentPerformance,
     ).toBe(80);
   });
+
+  it('resolves the current absolute letter grade from known thresholds', () => {
+    const result = calculateGrade({
+      gradingMode: 'ABSOLUTE',
+      thresholds: [
+        { letterGrade: 'A', minimumPercentage: 90 },
+        { letterGrade: 'A-', minimumPercentage: 85 },
+        { letterGrade: 'B+', minimumPercentage: 80 },
+      ],
+      assessments: [
+        {
+          id: 'midterm',
+          title: 'Midterm',
+          weightPercentage: 25,
+          status: 'GRADED',
+          score: { percentage: 85 },
+        },
+      ],
+    });
+
+    expect(result.currentPerformance).toBe(85);
+    expect(result.currentGrade).toBe('A-');
+  });
+
+  it('does not infer a letter grade for relative grading or ungraded work', () => {
+    const relative = calculateGrade({
+      gradingMode: 'RELATIVE',
+      thresholds: [{ letterGrade: 'A', minimumPercentage: 90 }],
+      assessments: [
+        {
+          id: 'midterm',
+          title: 'Midterm',
+          weightPercentage: 25,
+          status: 'GRADED',
+          score: { percentage: 95 },
+        },
+      ],
+    });
+    const ungraded = calculateGrade({
+      gradingMode: 'ABSOLUTE',
+      thresholds: [{ letterGrade: 'A', minimumPercentage: 90 }],
+      assessments: [{ id: 'midterm', title: 'Midterm', weightPercentage: 25 }],
+    });
+
+    expect(relative.currentGrade).toBeNull();
+    expect(ungraded.currentGrade).toBeNull();
+  });
+
+  it('respects exclusive threshold boundaries and rejects duplicate thresholds', () => {
+    const result = calculateGrade({
+      gradingMode: 'ABSOLUTE',
+      thresholds: [
+        { letterGrade: 'A', minimumPercentage: 90, inclusive: false },
+        { letterGrade: 'B+', minimumPercentage: 80 },
+      ],
+      assessments: [
+        {
+          id: 'midterm',
+          title: 'Midterm',
+          weightPercentage: 25,
+          status: 'GRADED',
+          score: { percentage: 90 },
+        },
+      ],
+    });
+
+    expect(result.currentGrade).toBe('B+');
+    expect(() =>
+      calculateGrade({
+        gradingMode: 'ABSOLUTE',
+        thresholds: [
+          { letterGrade: 'A', minimumPercentage: 90 },
+          { letterGrade: 'A', minimumPercentage: 85 },
+        ],
+        assessments: [],
+      }),
+    ).toThrow('Duplicate grade threshold');
+  });
 });

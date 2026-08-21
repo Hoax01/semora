@@ -113,6 +113,52 @@ describe('Phase 6 and 7 assessment management', () => {
       percentage: 82,
     });
 
+    const thresholdDocument = await prisma.document.create({
+      data: {
+        userId: ownerId,
+        workspaceId: workspace.id,
+        courseOfferingId: section.courseOfferingId,
+        originalFilename: 'threshold-fixture.txt',
+        storageKey: 'threshold-fixture-' + Date.now(),
+        mimeType: 'text/plain',
+        fileSize: 1,
+        fileHash: 'threshold-fixture-' + Date.now(),
+      },
+    });
+    await prisma.gradingScheme.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        gradingMode: 'ABSOLUTE',
+        totalExpectedWeight: 100,
+        sourceType: 'USER_ENTERED',
+        sourceDocumentId: thresholdDocument.id,
+        thresholds: {
+          create: [
+            {
+              letterGrade: 'A',
+              minimumPercentage: 90,
+              inclusive: true,
+              sourceType: 'USER_ENTERED',
+              sourceDocumentId: thresholdDocument.id,
+            },
+            {
+              letterGrade: 'A-',
+              minimumPercentage: 85,
+              inclusive: true,
+              sourceType: 'USER_ENTERED',
+              sourceDocumentId: thresholdDocument.id,
+            },
+            {
+              letterGrade: 'B+',
+              minimumPercentage: 80,
+              inclusive: true,
+              sourceType: 'USER_ENTERED',
+              sourceDocumentId: thresholdDocument.id,
+            },
+          ],
+        },
+      },
+    });
     const listedWithScore = await request(app)
       .get('/api/workspaces/' + workspace.id + '/assessments')
       .set('Cookie', ownerCookie);
@@ -128,6 +174,14 @@ describe('Phase 6 and 7 assessment management', () => {
     expect(listedWithScore.body.gradeSummaries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          gradingMode: 'ABSOLUTE',
+          currentGrade: 'B+',
+        }),
+      ]),
+    );
+    expect(listedWithScore.body.gradeSummaries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
           totalExpectedWeight: 100,
           weightedPointsEarned: 6.56,
           gradedWeight: 8,
@@ -135,6 +189,7 @@ describe('Phase 6 and 7 assessment management', () => {
           currentPerformance: 82,
           assessmentCount: 1,
           gradedAssessmentCount: 1,
+          currentGrade: 'B+',
         }),
       ]),
     );

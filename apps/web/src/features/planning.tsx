@@ -270,6 +270,7 @@ type GradeSummary = {
   gradedWeight: number | null;
   remainingWeight: number | null;
   currentPerformance: number | null;
+  currentGrade: string | null;
   warnings: string[];
 };
 type AssessmentDraft = {
@@ -4321,6 +4322,17 @@ function ActiveSemesterView({
                     {summary.gradedWeight === null
                       ? 'Current performance is unavailable from the recorded grading structure.'
                       : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
+                  </p>
+                  <p className="grade-performance-grade">
+                    {summary.currentGrade
+                      ? 'Current equivalent: ' + summary.currentGrade
+                      : summary.gradingMode === 'ABSOLUTE'
+                        ? summary.currentPerformance === null
+                          ? 'Letter grade will appear after a graded result.'
+                          : 'Letter grade unavailable — thresholds not confirmed.'
+                        : summary.gradingMode === 'RELATIVE'
+                          ? 'Letter grade is not predicted for relative grading.'
+                          : 'Letter grade unavailable until the grading method is confirmed.'}
                   </p>
                   <div className="grade-performance-stats">
                     <div>
