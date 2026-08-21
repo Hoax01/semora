@@ -640,6 +640,17 @@ h1 {
   margin: 0;
 }
 
+.grade-rule-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.grade-rule-note strong {
+  color: var(--text-primary);
+}
+
 .grade-performance-grade {
   margin: -0.2rem 0 0;
   color: var(--accent-soft);

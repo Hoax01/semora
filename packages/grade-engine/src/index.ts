@@ -6,7 +6,11 @@ export type GradeAssessmentStatus =
   'UPCOMING' | 'SUBMITTED_UNGRADED' | 'GRADED' | 'MISSING' | 'EXCUSED' | 'DROPPED' | 'CANCELLED';
 
 export type GradeAggregationRule =
-  'EQUAL_MEAN' | 'POINTS_WEIGHTED_MEAN' | 'EXPLICIT_ASSESSMENT_WEIGHTS';
+  | 'EQUAL_MEAN'
+  | 'POINTS_WEIGHTED_MEAN'
+  | 'EXPLICIT_ASSESSMENT_WEIGHTS'
+  | 'BEST_N'
+  | 'DROP_LOWEST_N';
 
 export type GradeScore = {
   pointsEarned?: number | null;
@@ -48,6 +52,7 @@ export type GradeCategory = {
   name: string;
   weightPercentage: number;
   aggregationRule?: GradeAggregationRule;
+  ruleParameterN?: number | null;
 };
 
 export type GradeEngineInput = {
@@ -81,12 +86,14 @@ export type GradeCategoryResult = {
   name: string;
   weightPercentage: number;
   aggregationRule: GradeAggregationRule;
+  ruleParameterN: number | null;
   percentage: number | null;
   weightedPointsEarned: number;
   gradedWeight: number;
   remainingWeight: number;
   gradedAssessmentCount: number;
   assessmentCount: number;
+  droppedAssessmentCount: number;
 };
 
 export type GradeEngineResult = {
@@ -286,6 +293,13 @@ function validateInput(input: GradeEngineInput, totalExpectedWeight: number) {
       throw new Error('Duplicate category id: ' + category.id + '.');
     categoryIds.add(category.id);
     assertPercentage(category.weightPercentage, 'Category ' + category.id + ' weight');
+    const aggregationRule = category.aggregationRule ?? 'EQUAL_MEAN';
+    if (aggregationRule === 'BEST_N' || aggregationRule === 'DROP_LOWEST_N') {
+      const n = category.ruleParameterN;
+      if (n === null || n === undefined || !Number.isInteger(n) || n < 1) {
+        throw new Error(category.name + ' requires a positive integer rule parameter N.');
+      }
+    }
   }
 
   const assessmentIds = new Set<string>();
@@ -359,6 +373,39 @@ function categoryResult(
   const eligible = categoryAssessments.filter(
     (assessment) => !['EXCUSED', 'DROPPED', 'CANCELLED'].includes(assessment.status ?? 'UPCOMING'),
   );
+  const dropRule = aggregationRule === 'BEST_N' || aggregationRule === 'DROP_LOWEST_N';
+  let countedGraded = graded;
+  let droppedAssessmentCount = 0;
+  if (dropRule && graded.length > 0) {
+    const n = category.ruleParameterN as number;
+    const countedTarget = aggregationRule === 'BEST_N' ? n : Math.max(0, eligible.length - n);
+    const countedCount = Math.min(graded.length, countedTarget);
+    const ordered = graded
+      .map((assessment, index) => ({
+        assessment,
+        index,
+        percentage: assessmentResults.get(assessment.id)?.percentage ?? 0,
+      }))
+      .sort((left, right) => right.percentage - left.percentage || left.index - right.index);
+    const countedIds = new Set(
+      ordered.slice(0, countedCount).map(({ assessment }) => assessment.id),
+    );
+    countedGraded = graded.filter((assessment) => countedIds.has(assessment.id));
+    const dropped = graded.filter((assessment) => !countedIds.has(assessment.id));
+    droppedAssessmentCount = dropped.length;
+    for (const assessment of dropped) {
+      const result = assessmentResults.get(assessment.id);
+      if (result) {
+        assessmentResults.set(assessment.id, {
+          ...result,
+          weightedPointsEarned: 0,
+          gradedWeight: 0,
+          counted: false,
+          reason: 'DROPPED',
+        });
+      }
+    }
+  }
   if (aggregationRule === 'EXPLICIT_ASSESSMENT_WEIGHTS') {
     const gradedWeight = graded.reduce(
       (sum, assessment) => sum + (assessmentResults.get(assessment.id)?.gradedWeight ?? 0),
@@ -373,27 +420,29 @@ function categoryResult(
       name: category.name,
       weightPercentage: category.weightPercentage,
       aggregationRule,
+      ruleParameterN: category.ruleParameterN ?? null,
       percentage: gradedWeight > 0 ? round((weightedPointsEarned / gradedWeight) * 100) : null,
       weightedPointsEarned: round(weightedPointsEarned),
       gradedWeight: round(gradedWeight),
       remainingWeight: round(Math.max(0, category.weightPercentage - gradedWeight)),
       gradedAssessmentCount: graded.length,
       assessmentCount: categoryAssessments.length,
+      droppedAssessmentCount: 0,
     };
   }
 
-  const scoreValues = graded.map(
+  const scoreValues = countedGraded.map(
     (assessment) => assessmentResults.get(assessment.id)?.percentage ?? 0,
   );
 
   let score: number | null = null;
   if (scoreValues.length > 0) {
     if (aggregationRule === 'POINTS_WEIGHTED_MEAN') {
-      const points = graded.reduce((sum, assessment) => {
+      const points = countedGraded.reduce((sum, assessment) => {
         const possible = assessment.score?.pointsPossible ?? assessment.pointsPossible;
         return possible === null || possible === undefined ? sum : sum + possible;
       }, 0);
-      const earned = graded.reduce(
+      const earned = countedGraded.reduce(
         (sum, assessment) => sum + (assessment.score?.pointsEarned ?? 0),
         0,
       );
@@ -412,14 +461,14 @@ function categoryResult(
       (sum, assessment) => sum + (assessment.pointsPossible ?? 0),
       0,
     );
-    const gradedPoints = graded.reduce(
+    const gradedPoints = countedGraded.reduce(
       (sum, assessment) =>
         sum + (assessment.score?.pointsPossible ?? assessment.pointsPossible ?? 0),
       0,
     );
     completedFraction = totalPoints > 0 ? gradedPoints / totalPoints : 0;
   } else if (eligible.length > 0) {
-    completedFraction = graded.length / eligible.length;
+    completedFraction = countedGraded.length / eligible.length;
   }
 
   const gradedWeight = category.weightPercentage * Math.min(1, completedFraction);
@@ -430,15 +479,16 @@ function categoryResult(
     name: category.name,
     weightPercentage: category.weightPercentage,
     aggregationRule,
+    ruleParameterN: category.ruleParameterN ?? null,
     percentage: score === null ? null : round(score),
     weightedPointsEarned: round(weightedPointsEarned),
     gradedWeight: round(gradedWeight),
     remainingWeight: round(category.weightPercentage - gradedWeight),
-    gradedAssessmentCount: graded.length,
+    gradedAssessmentCount: countedGraded.length,
     assessmentCount: categoryAssessments.length,
+    droppedAssessmentCount,
   };
 }
-
 export function calculateGrade(input: GradeEngineInput): GradeEngineResult {
   const totalExpectedWeight = input.totalExpectedWeight ?? 100;
   validateInput(input, totalExpectedWeight);

@@ -384,6 +384,97 @@ describe('grade engine level 1', () => {
     expect(input.assessments[1].score).toBeUndefined();
   });
 
+  it('applies Best N conservatively as more assessments are graded', () => {
+    const percentages = [40, 50, 60, 70, 80, 90, 92, 94, 96, 98];
+    const resultFor = (gradedCount: number) =>
+      calculateGrade({
+        categories: [
+          {
+            id: 'quizzes',
+            name: 'Quizzes',
+            weightPercentage: 100,
+            aggregationRule: 'BEST_N',
+            ruleParameterN: 8,
+          },
+        ],
+        assessments: percentages.map((percentage, index) => ({
+          id: 'quiz-' + index,
+          title: 'Quiz ' + index,
+          categoryId: 'quizzes',
+          status: index < gradedCount ? ('GRADED' as const) : ('UPCOMING' as const),
+          score: index < gradedCount ? { percentage } : undefined,
+        })),
+      });
+
+    expect([4, 8, 9, 10].map((count) => resultFor(count).categories[0])).toEqual([
+      expect.objectContaining({ gradedAssessmentCount: 4, droppedAssessmentCount: 0 }),
+      expect.objectContaining({ gradedAssessmentCount: 8, droppedAssessmentCount: 0 }),
+      expect.objectContaining({
+        gradedAssessmentCount: 8,
+        droppedAssessmentCount: 1,
+        percentage: 79,
+      }),
+      expect.objectContaining({
+        gradedAssessmentCount: 8,
+        droppedAssessmentCount: 2,
+        percentage: 85,
+      }),
+    ]);
+  });
+
+  it('applies Drop Lowest N against the known category size without dropping early grades', () => {
+    const resultFor = (gradedCount: number) =>
+      calculateGrade({
+        categories: [
+          {
+            id: 'quizzes',
+            name: 'Quizzes',
+            weightPercentage: 100,
+            aggregationRule: 'DROP_LOWEST_N',
+            ruleParameterN: 2,
+          },
+        ],
+        assessments: [40, 50, 60, 70, 80, 90, 92, 94, 96, 98].map((percentage, index) => ({
+          id: 'quiz-' + index,
+          title: 'Quiz ' + index,
+          categoryId: 'quizzes',
+          status: index < gradedCount ? ('GRADED' as const) : ('UPCOMING' as const),
+          score: index < gradedCount ? { percentage } : undefined,
+        })),
+      });
+
+    expect([4, 8, 9, 10].map((count) => resultFor(count).categories[0])).toEqual([
+      expect.objectContaining({ gradedAssessmentCount: 4, droppedAssessmentCount: 0 }),
+      expect.objectContaining({ gradedAssessmentCount: 8, droppedAssessmentCount: 0 }),
+      expect.objectContaining({
+        gradedAssessmentCount: 8,
+        droppedAssessmentCount: 1,
+        percentage: 79,
+      }),
+      expect.objectContaining({
+        gradedAssessmentCount: 8,
+        droppedAssessmentCount: 2,
+        percentage: 85,
+      }),
+    ]);
+  });
+
+  it('requires a positive integer parameter for drop rules', () => {
+    expect(() =>
+      calculateGrade({
+        categories: [
+          {
+            id: 'quizzes',
+            name: 'Quizzes',
+            weightPercentage: 100,
+            aggregationRule: 'BEST_N',
+            ruleParameterN: 0,
+          },
+        ],
+        assessments: [],
+      }),
+    ).toThrow('positive integer rule parameter N');
+  });
   it('rejects invalid or duplicate hypothetical assessment overrides', () => {
     const input = {
       assessments: [{ id: 'final', title: 'Final', weightPercentage: 100 }],

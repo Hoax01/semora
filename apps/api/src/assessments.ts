@@ -6,6 +6,7 @@ import {
   type GradeAssessment,
   type GradeAssessmentStatus,
   type GradeCategory,
+  type GradeCategoryResult,
   type GradeAggregationRule as EngineGradeAggregationRule,
   type GradeScenarioOverride,
   type GradeTargetAnalysis,
@@ -188,6 +189,7 @@ type AssessmentRecord = {
         name: string;
         weightPercentage: { toString(): string } | null;
         aggregationRule: string;
+        ruleParameterN: number | null;
       }>;
       thresholds: Array<{
         letterGrade: string;
@@ -253,6 +255,10 @@ function aggregationRuleFor(rule: string): EngineGradeAggregationRule {
       return 'EQUAL_MEAN';
     case 'POINTS_WEIGHTED_MEAN':
       return 'POINTS_WEIGHTED_MEAN';
+    case 'BEST_N':
+      return 'BEST_N';
+    case 'DROP_LOWEST_N':
+      return 'DROP_LOWEST_N';
     default:
       return 'EXPLICIT_ASSESSMENT_WEIGHTS';
   }
@@ -282,11 +288,6 @@ function calculateGradeSummaries(
       gradingScheme?.totalExpectedWeight === undefined
         ? 100
         : Number(gradingScheme.totalExpectedWeight);
-    const unsupportedCategory = gradingScheme?.categories.find(
-      (category) =>
-        category.aggregationRule === 'BEST_N' || category.aggregationRule === 'DROP_LOWEST_N',
-    );
-
     const baseSummary = {
       courseOfferingId,
       courseCode: courseOffering.course.courseCode,
@@ -310,6 +311,7 @@ function calculateGradeSummaries(
       currentPerformance: null as number | null,
       currentGrade: null as string | null,
       targetAnalyses: [] as GradeTargetAnalysis[],
+      categories: [] as GradeCategoryResult[],
       warnings: [
         ...(gradingScheme?.gradingMode === 'ABSOLUTE' &&
         (gradingScheme.thresholds?.length ?? 0) === 0
@@ -318,16 +320,6 @@ function calculateGradeSummaries(
       ] as string[],
     };
 
-    if (unsupportedCategory) {
-      return {
-        ...baseSummary,
-        warnings: [
-          unsupportedCategory.name +
-            ' uses a drop rule; current performance is not calculated until drop rules are supported.',
-        ],
-      };
-    }
-
     const categories: GradeCategory[] = (gradingScheme?.categories ?? [])
       .filter((category) => category.weightPercentage !== null)
       .map((category) => ({
@@ -335,6 +327,7 @@ function calculateGradeSummaries(
         name: category.name,
         weightPercentage: Number(category.weightPercentage),
         aggregationRule: aggregationRuleFor(category.aggregationRule),
+        ruleParameterN: category.ruleParameterN,
       }));
     const categoryIds = new Set(categories.map((category) => category.id));
     const engineAssessments: GradeAssessment[] = courseAssessments.map((assessment) => {
@@ -390,6 +383,7 @@ function calculateGradeSummaries(
         currentPerformance: result.currentPerformance,
         currentGrade: result.currentGrade,
         targetAnalyses: result.targetAnalyses,
+        categories: result.categories,
         gradedAssessmentCount:
           categoryGradedCount +
           result.assessments.filter((assessment) => assessment.reason === 'GRADED').length,

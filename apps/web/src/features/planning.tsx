@@ -278,6 +278,16 @@ type GradeSummary = {
     reachable: boolean;
     secured: boolean;
   }>;
+  categories: Array<{
+    categoryId: string;
+    name: string;
+    weightPercentage: number;
+    aggregationRule: string;
+    ruleParameterN: number | null;
+    gradedAssessmentCount: number;
+    assessmentCount: number;
+    droppedAssessmentCount: number;
+  }>;
   warnings: string[];
 };
 type AssessmentDraft = {
@@ -4383,6 +4393,36 @@ function ActiveSemesterView({
                         ? 'Current performance is unavailable from the recorded grading structure.'
                         : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
                     </p>
+                    {summary.categories
+                      .filter(
+                        (category) =>
+                          category.aggregationRule === 'BEST_N' ||
+                          category.aggregationRule === 'DROP_LOWEST_N',
+                      )
+                      .map((category) => (
+                        <p className="grade-rule-note" key={category.categoryId}>
+                          <strong>{category.name}</strong>{' '}
+                          {category.aggregationRule === 'BEST_N'
+                            ? 'Best ' +
+                              (category.ruleParameterN ?? '?') +
+                              ' of ' +
+                              category.assessmentCount +
+                              '.'
+                            : 'Drop lowest ' +
+                              (category.ruleParameterN ?? '?') +
+                              ' of ' +
+                              category.assessmentCount +
+                              '.'}{' '}
+                          {category.droppedAssessmentCount > 0
+                            ? category.droppedAssessmentCount +
+                              ' lowest graded result' +
+                              (category.droppedAssessmentCount === 1 ? '' : 's') +
+                              ' currently excluded.'
+                            : category.gradedAssessmentCount > 0
+                              ? 'Provisional: all graded results currently count.'
+                              : 'No graded results yet.'}
+                        </p>
+                      ))}
                     <p className="grade-performance-grade">
                       {summary.currentGrade
                         ? 'Current equivalent: ' + summary.currentGrade

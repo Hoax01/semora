@@ -132,6 +132,17 @@ describe('Phase 6 and 7 assessment management', () => {
         totalExpectedWeight: 100,
         sourceType: 'USER_ENTERED',
         sourceDocumentId: thresholdDocument.id,
+        categories: {
+          create: [
+            {
+              name: 'Best quizzes',
+              weightPercentage: 20,
+              aggregationRule: 'BEST_N',
+              ruleParameterN: 8,
+              displayOrder: 0,
+            },
+          ],
+        },
         thresholds: {
           create: [
             {
@@ -199,6 +210,14 @@ describe('Phase 6 and 7 assessment management', () => {
           assessmentCount: 1,
           gradedAssessmentCount: 1,
           currentGrade: 'B+',
+          categories: [
+            expect.objectContaining({
+              name: 'Best quizzes',
+              aggregationRule: 'BEST_N',
+              ruleParameterN: 8,
+              droppedAssessmentCount: 0,
+            }),
+          ],
         }),
       ]),
     );
