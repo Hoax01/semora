@@ -174,6 +174,14 @@ describe('Phase 6 assessment management', () => {
       progressPercentage: 40,
     });
 
+    const beforeCompletionWorkload = await request(app)
+      .get(`/api/workspaces/${workspace.id}/workload?asOf=2026-09-01T09:00:00.000Z`)
+      .set('Cookie', ownerCookie);
+    expect(beforeCompletionWorkload.status).toBe(200);
+    expect(beforeCompletionWorkload.body.workload.assessments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: assessmentId })]),
+    );
+
     const done = await request(app)
       .patch(`/api/assessments/${assessmentId}`)
       .set('Cookie', ownerCookie)
@@ -183,6 +191,16 @@ describe('Phase 6 assessment management', () => {
       workStatus: 'DONE',
       progressPercentage: 100,
     });
+    const afterCompletionWorkload = await request(app)
+      .get(`/api/workspaces/${workspace.id}/workload?asOf=2026-09-01T09:00:00.000Z`)
+      .set('Cookie', ownerCookie);
+    expect(afterCompletionWorkload.status).toBe(200);
+    expect(afterCompletionWorkload.body.workload.assessments).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: assessmentId })]),
+    );
+    expect(afterCompletionWorkload.body.workload.weeklyPressure).not.toEqual(
+      beforeCompletionWorkload.body.workload.weeklyPressure,
+    );
 
     const cancelled = await request(app)
       .delete(`/api/assessments/${assessmentId}`)

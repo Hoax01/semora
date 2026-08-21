@@ -594,6 +594,15 @@ h1 {
   background: var(--surface);
 }
 
+.forecast-feedback {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid var(--accent);
+  color: var(--text-secondary);
+  background: #5f54c70f;
+  font-size: 0.82rem;
+}
+
 .command-center-heading,
 .command-center-card-heading {
   display: flex;

@@ -658,6 +658,13 @@ function formatPressureRange(start: string, end: string) {
     : `${month} ${startDay}–${endMonth} ${endDay}`;
 }
 
+function nextWeekPressure(workload: Workload | undefined) {
+  const currentWeek = workload?.currentWeekPressure;
+  return currentWeek
+    ? workload.weeklyPressure.find((week) => week.weekStart > currentWeek.weekStart)
+    : undefined;
+}
+
 const pressureFindingTitles: Record<string, string> = {
   UPCOMING_PRESSURE_SPIKE: 'Upcoming pressure spike',
   ASSESSMENT_CLUSTER: 'Assessment cluster',
@@ -3115,6 +3122,7 @@ function ActiveSemesterView({
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
   const [workload, setWorkload] = useState<Workload>();
   const [isWorkloadLoading, setIsWorkloadLoading] = useState(true);
+  const [forecastFeedback, setForecastFeedback] = useState<string>();
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>();
   const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
     activeSelectionId: workspace.activeCourseSelections[0]?.id ?? '',
@@ -3154,8 +3162,10 @@ function ActiveSemesterView({
           : (result.workload.currentWeekPressure?.weekStart ??
             result.workload.weeklyPressure[0]?.weekStart),
       );
+      return result.workload;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to calculate workload.');
+      return undefined;
     } finally {
       setIsWorkloadLoading(false);
     }
@@ -3208,14 +3218,20 @@ function ActiveSemesterView({
     };
   }, [appliedCourseSearch, workspace.term.id]);
 
-  async function runMutation(action: string, mutation: () => Promise<unknown>) {
+  async function runMutation(
+    action: string,
+    mutation: () => Promise<unknown>,
+    onWorkloadReloaded?: (nextWorkload: Workload | undefined) => void,
+  ) {
     setError(undefined);
+    setForecastFeedback(undefined);
     setBusyAction(action);
     try {
       await mutation();
       await onReload();
       await loadAssessments();
-      await loadWorkload();
+      const nextWorkload = await loadWorkload();
+      onWorkloadReloaded?.(nextWorkload);
       return true;
     } catch (reason) {
       setError(
@@ -3336,11 +3352,25 @@ function ActiveSemesterView({
   }
 
   function markAssessmentDone(assessment: Assessment) {
-    void runMutation(`assessment-done-${assessment.id}`, () =>
-      apiRequest(`/api/assessments/${assessment.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ workStatus: 'DONE' }),
-      }),
+    const previousWorkload = workload;
+    void runMutation(
+      `assessment-done-${assessment.id}`,
+      () =>
+        apiRequest(`/api/assessments/${assessment.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ workStatus: 'DONE' }),
+        }),
+      (nextWorkload) => {
+        const previousNextWeek = nextWeekPressure(previousWorkload);
+        const nextNextWeek = nextWeekPressure(nextWorkload);
+        if (previousNextWeek && nextNextWeek && nextNextWeek.pressure < previousNextWeek.pressure) {
+          setForecastFeedback(
+            `Forecast updated — next week's pressure decreased from ${previousNextWeek.pressure.toFixed(1)} to ${nextNextWeek.pressure.toFixed(1)} after completing ${assessment.title}.`,
+          );
+          return;
+        }
+        setForecastFeedback(`Forecast updated after completing ${assessment.title}.`);
+      },
     );
   }
 
@@ -3497,6 +3527,11 @@ function ActiveSemesterView({
       </section>
 
       {error ? <p className="form-error planner-error">{error}</p> : null}
+      {forecastFeedback ? (
+        <p className="forecast-feedback" role="status">
+          {forecastFeedback}
+        </p>
+      ) : null}
 
       {!isWorkloadLoading && workload ? (
         <section className="command-center-panel" aria-labelledby="command-center-title">

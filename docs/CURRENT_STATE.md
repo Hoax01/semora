@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.11 complete)
-**Next Build Objective:** Phase 6.12 — Completion Feedback
+**Current Phase:** Phase 6 — Semester Command Center (complete)
+**Next Build Objective:** Phase 7 — Grade Intelligence
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -20,9 +20,9 @@ ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
 management, Phase 6.3 personal effort estimates, Phase 6.4 one-off commitment
 events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
-Phase 6.10 initial command-center dashboard and Phase 6.11 deadline changes
-are now implemented and regression-covered. Completion feedback remains for
-the next Phase 6 requirement.
+Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
+Phase 6.12 completion feedback are now implemented and regression-covered. The
+Phase 6 acceptance criteria are satisfied; Grade Intelligence is next.
 
 ---
 
@@ -218,6 +218,9 @@ the next Phase 6 requirement.
 - Editing an assessment deadline persists exact or unknown date state and the
   active-semester mutation flow immediately reloads the workload analysis, so
   due-soon ordering and pressure forecasts reflect the new date.
+- Marking work done removes the assessment from future workload pressure,
+  refreshes the dashboard and heatmap, and provides accessible feedback with
+  the next-week pressure change when one is measurable.
 - The active-semester dashboard includes a workload-calculation summary with
   factor-level demand explanations for dated assessments and commitment
   pressure contribution, plus a compact next-seven-days daily pressure view.
@@ -398,7 +401,7 @@ the next Phase 6 requirement.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 6.11 deadline-change
+The following quality suite passes after the Phase 6.12 completion-feedback
 implementation:
 
 ```text
@@ -490,7 +493,7 @@ Current API integration coverage verifies:
   dates, separate progress and academic status, completion, cancellation,
   personal effort override/reset behavior, centralized type defaults,
   ownership isolation, active-course-state boundaries, and workload forecast
-  changes after moving a deadline.
+  changes after moving a deadline or marking work done.
 - Commitment-event integration coverage verifies owned create/edit/delete,
   invalid time ordering, workspace serialization, and cross-user rejection.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
@@ -776,9 +779,10 @@ adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
 against real student workload feedback. Phase 6.10 provides the initial
-command-center summary and peak forecast. Phase 6.11 now covers manual
-deadline changes and immediate forecast refresh; completion feedback remains
-the next Phase 6 requirement.
+command-center summary and peak forecast. Phase 6.11 covers manual deadline
+changes and immediate forecast refresh. Phase 6.12 covers completion feedback
+and pressure removal; Grade Intelligence remains intentionally deferred to
+Phase 7.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -877,4 +881,6 @@ active-semester view opens with a command-center summary for current pressure,
 due-soon work, ranked priorities, upcoming pressure, and the next pressure
 peak. Phase 6.11 is complete: changing an assessment deadline persists the
 new exact/unknown date state and the workload forecast reflects it immediately.
-The next objective is Phase 6.12, completion feedback.
+Phase 6.12 is complete: marking work done removes future pressure, refreshes
+the heatmap, and gives accessible forecast feedback. Phase 6 is complete; the
+next objective is Phase 7, Grade Intelligence.
