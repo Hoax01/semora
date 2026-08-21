@@ -192,6 +192,83 @@ describe('Phase 5 document storage', () => {
     expect(Number(canonical?.dataConfidence)).toBeGreaterThan(0);
     expect(Number(canonical?.dataCompleteness)).toBeGreaterThan(0);
 
+    const previousStoredKey = storedKey;
+    const staleUpload = await request(app)
+      .post(`/api/active-selections/${activeSelection.id}/outline`)
+      .set('Cookie', ownerCookie)
+      .set('Content-Type', 'text/plain')
+      .set('X-File-Name', 'stale-outline.txt')
+      .send(
+        Buffer.from(
+          [
+            `${offering.course.courseCode} ${offering.course.title}`,
+            'Assignments: 20%',
+            'Midterm: 30%',
+            'Final Exam: 50%',
+            'Absolute grading with letter grade thresholds',
+          ].join('\n\n'),
+        ),
+      );
+    expect(staleUpload.status).toBe(201);
+    const staleStoredKey = (
+      await prisma?.document.findUniqueOrThrow({ where: { id: staleUpload.body.document.id } })
+    ).storageKey;
+    const staleProcessed = await request(app)
+      .post(`/api/extraction-jobs/${staleUpload.body.extractionJob.id}/process`)
+      .set('Cookie', ownerCookie);
+    expect(staleProcessed.status).toBe(200);
+    expect(staleProcessed.body.extractionJob.status).toBe('REVIEW_REQUIRED');
+
+    const currentUpload = await request(app)
+      .post(`/api/active-selections/${activeSelection.id}/outline`)
+      .set('Cookie', ownerCookie)
+      .set('Content-Type', 'text/plain')
+      .set('X-File-Name', 'current-outline.txt')
+      .send(
+        Buffer.from(
+          [
+            `${offering.course.courseCode} ${offering.course.title}`,
+            'Assignments: 25%',
+            'Midterm: 25%',
+            'Final Exam: 50%',
+            'Absolute grading with letter grade thresholds',
+          ].join('\n\n'),
+        ),
+      );
+    expect(currentUpload.status).toBe(201);
+    storedKey = (
+      await prisma?.document.findUniqueOrThrow({ where: { id: currentUpload.body.document.id } })
+    ).storageKey;
+    const currentProcessed = await request(app)
+      .post(`/api/extraction-jobs/${currentUpload.body.extractionJob.id}/process`)
+      .set('Cookie', ownerCookie);
+    expect(currentProcessed.status).toBe(200);
+    expect(currentProcessed.body.extractionJob.status).toBe('REVIEW_REQUIRED');
+
+    const staleVerification = await request(app)
+      .post(`/api/extraction-jobs/${staleUpload.body.extractionJob.id}/verify`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: staleProcessed.body.extractionJob.draft.payload });
+    expect(staleVerification.status).toBe(409);
+    expect(staleVerification.body.error).toBe('EXTRACTION_DOCUMENT_NOT_CURRENT');
+
+    const currentVerification = await request(app)
+      .post(`/api/extraction-jobs/${currentUpload.body.extractionJob.id}/verify`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: currentProcessed.body.extractionJob.draft.payload });
+    expect(currentVerification.status).toBe(200);
+    expect(currentVerification.body.extractionJob.status).toBe('VERIFIED');
+    const replacedCanonical = await prisma?.activeCourseState.findUnique({
+      where: { activeCourseSelectionId: activeSelection.id },
+      select: { outlineDocumentId: true, gradingScheme: { select: { sourceDocumentId: true } } },
+    });
+    expect(replacedCanonical).toEqual({
+      outlineDocumentId: currentUpload.body.document.id,
+      gradingScheme: { sourceDocumentId: currentUpload.body.document.id },
+    });
+    if (previousStoredKey) await removePrivateDocument(previousStoredKey);
+    await removePrivateDocument(staleStoredKey);
+
     const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
       name: 'Document Intruder',
       email: intruderEmail,

@@ -86,6 +86,19 @@ describe('schema-constrained extraction provider', () => {
     ).toThrow();
   });
 
+  it('rejects provider output for a different document', async () => {
+    const provider = new SchemaConstrainedExtractionProvider({
+      modelIdentifier: 'test-model',
+      async extractCourseDocument() {
+        return { ...extraction(), documentId: 'another-document' };
+      },
+    });
+
+    await expect(
+      provider.extractCourseDocument(document, { documentId: 'document-1' }),
+    ).rejects.toThrow('another-document');
+  });
+
   it('extracts a conservative draft locally without a network provider', async () => {
     const provider = new SchemaConstrainedExtractionProvider(
       new LocalDeterministicExtractionProvider(),

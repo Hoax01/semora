@@ -104,9 +104,11 @@ async function reviewRequest<T>(url: string, init?: RequestInit): Promise<T> {
         ? 'Resolve the highlighted conflicts before confirming.'
         : body?.error === 'EXTRACTION_REVIEW_NOT_AVAILABLE'
           ? 'This extraction is no longer waiting for review.'
-          : body?.error === 'EXTRACTION_DRAFT_INVALID'
-            ? 'Some edited values are invalid. Check the review fields.'
-            : 'Semora could not save this extraction review.',
+          : body?.error === 'EXTRACTION_DOCUMENT_NOT_CURRENT'
+            ? 'A newer outline is attached to this course. Review the current outline instead.'
+            : body?.error === 'EXTRACTION_DRAFT_INVALID'
+              ? 'Some edited values are invalid. Check the review fields.'
+              : 'Semora could not save this extraction review.',
       body ?? {},
     );
   }
@@ -233,9 +235,7 @@ export function ExtractionReviewPage() {
       );
       applyJob(result.extractionJob);
       setBlockingIssues([]);
-      setNotice(
-        'Course structure verified. Canonical persistence will follow in the next Phase 5 step.',
-      );
+      setNotice('Course structure verified and saved to this active course.');
     } catch (reason) {
       if (reason instanceof ReviewApiError) {
         if (reason.body.extractionJob) applyJob(reason.body.extractionJob);
@@ -654,7 +654,9 @@ export function ExtractionReviewPage() {
               This draft is{' '}
               {job.verification?.state?.toLowerCase().replaceAll('_', ' ') ??
                 job.status.toLowerCase()}
-              . Canonical course records are not changed by this review screen.
+              {job.status === 'VERIFIED'
+                ? '. Canonical course records were updated when it was verified.'
+                : '. Canonical course records were not changed.'}
             </p>
           ) : null}
         </div>

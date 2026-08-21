@@ -2653,7 +2653,7 @@ function ActiveSemesterView({
         throw new Error(
           uploadBody?.error === 'FILE_TOO_LARGE'
             ? 'This outline is larger than the 25 MB limit.'
-            : uploadBody?.error === 'UNSUPPORTED_MIME_TYPE'
+            : uploadBody?.error === 'UNSUPPORTED_DOCUMENT_TYPE'
               ? 'Use a PDF, DOCX, or plain-text outline.'
               : 'Semora could not upload this outline.',
         );

@@ -33,7 +33,7 @@ type ExtractionJobRecord = {
     storageKey: string;
     mimeType: string;
     userId: string;
-    activeCourseState: { id: string } | null;
+    activeCourseState: { id: string; outlineDocumentId: string | null } | null;
     courseOffering: {
       course: { courseCode: string; title: string };
     } | null;
@@ -200,6 +200,14 @@ async function persistCanonicalAcademicData(
   const dataCompleteness = completenessFields.filter(Boolean).length / completenessFields.length;
 
   return prisma.$transaction(async (transaction) => {
+    const activeCourseState = await transaction.activeCourseState.findUnique({
+      where: { id: activeCourseStateId },
+      select: { outlineDocumentId: true },
+    });
+    if (!activeCourseState || activeCourseState.outlineDocumentId !== sourceDocumentId) {
+      return null;
+    }
+
     await transaction.assessment.deleteMany({ where: { activeCourseStateId } });
     await transaction.workloadSignal.deleteMany({ where: { activeCourseStateId } });
     await transaction.gradingScheme.deleteMany({ where: { activeCourseStateId } });
@@ -483,7 +491,11 @@ export function registerExtractionJobRoutes(app: express.Application) {
       return;
     }
     if (!job.document.activeCourseState) {
-      response.status(409).json({ error: 'ACTIVE_COURSE_STATE_NOT_FOUND' });
+      response.status(409).json({ error: 'EXTRACTION_DOCUMENT_NOT_CURRENT' });
+      return;
+    }
+    if (job.document.activeCourseState.outlineDocumentId !== job.document.id) {
+      response.status(409).json({ error: 'EXTRACTION_DOCUMENT_NOT_CURRENT' });
       return;
     }
     const parsed = parseReviewPayload(request.body?.payload);
@@ -511,7 +523,7 @@ export function registerExtractionJobRoutes(app: express.Application) {
       verificationState,
     );
     if (!verified) {
-      response.status(409).json({ error: 'ACTIVE_COURSE_STATE_NOT_FOUND' });
+      response.status(409).json({ error: 'EXTRACTION_DOCUMENT_NOT_CURRENT' });
       return;
     }
     response

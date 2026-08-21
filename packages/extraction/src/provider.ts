@@ -118,6 +118,12 @@ export class SchemaConstrainedExtractionProvider implements AcademicExtractionPr
     context: ExtractionContext,
   ): Promise<CourseDocumentExtraction> {
     const result = await this.provider.extractCourseDocument(document, context);
-    return courseDocumentExtractionSchema.parse(result);
+    const parsed = courseDocumentExtractionSchema.parse(result);
+    if (parsed.documentId !== context.documentId) {
+      throw new Error(
+        `Extraction provider returned document ${parsed.documentId} for requested document ${context.documentId}.`,
+      );
+    }
+    return parsed;
   }
 }

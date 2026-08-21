@@ -231,9 +231,11 @@ ground-truth benchmark are now implemented. Phase 5 is complete.
   active course state's canonical `GradingScheme`, `GradeCategory`,
   `GradeThreshold`, `Assessment`, and structural `WorkloadSignal` records,
   preserving verified-outline provenance and updating state completeness and
-  confidence. Engines consume those typed records rather than draft JSON. The
-  web active-semester course cards provide outline upload, processing, and a
-  two-column evidence-backed review workspace.
+  confidence. A superseded outline cannot later overwrite the canonical data
+  for a newer outline attached to the same active course. Engines consume
+  those typed records rather than draft JSON. The web active-semester course
+  cards provide outline upload, processing, and a two-column evidence-backed
+  review workspace whose completion copy reflects canonical persistence.
 - Every successful extraction intentionally enters review. The fraction that
   needs human correction is not yet a measured product percentage; it requires
   production correction tracking. The opt-in Phase 5.10 benchmark now compares
@@ -374,9 +376,11 @@ Current API integration coverage verifies:
   with a draft, owner-only draft editing, verification, and the persisted
   verification event. Canonical persistence coverage verifies typed
   grading/assessment/workload records, verified-outline provenance, and active
-  course completeness/confidence updates. Provider unit coverage verifies
-  schema-constrained output, rejection of malformed confidence values, local
-  extraction evidence, and deterministic validation conflicts.
+  course completeness/confidence updates. Replacement-upload coverage verifies
+  that a superseded review draft cannot be verified over the currently attached
+  outline. Provider unit coverage verifies schema-constrained output, provider
+  document-identity enforcement, rejection of malformed confidence values,
+  local extraction evidence, and deterministic validation conflicts.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
