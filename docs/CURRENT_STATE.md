@@ -22,7 +22,13 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied; Grade Intelligence is next.
+Phase 6 acceptance criteria are satisfied; Grade Intelligence is next. A full
+Phase 6 acceptance audit was also completed on August 21, 2026: the primary
+authenticated flow was smoke-tested in the browser from sign-in through
+semester lock, assessment forecasting, deadline editing, completion feedback,
+and the responsive active dashboard. The audit hardened the native assessment
+date field to retain values delivered through both browser input and change
+events.
 
 ---
 
@@ -103,6 +109,8 @@ Phase 6 acceptance criteria are satisfied; Grade Intelligence is next.
 - The planner switches to an active-semester view after locking, showing active
   course cards, active credits, a weekly timetable, and simple controls for
   adding, switching, and dropping courses.
+- The active-semester assessment form accepts exact due dates through native
+  date input and change events, preserving the date used by workload forecasts.
 
 ### API and authentication
 
@@ -402,7 +410,7 @@ Phase 6 acceptance criteria are satisfied; Grade Intelligence is next.
 ## Tests and verification
 
 The following quality suite passes after the Phase 6.12 completion-feedback
-implementation:
+implementation and Phase 6 acceptance audit:
 
 ```text
 npm run typecheck
@@ -526,6 +534,12 @@ Current API integration coverage verifies:
   repeated-lock idempotency, Add/Drop operations, same-offering duplicate
   rejection, section switching, dropped-history preservation, and cross-user
   rejection.
+- Browser smoke coverage used a temporary local account to exercise sign-in,
+  semester setup, catalogue search, course selection, lock, active-semester
+  dashboard rendering, dated assessment forecasting, deadline movement,
+  completion feedback, and the 390-pixel responsive dashboard. No new browser
+  errors occurred after the date-input fix; the only recorded errors were
+  stale logs from the intentionally failed first patch during the audit.
 
 ### Phase 2 implementation status
 

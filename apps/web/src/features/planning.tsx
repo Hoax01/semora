@@ -4111,6 +4111,10 @@ function ActiveSemesterView({
                 onChange={(event) =>
                   setAssessmentDraft((draft) => ({ ...draft, dueDate: event.target.value }))
                 }
+                onInput={(event) => {
+                  const dueDate = event.currentTarget.value;
+                  setAssessmentDraft((draft) => ({ ...draft, dueDate }));
+                }}
                 type="date"
                 value={assessmentDraft.dueDate}
               />
