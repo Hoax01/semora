@@ -80,7 +80,24 @@ const updateAssessmentSchema = assessmentFields.partial().superRefine((value, co
   }
 });
 
+const scoreSchema = z
+  .object({
+    pointsEarned: z.number().finite().min(0).nullable().optional(),
+    percentage: z.number().finite().min(0).max(100).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    const hasPoints = value.pointsEarned !== null && value.pointsEarned !== undefined;
+    const hasPercentage = value.percentage !== null && value.percentage !== undefined;
+    if (hasPoints === hasPercentage) {
+      context.addIssue({
+        code: 'custom',
+        path: ['score'],
+        message: 'Provide exactly one of pointsEarned or percentage.',
+      });
+    }
+  });
 const assessmentInclude = {
+  scores: true,
   activeCourseState: {
     include: {
       activeCourseSelection: {
@@ -115,6 +132,15 @@ type AssessmentRecord = {
   sourceDocumentId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  scores: Array<{
+    id: string;
+    userId: string;
+    pointsEarned: { toString(): string } | null;
+    percentageOverride: { toString(): string } | null;
+    recordedAt: Date;
+    sourceType: string;
+  }>;
+
   activeCourseState: {
     activeCourseSelection: {
       id: string;
@@ -149,7 +175,8 @@ function decimalOrNull(value: { toString(): string } | null) {
   return value === null ? null : Number(value);
 }
 
-function serializeAssessment(assessment: AssessmentRecord) {
+function serializeAssessment(assessment: AssessmentRecord, userId: string) {
+  const score = assessment.scores.find((candidate) => candidate.userId === userId) ?? null;
   const personalEffortHours = decimalOrNull(assessment.personalEffortHours);
   const outlineEffortHours = decimalOrNull(assessment.estimatedEffortHours);
   const defaultEffortHours =
@@ -174,6 +201,16 @@ function serializeAssessment(assessment: AssessmentRecord) {
     assessmentType: assessment.assessmentType,
     weightPercentage: decimalOrNull(assessment.weightPercentage),
     pointsPossible: decimalOrNull(assessment.pointsPossible),
+    score: score
+      ? {
+          id: score.id,
+          pointsEarned: decimalOrNull(score.pointsEarned),
+          percentage: decimalOrNull(score.percentageOverride),
+          recordedAt: score.recordedAt.toISOString(),
+          sourceType: score.sourceType,
+        }
+      : null,
+
     dueDate: assessment.dueAt?.toISOString().slice(0, 10) ?? null,
     datePrecision: assessment.datePrecision,
     status: assessment.status,
@@ -273,7 +310,7 @@ export function registerAssessmentRoutes(app: express.Express) {
     });
     response.status(200).json({
       assessments: assessments.map((assessment) =>
-        serializeAssessment(assessment as AssessmentRecord),
+        serializeAssessment(assessment as AssessmentRecord, userId),
       ),
     });
   });
@@ -320,7 +357,9 @@ export function registerAssessmentRoutes(app: express.Express) {
       },
       include: assessmentInclude,
     });
-    response.status(201).json({ assessment: serializeAssessment(assessment as AssessmentRecord) });
+    response
+      .status(201)
+      .json({ assessment: serializeAssessment(assessment as AssessmentRecord, userId) });
   });
 
   app.patch('/api/assessments/:assessmentId', async (request, response) => {
@@ -384,9 +423,114 @@ export function registerAssessmentRoutes(app: express.Express) {
       },
       include: assessmentInclude,
     });
-    response.status(200).json({ assessment: serializeAssessment(assessment as AssessmentRecord) });
+    response
+      .status(200)
+      .json({ assessment: serializeAssessment(assessment as AssessmentRecord, userId) });
   });
 
+  app.put('/api/assessments/:assessmentId/score', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = scoreSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const existing = await loadOwnedAssessment(request.params.assessmentId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    if (existing.status === 'CANCELLED') {
+      response.status(409).json({ error: 'ASSESSMENT_CANCELLED' });
+      return;
+    }
+
+    const values = parsed.data;
+    const hasPoints = values.pointsEarned !== null && values.pointsEarned !== undefined;
+    const pointsEarned = hasPoints ? (values.pointsEarned as number) : null;
+    const percentage = hasPoints ? null : (values.percentage as number);
+    const pointsPossible = decimalOrNull(existing.pointsPossible);
+    if (pointsEarned !== null && (pointsPossible === null || pointsEarned > pointsPossible)) {
+      validationError(response, {
+        pointsEarned: ['Points earned cannot exceed the assessment points possible.'],
+      });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.assessmentScore.upsert({
+        where: {
+          assessmentId_userId: {
+            assessmentId: existing.id,
+            userId,
+          },
+        },
+        create: {
+          assessmentId: existing.id,
+          userId,
+          pointsEarned,
+          percentageOverride: percentage,
+          sourceType: 'USER_ENTERED',
+          recordedAt: new Date(),
+        },
+        update: {
+          pointsEarned,
+          percentageOverride: percentage,
+          sourceType: 'USER_ENTERED',
+          recordedAt: new Date(),
+        },
+      }),
+      prisma.assessment.update({
+        where: { id: existing.id },
+        data: { status: 'GRADED' },
+      }),
+    ]);
+
+    const assessment = await loadOwnedAssessment(existing.id, userId);
+    if (!assessment) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    response.status(200).json({ assessment: serializeAssessment(assessment, userId) });
+  });
+
+  app.delete('/api/assessments/:assessmentId/score', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const existing = await loadOwnedAssessment(request.params.assessmentId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.assessmentScore.deleteMany({
+        where: { assessmentId: existing.id, userId },
+      });
+      if (existing.status === 'GRADED') {
+        await transaction.assessment.update({
+          where: { id: existing.id },
+          data: { status: 'UPCOMING' },
+        });
+      }
+    });
+
+    const assessment = await loadOwnedAssessment(existing.id, userId);
+    if (!assessment) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    response.status(200).json({ assessment: serializeAssessment(assessment, userId) });
+  });
   app.delete('/api/assessments/:assessmentId', async (request, response) => {
     if (!prisma) {
       response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
@@ -400,7 +544,7 @@ export function registerAssessmentRoutes(app: express.Express) {
       return;
     }
     if (existing.status === 'CANCELLED') {
-      response.status(200).json({ assessment: serializeAssessment(existing) });
+      response.status(200).json({ assessment: serializeAssessment(existing, userId) });
       return;
     }
     const assessment = await prisma.assessment.update({
@@ -408,6 +552,8 @@ export function registerAssessmentRoutes(app: express.Express) {
       data: { status: 'CANCELLED' },
       include: assessmentInclude,
     });
-    response.status(200).json({ assessment: serializeAssessment(assessment as AssessmentRecord) });
+    response
+      .status(200)
+      .json({ assessment: serializeAssessment(assessment as AssessmentRecord, userId) });
   });
 }

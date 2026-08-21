@@ -223,6 +223,8 @@ type AssessmentType =
   | 'PARTICIPATION'
   | 'OTHER';
 
+type AssessmentScoreMode = 'POINTS' | 'PERCENTAGE';
+
 type Assessment = {
   id: string;
   activeSelectionId: string;
@@ -233,6 +235,13 @@ type Assessment = {
   assessmentType: AssessmentType;
   weightPercentage: number | null;
   pointsPossible: number | null;
+  score: {
+    id: string;
+    pointsEarned: number | null;
+    percentage: number | null;
+    recordedAt: string;
+    sourceType: string;
+  } | null;
   dueDate: string | null;
   datePrecision: 'EXACT' | 'UNKNOWN';
   status: string;
@@ -3134,6 +3143,8 @@ function ActiveSemesterView({
     personalEffortHours: '',
   });
   const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
+  const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
+  const [scoreModes, setScoreModes] = useState<Record<string, AssessmentScoreMode>>({});
 
   async function loadAssessments() {
     setIsAssessmentsLoading(true);
@@ -3374,6 +3385,70 @@ function ActiveSemesterView({
     );
   }
 
+  function scoreModeFor(assessment: Assessment): AssessmentScoreMode {
+    return (
+      scoreModes[assessment.id] ??
+      (assessment.score?.pointsEarned != null || assessment.pointsPossible !== null
+        ? 'POINTS'
+        : 'PERCENTAGE')
+    );
+  }
+
+  function scoreDraftFor(assessment: Assessment) {
+    const mode = scoreModeFor(assessment);
+    const draft = scoreDrafts[assessment.id];
+    if (draft !== undefined) return draft;
+    return mode === 'POINTS'
+      ? (assessment.score?.pointsEarned?.toString() ?? '')
+      : (assessment.score?.percentage?.toString() ?? '');
+  }
+
+  function saveAssessmentScore(assessment: Assessment) {
+    const rawValue = scoreDraftFor(assessment).trim();
+    const value = Number(rawValue);
+    const mode = scoreModeFor(assessment);
+    if (!rawValue || !Number.isFinite(value)) {
+      setError('Enter a numeric score before saving.');
+      return;
+    }
+    if (
+      mode === 'POINTS' &&
+      assessment.pointsPossible !== null &&
+      value > assessment.pointsPossible
+    ) {
+      setError('Points earned cannot exceed the points possible for this assessment.');
+      return;
+    }
+
+    void runMutation('assessment-score-' + assessment.id, () =>
+      apiRequest('/api/assessments/' + assessment.id + '/score', {
+        method: 'PUT',
+        body: JSON.stringify(mode === 'POINTS' ? { pointsEarned: value } : { percentage: value }),
+      }),
+    ).then((succeeded) => {
+      if (succeeded) {
+        setScoreDrafts((drafts) => {
+          const next = { ...drafts };
+          delete next[assessment.id];
+          return next;
+        });
+      }
+    });
+  }
+
+  function clearAssessmentScore(assessment: Assessment) {
+    void runMutation('assessment-score-clear-' + assessment.id, () =>
+      apiRequest('/api/assessments/' + assessment.id + '/score', { method: 'DELETE' }),
+    ).then((succeeded) => {
+      if (succeeded) {
+        setScoreDrafts((drafts) => {
+          const next = { ...drafts };
+          delete next[assessment.id];
+          return next;
+        });
+      }
+    });
+  }
   async function uploadOutline(
     selection: ActiveCourseSelection,
     event: ChangeEvent<HTMLInputElement>,
@@ -4257,6 +4332,80 @@ function ActiveSemesterView({
                         <span style={{ width: `${assessment.progressPercentage}%` }} />
                       </div>
                     ) : null}
+                    <div
+                      className="assessment-score-entry"
+                      aria-label={'Score for ' + assessment.title}
+                    >
+                      <label>
+                        Score
+                        <input
+                          aria-label={'Score for ' + assessment.title}
+                          disabled={isCancelled || Boolean(busyAction)}
+                          max={
+                            scoreModeFor(assessment) === 'POINTS'
+                              ? (assessment.pointsPossible ?? undefined)
+                              : 100
+                          }
+                          min="0"
+                          onChange={(event) =>
+                            setScoreDrafts((drafts) => ({
+                              ...drafts,
+                              [assessment.id]: event.target.value,
+                            }))
+                          }
+                          step="0.1"
+                          type="number"
+                          value={scoreDraftFor(assessment)}
+                        />
+                      </label>
+                      <label>
+                        Format
+                        <select
+                          disabled={isCancelled || Boolean(busyAction)}
+                          onChange={(event) =>
+                            setScoreModes((modes) => ({
+                              ...modes,
+                              [assessment.id]: event.target.value as AssessmentScoreMode,
+                            }))
+                          }
+                          value={scoreModeFor(assessment)}
+                        >
+                          <option disabled={assessment.pointsPossible === null} value="POINTS">
+                            Points{assessment.pointsPossible === null ? ' unavailable' : ''}
+                          </option>
+                          <option value="PERCENTAGE">Percentage</option>
+                        </select>
+                      </label>
+                      <div className="assessment-score-actions">
+                        <small>
+                          {assessment.score
+                            ? 'Recorded score · updates grade calculations'
+                            : 'No score entered'}
+                        </small>
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={isCancelled || Boolean(busyAction)}
+                          onClick={() => saveAssessmentScore(assessment)}
+                          type="button"
+                        >
+                          {busyAction === 'assessment-score-' + assessment.id
+                            ? 'Saving…'
+                            : 'Save score'}
+                        </button>
+                        {assessment.score ? (
+                          <button
+                            className="quiet-button compact-button"
+                            disabled={Boolean(busyAction)}
+                            onClick={() => clearAssessmentScore(assessment)}
+                            type="button"
+                          >
+                            {busyAction === 'assessment-score-clear-' + assessment.id
+                              ? 'Clearing…'
+                              : 'Clear'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                     <div className="assessment-actions">
                       {!isCancelled && !isDone ? (
                         <button

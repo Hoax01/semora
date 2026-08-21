@@ -162,6 +162,7 @@ model User {
   extractionVerifications ExtractionVerification[]
   sessions                Session[]
   accounts                Account[]
+  assessmentScores        AssessmentScore[]
 
   @@map("users")
 }
@@ -486,34 +487,51 @@ model GradeThreshold {
 }
 
 model Assessment {
-  id                   String                  @id @default(cuid())
-  activeCourseStateId  String                  @map("active_course_state_id")
-  gradeCategoryId      String?                 @map("grade_category_id")
-  title                String
-  assessmentType       AssessmentType          @map("assessment_type")
-  weightPercentage     Decimal?                @map("weight_percentage") @db.Decimal(6, 3)
-  pointsPossible       Decimal?                @map("points_possible") @db.Decimal(8, 3)
-  dueAt                DateTime?               @map("due_at") @db.Date
-  datePrecision        AssessmentDatePrecision @map("date_precision")
-  status               AssessmentStatus        @default(UPCOMING)
-  workStatus           AssessmentWorkStatus    @default(NOT_STARTED) @map("work_status")
-  progressPercentage   Decimal?                @map("progress_percentage") @db.Decimal(5, 2)
-  estimatedEffortHours Decimal?                @map("estimated_effort_hours") @db.Decimal(5, 2)
-  effortConfidence     Decimal?                @map("effort_confidence") @db.Decimal(3, 2)
-  personalEffortHours  Decimal?                @map("personal_effort_hours") @db.Decimal(5, 2)
-  personalEffortConfidence Decimal?            @map("personal_effort_confidence") @db.Decimal(3, 2)
-  isGroupAssessment    Boolean                 @default(false) @map("is_group_assessment")
-  sourceType           AcademicSourceType      @map("source_type")
-  sourceDocumentId     String?                 @map("source_document_id")
-  createdAt            DateTime                @default(now()) @map("created_at")
-  updatedAt            DateTime                @updatedAt @map("updated_at")
-  activeCourseState    ActiveCourseState       @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
-  gradeCategory        GradeCategory?          @relation(fields: [gradeCategoryId], references: [id], onDelete: SetNull)
-  sourceDocument       Document?               @relation("AssessmentSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  id                       String                  @id @default(cuid())
+  activeCourseStateId      String                  @map("active_course_state_id")
+  gradeCategoryId          String?                 @map("grade_category_id")
+  title                    String
+  assessmentType           AssessmentType          @map("assessment_type")
+  weightPercentage         Decimal?                @map("weight_percentage") @db.Decimal(6, 3)
+  pointsPossible           Decimal?                @map("points_possible") @db.Decimal(8, 3)
+  dueAt                    DateTime?               @map("due_at") @db.Date
+  datePrecision            AssessmentDatePrecision @map("date_precision")
+  status                   AssessmentStatus        @default(UPCOMING)
+  workStatus               AssessmentWorkStatus    @default(NOT_STARTED) @map("work_status")
+  progressPercentage       Decimal?                @map("progress_percentage") @db.Decimal(5, 2)
+  estimatedEffortHours     Decimal?                @map("estimated_effort_hours") @db.Decimal(5, 2)
+  effortConfidence         Decimal?                @map("effort_confidence") @db.Decimal(3, 2)
+  personalEffortHours      Decimal?                @map("personal_effort_hours") @db.Decimal(5, 2)
+  personalEffortConfidence Decimal?                @map("personal_effort_confidence") @db.Decimal(3, 2)
+  isGroupAssessment        Boolean                 @default(false) @map("is_group_assessment")
+  sourceType               AcademicSourceType      @map("source_type")
+  sourceDocumentId         String?                 @map("source_document_id")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+  activeCourseState        ActiveCourseState       @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
+  gradeCategory            GradeCategory?          @relation(fields: [gradeCategoryId], references: [id], onDelete: SetNull)
+  sourceDocument           Document?               @relation("AssessmentSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  scores                   AssessmentScore[]
 
   @@index([activeCourseStateId, dueAt])
   @@index([gradeCategoryId])
   @@map("assessments")
+}
+
+model AssessmentScore {
+  id                 String             @id @default(cuid())
+  assessmentId       String             @map("assessment_id")
+  userId             String             @map("user_id")
+  pointsEarned       Decimal?           @map("points_earned") @db.Decimal(8, 3)
+  percentageOverride Decimal?           @map("percentage_override") @db.Decimal(6, 3)
+  recordedAt         DateTime           @default(now()) @map("recorded_at")
+  sourceType         AcademicSourceType @default(USER_ENTERED) @map("source_type")
+  assessment         Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, userId])
+  @@index([userId, recordedAt])
+  @@map("assessment_scores")
 }
 
 model WorkloadSignal {
@@ -624,16 +642,16 @@ model CommitmentMeeting {
 }
 
 model CommitmentEvent {
-  id                    String                @id @default(cuid())
-  commitmentId          String                @map("commitment_id")
-  title                 String
-  startAt               DateTime              @map("start_at")
-  endAt                 DateTime              @map("end_at")
-  estimatedEffortHours  Decimal?              @map("estimated_effort_hours") @db.Decimal(5, 2)
-  flexibilityOverride   CommitmentFlexibility? @map("flexibility_override")
-  createdAt             DateTime              @default(now()) @map("created_at")
-  updatedAt             DateTime              @updatedAt @map("updated_at")
-  commitment            Commitment            @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  id                   String                 @id @default(cuid())
+  commitmentId         String                 @map("commitment_id")
+  title                String
+  startAt              DateTime               @map("start_at")
+  endAt                DateTime               @map("end_at")
+  estimatedEffortHours Decimal?               @map("estimated_effort_hours") @db.Decimal(5, 2)
+  flexibilityOverride  CommitmentFlexibility? @map("flexibility_override")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  commitment           Commitment             @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
 
   @@index([commitmentId, startAt])
   @@map("commitment_events")

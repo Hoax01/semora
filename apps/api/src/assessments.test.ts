@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { app } from './app.js';
 import { prisma } from './db.js';
 
-describe('Phase 6 assessment management', () => {
+describe('Phase 6 and 7 assessment management', () => {
   const ownerEmail = `assessment-owner-${Date.now()}@example.test`;
   const intruderEmail = `assessment-intruder-${Date.now()}@example.test`;
   const password = 'semora-test-password';
@@ -76,6 +76,63 @@ describe('Phase 6 assessment management', () => {
     });
 
     const assessmentId = created.body.assessment.id as string;
+
+    const pointsScore = await request(app)
+      .put('/api/assessments/' + assessmentId + '/score')
+      .set('Cookie', ownerCookie)
+      .send({ pointsEarned: 18 });
+    expect(pointsScore.status).toBe(400);
+
+    const pointsPossible = await request(app)
+      .patch('/api/assessments/' + assessmentId)
+      .set('Cookie', ownerCookie)
+      .send({ pointsPossible: 20 });
+    expect(pointsPossible.status).toBe(200);
+
+    const savedPointsScore = await request(app)
+      .put('/api/assessments/' + assessmentId + '/score')
+      .set('Cookie', ownerCookie)
+      .send({ pointsEarned: 18 });
+    expect(savedPointsScore.status).toBe(200);
+    expect(savedPointsScore.body.assessment).toMatchObject({
+      status: 'GRADED',
+      score: {
+        pointsEarned: 18,
+        percentage: null,
+        sourceType: 'USER_ENTERED',
+      },
+    });
+
+    const savedPercentageScore = await request(app)
+      .put('/api/assessments/' + assessmentId + '/score')
+      .set('Cookie', ownerCookie)
+      .send({ percentage: 82 });
+    expect(savedPercentageScore.status).toBe(200);
+    expect(savedPercentageScore.body.assessment.score).toMatchObject({
+      pointsEarned: null,
+      percentage: 82,
+    });
+
+    const listedWithScore = await request(app)
+      .get('/api/workspaces/' + workspace.id + '/assessments')
+      .set('Cookie', ownerCookie);
+    expect(listedWithScore.body.assessments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: assessmentId,
+          score: expect.objectContaining({ percentage: 82 }),
+        }),
+      ]),
+    );
+
+    const clearedScore = await request(app)
+      .delete('/api/assessments/' + assessmentId + '/score')
+      .set('Cookie', ownerCookie);
+    expect(clearedScore.status).toBe(200);
+    expect(clearedScore.body.assessment).toMatchObject({
+      status: 'UPCOMING',
+      score: null,
+    });
     const initialWorkload = await request(app)
       .get(`/api/workspaces/${workspace.id}/workload?asOf=2026-09-01T09:00:00.000Z`)
       .set('Cookie', ownerCookie);
@@ -218,5 +275,10 @@ describe('Phase 6 assessment management', () => {
       .get(`/api/workspaces/${workspace.id}/assessments`)
       .set('Cookie', intruderSignUp.headers['set-cookie']);
     expect(intruder.status).toBe(404);
+    const intruderScore = await request(app)
+      .put('/api/assessments/' + assessmentId + '/score')
+      .set('Cookie', intruderSignUp.headers['set-cookie'])
+      .send({ percentage: 90 });
+    expect(intruderScore.status).toBe(404);
   });
 });
