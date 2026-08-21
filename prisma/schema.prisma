@@ -500,6 +500,8 @@ model Assessment {
   progressPercentage   Decimal?                @map("progress_percentage") @db.Decimal(5, 2)
   estimatedEffortHours Decimal?                @map("estimated_effort_hours") @db.Decimal(5, 2)
   effortConfidence     Decimal?                @map("effort_confidence") @db.Decimal(3, 2)
+  personalEffortHours  Decimal?                @map("personal_effort_hours") @db.Decimal(5, 2)
+  personalEffortConfidence Decimal?            @map("personal_effort_confidence") @db.Decimal(3, 2)
   isGroupAssessment    Boolean                 @default(false) @map("is_group_assessment")
   sourceType           AcademicSourceType      @map("source_type")
   sourceDocumentId     String?                 @map("source_document_id")

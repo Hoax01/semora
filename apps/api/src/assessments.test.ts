@@ -41,7 +41,9 @@ describe('Phase 6 assessment management', () => {
     const selection = await prisma.activeCourseSelection.create({
       data: { workspaceId: workspace.id, sectionId: section.id, status: 'ACTIVE' },
     });
-    await prisma.activeCourseState.create({ data: { activeCourseSelectionId: selection.id } });
+    const activeState = await prisma.activeCourseState.create({
+      data: { activeCourseSelectionId: selection.id },
+    });
 
     const empty = await request(app)
       .get(`/api/workspaces/${workspace.id}/assessments`)
@@ -67,10 +69,74 @@ describe('Phase 6 assessment management', () => {
       status: 'UPCOMING',
       workStatus: 'NOT_STARTED',
       progressPercentage: null,
+      estimatedEffortHours: 6,
+      effortSource: 'GENERIC_DEFAULT',
+      personalEffortHours: null,
       sourceType: 'USER_ENTERED',
     });
 
     const assessmentId = created.body.assessment.id as string;
+    const personalEstimate = await request(app)
+      .patch(`/api/assessments/${assessmentId}`)
+      .set('Cookie', ownerCookie)
+      .send({ personalEffortHours: 9 });
+    expect(personalEstimate.status).toBe(200);
+    expect(personalEstimate.body.assessment).toMatchObject({
+      estimatedEffortHours: 9,
+      personalEffortHours: 9,
+      effortSource: 'PERSONAL_ESTIMATE',
+      effortConfidence: 0.8,
+    });
+
+    const resetEstimate = await request(app)
+      .patch(`/api/assessments/${assessmentId}`)
+      .set('Cookie', ownerCookie)
+      .send({ personalEffortHours: null });
+    expect(resetEstimate.status).toBe(200);
+    expect(resetEstimate.body.assessment).toMatchObject({
+      estimatedEffortHours: 6,
+      personalEffortHours: null,
+      effortSource: 'GENERIC_DEFAULT',
+    });
+
+    const outlineAssessment = await prisma.assessment.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        title: 'Outline project milestone',
+        assessmentType: 'OTHER',
+        datePrecision: 'UNKNOWN',
+        status: 'UPCOMING',
+        estimatedEffortHours: 11,
+        effortConfidence: 0.7,
+        sourceType: 'VERIFIED_OUTLINE',
+      },
+    });
+    const listed = await request(app)
+      .get(`/api/workspaces/${workspace.id}/assessments`)
+      .set('Cookie', ownerCookie);
+    expect(listed.status).toBe(200);
+    expect(listed.body.assessments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: outlineAssessment.id,
+          estimatedEffortHours: 11,
+          effortSource: 'OUTLINE_ESTIMATE',
+          personalEffortHours: null,
+        }),
+      ]),
+    );
+
+    const unknown = await request(app)
+      .post(`/api/active-selections/${selection.id}/assessments`)
+      .set('Cookie', ownerCookie)
+      .send({ title: 'Unscoped task', assessmentType: 'OTHER' });
+    expect(unknown.status).toBe(201);
+    expect(unknown.body.assessment).toMatchObject({
+      estimatedEffortHours: null,
+      effortSource: 'UNKNOWN',
+      personalEffortHours: null,
+    });
+
     const progress = await request(app)
       .patch(`/api/assessments/${assessmentId}`)
       .set('Cookie', ownerCookie)

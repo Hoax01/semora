@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.2 complete)
-**Next Build Objective:** Phase 6.3 — Personal Effort Estimates
+**Current Phase:** Phase 6 — Semester Command Center (6.3 complete)
+**Next Build Objective:** Phase 6.4 — Commitment Events
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -16,10 +16,10 @@ document-normalization foundation, private outline upload/storage, extraction
 job state, a free local deterministic provider, deterministic validation, the
 mandatory review/verification flow, canonical persistence, and an opt-in
 ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
-6.1 pure deterministic Workload Engine package and Phase 6.2 manual assessment
-management are now implemented and regression-covered; personal effort
-overrides, one-off commitment events, pressure API integration, and the full
-command-center forecast UI remain incomplete.
+6.1 pure deterministic Workload Engine package, Phase 6.2 manual assessment
+management, and Phase 6.3 personal effort estimates are now implemented and
+regression-covered; one-off commitment events, pressure API integration, and
+the full command-center forecast UI remain incomplete.
 
 ---
 
@@ -179,6 +179,10 @@ command-center forecast UI remain incomplete.
   fields and separate work progress, and cancellation without deleting the
   historical row. Manual records use `USER_ENTERED` provenance and work status
   is kept separate from academic result status.
+- Assessment responses also expose effective effort and provenance, using
+  centralized type defaults when no outline or personal estimate exists;
+  personal estimates can be saved or cleared without overwriting canonical
+  outline-derived effort.
 - The planner exposes a deliberate Lock Semester panel and an active-semester
   dashboard with selected-course cards, a Monday-to-Friday timetable, active
   credit totals, and simple Add/Drop and section-switch controls. Candidate
@@ -187,6 +191,10 @@ command-center forecast UI remain incomplete.
   assessment entry form. Users can view assessments across active courses, add
   an assessment without an outline, edit title/type/date/weight/progress, mark
   work done, and cancel an assessment while retaining it in the timeline.
+- Assessment effort resolves through the Workload Engine's centralized type
+  defaults, preserves outline-derived effort separately, and supports a
+  user-scoped personal estimate that can be cleared to restore the fallback.
+  The timeline labels personal, outline, default, and unknown effort sources.
 
 ### Extraction foundation
 
@@ -291,6 +299,7 @@ command-center forecast UI remain incomplete.
   - `20260821150000_phase5_extraction_verification`
   - `20260821160000_phase5_canonical_academic_data`
   - `20260821170000_phase6_assessment_management`
+  - `20260821180000_phase6_personal_effort_estimates`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -328,13 +337,16 @@ command-center forecast UI remain incomplete.
   `USER_ENTERED` academic-source provenance. The existing `Assessment` remains
   scoped through the user's active course state; no shared-assessment model was
   introduced.
+- Phase 6.3 adds nullable personal effort hours and confidence alongside the
+  canonical assessment effort fields. The API returns the effective estimate
+  and its provenance without overwriting verified outline data.
 
 ---
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 6.1 workload-engine
-foundation:
+The following quality suite passes after the Phase 6.3 personal-effort
+estimate implementation:
 
 ```text
 npm run typecheck
@@ -423,6 +435,7 @@ Current API integration coverage verifies:
   unknown-date behavior, importance separation, and active overdue work.
 - Assessment API integration coverage verifies manual creation, exact/unknown
   dates, separate progress and academic status, completion, cancellation,
+  personal effort override/reset behavior, centralized type defaults,
   ownership isolation, and active-course-state boundaries.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
@@ -446,7 +459,7 @@ Current API integration coverage verifies:
 - catalogue imports reject malformed or duplicate source records and preserve a
   selected section's stable identity across a repeated import while updating
   its meetings.
-- Prisma migration status reports all ten checked-in migrations applied and the
+- Prisma migration status reports all twelve checked-in migrations applied and the
   local database schema up to date after the Phase 5 canonical academic-data
   migration.
 - Lock workflow integration coverage verifies critical-conflict rejection
@@ -706,10 +719,10 @@ queries on one client. The exercised requests and assertions pass, but the
 adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
-against real student workload feedback. Phase 6.2 exposes the assessment data
-needed by the engine, but pressure API integration and the forecast dashboard
-remain intentionally deferred until the remaining Phase 6 input and UI chunks
-are implemented.
+against real student workload feedback. Phase 6.3 exposes effective assessment
+effort with personal provenance, but one-off commitment events, pressure API
+integration, and the forecast dashboard remain intentionally deferred until
+the remaining Phase 6 chunks are implemented.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -768,6 +781,7 @@ prisma/migrations/20260821160000_phase5_canonical_academic_data/
 prisma/migrations/20260821130000_phase5_documents/
 prisma/migrations/20260821140000_phase5_extraction_jobs/
 prisma/migrations/20260821170000_phase6_assessment_management/
+prisma/migrations/20260821180000_phase6_personal_effort_estimates/
 ```
 
 ---
@@ -788,5 +802,7 @@ are in place. Phase 6.1 is complete: the deterministic Workload Engine
 consumes verified canonical assessment-shaped data; draft JSON remains out of
 scope for engine inputs. Phase 6.2 is complete: users can manually manage
 assessment timeline items even when extraction is unavailable, with separate
-work progress and academic result status. The next objective is Phase 6.3,
-personal effort estimates and type-based workload defaults in the user flow.
+work progress and academic result status. Phase 6.3 is complete: effective
+effort uses centralized type defaults, preserves verified outline estimates,
+and supports reversible personal overrides. The next objective is Phase 6.4,
+one-off commitment events.

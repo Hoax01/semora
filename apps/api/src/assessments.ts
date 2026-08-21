@@ -1,5 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
+import { DEFAULT_WORKLOAD_ENGINE_CONFIG, type AssessmentType } from '@semora/workload-engine';
 import { prisma } from './db.js';
 import { requireUserId } from './session.js';
 
@@ -25,6 +26,7 @@ const assessmentFields = z.object({
   datePrecision: z.enum(['EXACT', 'UNKNOWN']).optional(),
   workStatus: z.enum(workStatuses).optional(),
   progressPercentage: z.number().finite().min(0).max(100).nullable().optional(),
+  personalEffortHours: z.number().finite().min(0).max(168).nullable().optional(),
 });
 
 const createAssessmentSchema = assessmentFields.superRefine((value, context) => {
@@ -106,6 +108,8 @@ type AssessmentRecord = {
   progressPercentage: { toString(): string } | null;
   estimatedEffortHours: { toString(): string } | null;
   effortConfidence: { toString(): string } | null;
+  personalEffortHours: { toString(): string } | null;
+  personalEffortConfidence: { toString(): string } | null;
   isGroupAssessment: boolean;
   sourceType: string;
   sourceDocumentId: string | null;
@@ -146,6 +150,18 @@ function decimalOrNull(value: { toString(): string } | null) {
 }
 
 function serializeAssessment(assessment: AssessmentRecord) {
+  const personalEffortHours = decimalOrNull(assessment.personalEffortHours);
+  const outlineEffortHours = decimalOrNull(assessment.estimatedEffortHours);
+  const defaultEffortHours =
+    DEFAULT_WORKLOAD_ENGINE_CONFIG.effortDefaults[assessment.assessmentType as AssessmentType];
+  const effortSource =
+    personalEffortHours !== null
+      ? 'PERSONAL_ESTIMATE'
+      : outlineEffortHours !== null
+        ? 'OUTLINE_ESTIMATE'
+        : defaultEffortHours !== null
+          ? 'GENERIC_DEFAULT'
+          : 'UNKNOWN';
   return {
     id: assessment.id,
     activeSelectionId: assessment.activeCourseState.activeCourseSelection.id,
@@ -163,8 +179,17 @@ function serializeAssessment(assessment: AssessmentRecord) {
     status: assessment.status,
     workStatus: assessment.workStatus,
     progressPercentage: decimalOrNull(assessment.progressPercentage),
-    estimatedEffortHours: decimalOrNull(assessment.estimatedEffortHours),
-    effortConfidence: decimalOrNull(assessment.effortConfidence),
+    estimatedEffortHours: personalEffortHours ?? outlineEffortHours ?? defaultEffortHours,
+    effortConfidence:
+      effortSource === 'PERSONAL_ESTIMATE'
+        ? (decimalOrNull(assessment.personalEffortConfidence) ??
+          DEFAULT_WORKLOAD_ENGINE_CONFIG.explicitEffortConfidence)
+        : (decimalOrNull(assessment.effortConfidence) ??
+          (effortSource === 'GENERIC_DEFAULT'
+            ? DEFAULT_WORKLOAD_ENGINE_CONFIG.defaultEffortConfidence
+            : null)),
+    effortSource,
+    personalEffortHours,
     isGroupAssessment: assessment.isGroupAssessment,
     sourceType: assessment.sourceType,
     sourceDocumentId: assessment.sourceDocumentId,
@@ -289,6 +314,8 @@ export function registerAssessmentRoutes(app: express.Express) {
         status: 'UPCOMING',
         workStatus: workState.workStatus ?? 'NOT_STARTED',
         progressPercentage: workState.progressPercentage ?? null,
+        personalEffortHours: values.personalEffortHours ?? null,
+        personalEffortConfidence: values.personalEffortHours == null ? null : 0.8,
         sourceType: 'USER_ENTERED',
       },
       include: assessmentInclude,
@@ -347,6 +374,12 @@ export function registerAssessmentRoutes(app: express.Express) {
         ...(values.dueDate === undefined && values.datePrecision === undefined
           ? {}
           : { datePrecision: values.dueDate ? 'EXACT' : (values.datePrecision ?? 'UNKNOWN') }),
+        ...(values.personalEffortHours === undefined
+          ? {}
+          : {
+              personalEffortHours: values.personalEffortHours,
+              personalEffortConfidence: values.personalEffortHours === null ? null : 0.8,
+            }),
         ...workState,
       },
       include: assessmentInclude,

@@ -240,6 +240,8 @@ type Assessment = {
   progressPercentage: number | null;
   estimatedEffortHours: number | null;
   effortConfidence: number | null;
+  effortSource: 'PERSONAL_ESTIMATE' | 'OUTLINE_ESTIMATE' | 'GENERIC_DEFAULT' | 'UNKNOWN';
+  personalEffortHours: number | null;
   isGroupAssessment: boolean;
   sourceType: string;
   sourceDocumentId: string | null;
@@ -254,6 +256,7 @@ type AssessmentDraft = {
   weightPercentage: string;
   dueDate: string;
   progressPercentage: string;
+  personalEffortHours: string;
 };
 
 type Meeting = {
@@ -2603,6 +2606,7 @@ function ActiveSemesterView({
     weightPercentage: '',
     dueDate: '',
     progressPercentage: '0',
+    personalEffortHours: '',
   });
   const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
 
@@ -2725,6 +2729,7 @@ function ActiveSemesterView({
       weightPercentage: '',
       dueDate: '',
       progressPercentage: '0',
+      personalEffortHours: '',
     });
   }
 
@@ -2737,12 +2742,14 @@ function ActiveSemesterView({
       weightPercentage: assessment.weightPercentage?.toString() ?? '',
       dueDate: assessment.dueDate ?? '',
       progressPercentage: Math.round(assessment.progressPercentage ?? 0).toString(),
+      personalEffortHours: assessment.personalEffortHours?.toString() ?? '',
     });
   }
 
   function assessmentPayload() {
     const weight = assessmentDraft.weightPercentage.trim();
     const progress = assessmentDraft.progressPercentage.trim();
+    const personalEffort = assessmentDraft.personalEffortHours.trim();
     return {
       title: assessmentDraft.title.trim(),
       assessmentType: assessmentDraft.assessmentType,
@@ -2750,6 +2757,7 @@ function ActiveSemesterView({
       dueDate: assessmentDraft.dueDate || null,
       datePrecision: assessmentDraft.dueDate ? 'EXACT' : 'UNKNOWN',
       progressPercentage: progress ? Number(progress) : 0,
+      personalEffortHours: personalEffort ? Number(personalEffort) : null,
     };
   }
 
@@ -3116,6 +3124,23 @@ function ActiveSemesterView({
                 value={assessmentDraft.progressPercentage}
               />
             </label>
+            <label>
+              Your effort estimate (hours)
+              <input
+                max="168"
+                min="0"
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({
+                    ...draft,
+                    personalEffortHours: event.target.value,
+                  }))
+                }
+                placeholder="Type default"
+                step="0.5"
+                type="number"
+                value={assessmentDraft.personalEffortHours}
+              />
+            </label>
           </div>
           <div className="assessment-entry-actions">
             <button
@@ -3130,7 +3155,9 @@ function ActiveSemesterView({
                     ? 'Save assessment'
                     : 'Add assessment'}
             </button>
-            <small>Dates can remain unknown until they are announced.</small>
+            <small>
+              Leave effort blank to use the type default or outline estimate. It can be reset later.
+            </small>
           </div>
         </form>
 
@@ -3145,6 +3172,14 @@ function ActiveSemesterView({
             {assessments.map((assessment) => {
               const isCancelled = assessment.status === 'CANCELLED';
               const isDone = assessment.workStatus === 'DONE';
+              const effortLabel =
+                assessment.effortSource === 'PERSONAL_ESTIMATE'
+                  ? 'Your estimate'
+                  : assessment.effortSource === 'OUTLINE_ESTIMATE'
+                    ? 'From outline'
+                    : assessment.effortSource === 'GENERIC_DEFAULT'
+                      ? 'Type default'
+                      : 'Effort unknown';
               return (
                 <article
                   className={`assessment-timeline-item${isCancelled ? ' assessment-cancelled' : ''}`}
@@ -3181,6 +3216,11 @@ function ActiveSemesterView({
                       {assessment.sourceType === 'USER_ENTERED'
                         ? 'Entered by you'
                         : 'From course outline'}
+                    </p>
+                    <p className="assessment-effort-note">
+                      {assessment.estimatedEffortHours === null
+                        ? effortLabel
+                        : `${assessment.estimatedEffortHours}h · ${effortLabel}`}
                     </p>
                     {assessment.progressPercentage !== null ? (
                       <div
