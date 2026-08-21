@@ -113,6 +113,25 @@ describe('Phase 6 and 7 assessment management', () => {
       percentage: 82,
     });
 
+    const savedClassStatistics = await request(app)
+      .put('/api/assessments/' + assessmentId + '/class-statistics')
+      .set('Cookie', ownerCookie)
+      .send({ mean: 69, median: 71, standardDeviation: 11 });
+    expect(savedClassStatistics.status).toBe(200);
+    expect(savedClassStatistics.body.assessment.classStatistics).toMatchObject({
+      mean: 69,
+      median: 71,
+      standardDeviation: 11,
+      minimum: null,
+      maximum: null,
+      sourceType: 'USER_ENTERED',
+    });
+
+    const invalidClassStatistics = await request(app)
+      .put('/api/assessments/' + assessmentId + '/class-statistics')
+      .set('Cookie', ownerCookie)
+      .send({ mean: 69, minimum: 90, maximum: 80 });
+    expect(invalidClassStatistics.status).toBe(400);
     const thresholdDocument = await prisma.document.create({
       data: {
         userId: ownerId,
@@ -185,6 +204,21 @@ describe('Phase 6 and 7 assessment management', () => {
     expect(listedWithScore.body.gradeSummaries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          relativeStatistics: [
+            expect.objectContaining({
+              assessmentId,
+              score: 82,
+              mean: 69,
+              differenceFromMean: 13,
+              zScore: 1.18,
+            }),
+          ],
+        }),
+      ]),
+    );
+    expect(listedWithScore.body.gradeSummaries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
           gradingMode: 'ABSOLUTE',
           currentGrade: 'B+',
           targetAnalyses: expect.arrayContaining([
@@ -250,6 +284,11 @@ describe('Phase 6 and 7 assessment management', () => {
     expect(unchangedAfterScenario.body.gradeSummaries).toEqual(
       expect.arrayContaining([expect.objectContaining({ currentPerformance: 82 })]),
     );
+    const clearedClassStatistics = await request(app)
+      .delete('/api/assessments/' + assessmentId + '/class-statistics')
+      .set('Cookie', ownerCookie);
+    expect(clearedClassStatistics.status).toBe(200);
+    expect(clearedClassStatistics.body.assessment.classStatistics).toBeNull();
     const clearedScore = await request(app)
       .delete('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', ownerCookie);
@@ -408,6 +447,11 @@ describe('Phase 6 and 7 assessment management', () => {
         overrides: [{ assessmentId, percentage: 90 }],
       });
     expect(intruderScenario.status).toBe(404);
+    const intruderClassStatistics = await request(app)
+      .put('/api/assessments/' + assessmentId + '/class-statistics')
+      .set('Cookie', intruderSignUp.headers['set-cookie'])
+      .send({ mean: 69 });
+    expect(intruderClassStatistics.status).toBe(404);
     const intruderScore = await request(app)
       .put('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', intruderSignUp.headers['set-cookie'])

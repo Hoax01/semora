@@ -787,6 +787,101 @@ h1 {
   font-size: 1.05rem;
 }
 
+.grade-relative {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.55rem;
+  background: var(--surface);
+}
+
+.grade-relative-heading,
+.assessment-relative-heading {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.grade-relative-heading strong,
+.assessment-relative-heading strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.grade-relative-heading span,
+.assessment-relative-heading span,
+.grade-relative-row small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.grade-relative-row {
+  display: grid;
+  gap: 0.15rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.grade-relative-row strong {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.grade-relative-row span {
+  color: var(--accent-soft);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.grade-relative-empty {
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.55rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.assessment-relative-entry {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.55rem;
+  background: var(--surface-elevated);
+}
+
+.assessment-relative-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.assessment-relative-inputs label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.assessment-relative-inputs input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.35rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+}
+
+.assessment-relative-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
 .grade-performance-warning {
   margin: 0;
   color: #ffe4ad;
@@ -3354,6 +3449,10 @@ h1 {
 
   .active-course-grid,
   .grade-performance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-relative-inputs {
     grid-template-columns: 1fr;
   }
 

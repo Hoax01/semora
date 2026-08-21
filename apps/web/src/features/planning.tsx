@@ -225,6 +225,12 @@ type AssessmentType =
 
 type AssessmentScoreMode = 'POINTS' | 'PERCENTAGE';
 
+type ClassStatisticsDraft = {
+  mean: string;
+  median: string;
+  standardDeviation: string;
+};
+
 type Assessment = {
   id: string;
   activeSelectionId: string;
@@ -241,6 +247,15 @@ type Assessment = {
     percentage: number | null;
     recordedAt: string;
     sourceType: string;
+  } | null;
+  classStatistics: {
+    mean: number;
+    median: number | null;
+    standardDeviation: number | null;
+    minimum: number | null;
+    maximum: number | null;
+    sourceType: string;
+    recordedAt: string;
   } | null;
   dueDate: string | null;
   datePrecision: 'EXACT' | 'UNKNOWN';
@@ -287,6 +302,18 @@ type GradeSummary = {
     gradedAssessmentCount: number;
     assessmentCount: number;
     droppedAssessmentCount: number;
+  }>;
+  relativeStatistics: Array<{
+    assessmentId: string;
+    title: string;
+    score: number;
+    mean: number;
+    median: number | null;
+    standardDeviation: number | null;
+    minimum: number | null;
+    maximum: number | null;
+    differenceFromMean: number;
+    zScore: number | null;
   }>;
   warnings: string[];
 };
@@ -3178,6 +3205,9 @@ function ActiveSemesterView({
   const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
   const [scoreModes, setScoreModes] = useState<Record<string, AssessmentScoreMode>>({});
+  const [classStatisticsDrafts, setClassStatisticsDrafts] = useState<
+    Record<string, ClassStatisticsDraft>
+  >({});
   const [gradeScenarioDrafts, setGradeScenarioDrafts] = useState<Record<string, string>>({});
   const [gradeScenarioSummaries, setGradeScenarioSummaries] = useState<
     Record<string, GradeSummary>
@@ -3482,6 +3512,70 @@ function ActiveSemesterView({
     ).then((succeeded) => {
       if (succeeded) {
         setScoreDrafts((drafts) => {
+          const next = { ...drafts };
+          delete next[assessment.id];
+          return next;
+        });
+      }
+    });
+  }
+  function classStatisticsDraftFor(assessment: Assessment): ClassStatisticsDraft {
+    return (
+      classStatisticsDrafts[assessment.id] ?? {
+        mean: assessment.classStatistics?.mean.toString() ?? '',
+        median: assessment.classStatistics?.median?.toString() ?? '',
+        standardDeviation: assessment.classStatistics?.standardDeviation?.toString() ?? '',
+      }
+    );
+  }
+
+  function saveClassStatistics(assessment: Assessment) {
+    const draft = classStatisticsDraftFor(assessment);
+    const mean = Number(draft.mean.trim());
+    if (!draft.mean.trim() || !Number.isFinite(mean) || mean < 0 || mean > 100) {
+      setError('Enter a class mean between 0 and 100.');
+      return;
+    }
+    const optionalValue = (value: string, label: string) => {
+      if (!value.trim()) return null;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        throw new Error(label + ' must be between 0 and 100.');
+      }
+      return parsed;
+    };
+    let median: number | null;
+    let standardDeviation: number | null;
+    try {
+      median = optionalValue(draft.median, 'Class median');
+      standardDeviation = optionalValue(draft.standardDeviation, 'Class standard deviation');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Class statistics are invalid.');
+      return;
+    }
+
+    void runMutation('assessment-class-statistics-' + assessment.id, () =>
+      apiRequest('/api/assessments/' + assessment.id + '/class-statistics', {
+        method: 'PUT',
+        body: JSON.stringify({ mean, median, standardDeviation }),
+      }),
+    ).then((succeeded) => {
+      if (succeeded) {
+        setClassStatisticsDrafts((drafts) => {
+          const next = { ...drafts };
+          delete next[assessment.id];
+          return next;
+        });
+      }
+    });
+  }
+
+  function clearClassStatistics(assessment: Assessment) {
+    void runMutation('assessment-class-statistics-clear-' + assessment.id, () =>
+      apiRequest('/api/assessments/' + assessment.id + '/class-statistics', { method: 'DELETE' }),
+    ).then((succeeded) => {
+      if (succeeded) {
+        setClassStatisticsDrafts((drafts) => {
           const next = { ...drafts };
           delete next[assessment.id];
           return next;
@@ -4569,6 +4663,38 @@ function ActiveSemesterView({
                         ) : null}
                       </div>
                     ) : null}
+                    {summary.gradingMode === 'RELATIVE' ? (
+                      summary.relativeStatistics.length ? (
+                        <div className="grade-relative" aria-label="Relative grade context">
+                          <div className="grade-relative-heading">
+                            <strong>Relative context</strong>
+                            <span>Recorded scores compared with entered class statistics.</span>
+                          </div>
+                          {summary.relativeStatistics.map((statistic) => (
+                            <div className="grade-relative-row" key={statistic.assessmentId}>
+                              <strong>{statistic.title}</strong>
+                              <span>
+                                {statistic.score.toFixed(1)}% vs {statistic.mean.toFixed(1)}% mean ·{' '}
+                                {statistic.differenceFromMean >= 0 ? '+' : ''}
+                                {statistic.differenceFromMean.toFixed(1)} points
+                              </span>
+                              <small>
+                                {statistic.zScore === null
+                                  ? 'Standard deviation unavailable; z-score not calculated.'
+                                  : (statistic.zScore >= 0 ? '+' : '') +
+                                    statistic.zScore.toFixed(2) +
+                                    ' SD from mean'}
+                              </small>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="grade-relative-empty">
+                          Relative grading detected. Add a recorded score and class statistics to
+                          see score-vs-mean context; no letter grade is predicted.
+                        </p>
+                      )
+                    ) : null}
                     {summary.warnings.length ? (
                       <p className="grade-performance-warning">{summary.warnings[0]}</p>
                     ) : null}
@@ -4587,6 +4713,11 @@ function ActiveSemesterView({
         {!isAssessmentsLoading && assessments.length ? (
           <div className="assessment-timeline">
             {assessments.map((assessment) => {
+              const assessmentSummary = gradeSummaries.find(
+                (summary) => summary.courseOfferingId === assessment.courseOfferingId,
+              );
+              const isRelativeCourse = assessmentSummary?.gradingMode === 'RELATIVE';
+              const statisticsDraft = classStatisticsDraftFor(assessment);
               const isCancelled = assessment.status === 'CANCELLED';
               const isDone = assessment.workStatus === 'DONE';
               const effortLabel =
@@ -4721,6 +4852,106 @@ function ActiveSemesterView({
                         ) : null}
                       </div>
                     </div>
+                    {isRelativeCourse ? (
+                      <div className="assessment-relative-entry">
+                        <div className="assessment-relative-heading">
+                          <strong>Class statistics</strong>
+                          <span>Optional context for relative grading.</span>
+                        </div>
+                        <div className="assessment-relative-inputs">
+                          <label>
+                            Mean
+                            <input
+                              aria-label={'Class mean for ' + assessment.title}
+                              disabled={isCancelled || Boolean(busyAction)}
+                              max="100"
+                              min="0"
+                              onChange={(event) =>
+                                setClassStatisticsDrafts((drafts) => ({
+                                  ...drafts,
+                                  [assessment.id]: {
+                                    ...statisticsDraft,
+                                    mean: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Required"
+                              step="0.1"
+                              type="number"
+                              value={statisticsDraft.mean}
+                            />
+                          </label>
+                          <label>
+                            Median
+                            <input
+                              aria-label={'Class median for ' + assessment.title}
+                              disabled={isCancelled || Boolean(busyAction)}
+                              max="100"
+                              min="0"
+                              onChange={(event) =>
+                                setClassStatisticsDrafts((drafts) => ({
+                                  ...drafts,
+                                  [assessment.id]: {
+                                    ...statisticsDraft,
+                                    median: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Optional"
+                              step="0.1"
+                              type="number"
+                              value={statisticsDraft.median}
+                            />
+                          </label>
+                          <label>
+                            Standard deviation
+                            <input
+                              aria-label={'Class standard deviation for ' + assessment.title}
+                              disabled={isCancelled || Boolean(busyAction)}
+                              max="100"
+                              min="0"
+                              onChange={(event) =>
+                                setClassStatisticsDrafts((drafts) => ({
+                                  ...drafts,
+                                  [assessment.id]: {
+                                    ...statisticsDraft,
+                                    standardDeviation: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Optional"
+                              step="0.1"
+                              type="number"
+                              value={statisticsDraft.standardDeviation}
+                            />
+                          </label>
+                        </div>
+                        <div className="assessment-relative-actions">
+                          <button
+                            className="secondary-button compact-button"
+                            disabled={isCancelled || Boolean(busyAction)}
+                            onClick={() => saveClassStatistics(assessment)}
+                            type="button"
+                          >
+                            {busyAction === 'assessment-class-statistics-' + assessment.id
+                              ? 'Saving…'
+                              : 'Save statistics'}
+                          </button>
+                          {assessment.classStatistics ? (
+                            <button
+                              className="quiet-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => clearClassStatistics(assessment)}
+                              type="button"
+                            >
+                              {busyAction === 'assessment-class-statistics-clear-' + assessment.id
+                                ? 'Clearing…'
+                                : 'Clear'}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="assessment-actions">
                       {!isCancelled && !isDone ? (
                         <button

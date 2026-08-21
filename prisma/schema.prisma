@@ -511,11 +511,27 @@ model Assessment {
   activeCourseState        ActiveCourseState       @relation(fields: [activeCourseStateId], references: [id], onDelete: Cascade)
   gradeCategory            GradeCategory?          @relation(fields: [gradeCategoryId], references: [id], onDelete: SetNull)
   sourceDocument           Document?               @relation("AssessmentSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  classStatistic           ClassStatistic?
   scores                   AssessmentScore[]
 
   @@index([activeCourseStateId, dueAt])
   @@index([gradeCategoryId])
   @@map("assessments")
+}
+
+model ClassStatistic {
+  id                String             @id @default(cuid())
+  assessmentId      String             @unique @map("assessment_id")
+  mean              Decimal            @db.Decimal(6, 3)
+  median            Decimal?           @db.Decimal(6, 3)
+  standardDeviation Decimal?           @map("standard_deviation") @db.Decimal(6, 3)
+  minimum           Decimal?           @db.Decimal(6, 3)
+  maximum           Decimal?           @db.Decimal(6, 3)
+  sourceType        AcademicSourceType @default(USER_ENTERED) @map("source_type")
+  recordedAt        DateTime           @default(now()) @map("recorded_at")
+  assessment        Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("class_statistics")
 }
 
 model AssessmentScore {

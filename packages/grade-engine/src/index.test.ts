@@ -236,6 +236,83 @@ describe('grade engine level 1', () => {
     expect(ungraded.currentGrade).toBeNull();
   });
 
+  it('calculates relative difference and z-score from entered class statistics', () => {
+    const result = calculateGrade({
+      gradingMode: 'RELATIVE',
+      assessments: [
+        {
+          id: 'midterm',
+          title: 'Midterm',
+          weightPercentage: 25,
+          status: 'GRADED',
+          score: { percentage: 78 },
+          classStatistics: { mean: 69, median: 70, standardDeviation: 11 },
+        },
+      ],
+    });
+
+    expect(result.relativeStatistics).toEqual([
+      {
+        assessmentId: 'midterm',
+        title: 'Midterm',
+        score: 78,
+        mean: 69,
+        median: 70,
+        standardDeviation: 11,
+        minimum: null,
+        maximum: null,
+        differenceFromMean: 9,
+        zScore: 0.82,
+      },
+    ]);
+    expect(result.currentGrade).toBeNull();
+  });
+
+  it('omits relative statistics for ungraded work and leaves z-score unavailable without positive spread', () => {
+    const result = calculateGrade({
+      assessments: [
+        {
+          id: 'missing-sd',
+          title: 'Missing SD',
+          status: 'GRADED',
+          score: { percentage: 78 },
+          classStatistics: { mean: 69 },
+        },
+        {
+          id: 'zero-sd',
+          title: 'Zero SD',
+          status: 'GRADED',
+          score: { percentage: 78 },
+          classStatistics: { mean: 69, standardDeviation: 0 },
+        },
+        {
+          id: 'upcoming',
+          title: 'Upcoming',
+          status: 'UPCOMING',
+          classStatistics: { mean: 69, standardDeviation: 11 },
+        },
+      ],
+    });
+
+    expect(result.relativeStatistics).toEqual([
+      expect.objectContaining({ assessmentId: 'missing-sd', differenceFromMean: 9, zScore: null }),
+      expect.objectContaining({ assessmentId: 'zero-sd', differenceFromMean: 9, zScore: null }),
+    ]);
+  });
+
+  it('rejects impossible class-statistic ranges', () => {
+    expect(() =>
+      calculateGrade({
+        assessments: [
+          {
+            id: 'midterm',
+            title: 'Midterm',
+            classStatistics: { mean: 69, minimum: 90, maximum: 80 },
+          },
+        ],
+      }),
+    ).toThrow('minimum cannot exceed maximum');
+  });
   it('respects exclusive threshold boundaries and rejects duplicate thresholds', () => {
     const result = calculateGrade({
       gradingMode: 'ABSOLUTE',

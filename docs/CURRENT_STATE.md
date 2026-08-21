@@ -2,7 +2,7 @@
 
 **Last Updated:** August 22, 2026
 **Current Phase:** Phase 7 — Grade Intelligence (in progress)
-**Next Build Objective:** Phase 7.8 — Relative Grading
+**Next Build Objective:** Phase 7.9 — Grade Dashboard
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -22,7 +22,7 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, and Phase 7.7 drop rules are implemented and regression-covered; Relative Grading is next. A full
+Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, and Phase 7.8 relative grading are implemented and regression-covered; the Grade Dashboard is next. A full
 Phase 6 acceptance audit was also completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
@@ -202,6 +202,7 @@ events.
   centralized type defaults when no outline or personal estimate exists;
   personal estimates can be saved or cleared without overwriting canonical
   outline-derived effort.
+- Owned class-statistics endpoints upsert or clear user-entered mean, median, standard deviation, minimum, and maximum values for an assessment. Assessment summaries map safe relative differences and z-scores from the deterministic Grade Engine while preserving ownership checks and no-letter-prediction behavior.
 - Ownership-checked one-off commitment-event APIs support create, edit, delete,
   timestamp validation, effort bounds, flexibility overrides, and nested event
   serialization on owned workspace commitments.
@@ -260,6 +261,7 @@ events.
   estimated effort, and an optional flexibility override; they feed workload
   calculations while remaining out of the recurring timetable and candidate
   clash model.
+- Relative-grading courses expose optional user-entered class mean, median, and standard deviation fields per assessment. The active-semester grade cards show recorded score-vs-mean differences and a z-score only when a positive standard deviation is available; missing or zero spread remains explicit, and no relative letter grade is predicted.
 
 ### Extraction foundation
 
@@ -628,9 +630,7 @@ Current API integration coverage verifies:
 - catalogue imports reject malformed or duplicate source records and preserve a
   selected section's stable identity across a repeated import while updating
   its meetings.
-- Prisma migration status reports all thirteen checked-in migrations applied and the
-  local database schema up to date after the Phase 5 canonical academic-data
-  migration.
+- Prisma migration status reports all fifteen checked-in migrations applied and the local database schema is up to date after the Phase 7.8 relative-grading migration.
 - Lock workflow integration coverage verifies critical-conflict rejection
   without mutation, active selection/state creation, workspace transition,
   repeated-lock idempotency, Add/Drop operations, same-offering duplicate
@@ -889,9 +889,9 @@ analysis. The engine explicitly rejects a supplied `maximumHardCourses`
 constraint rather than incorrectly reporting it as satisfied; the two
 preference fields remain persisted for later data-backed behavior.
 
-API integration runs currently emit a `pg` deprecation warning about concurrent
-queries on one client. The exercised requests and assertions pass, but the
-adapter/driver usage should be revisited when dependencies are upgraded.
+API integration runs currently emit a pg deprecation warning about concurrent queries on one client. The exercised requests and assertions pass, but the adapter/driver usage should be revisited when dependencies are upgraded.
+
+The repository existing npm run db:migrate shadow-database replay is blocked by migration 20260821162343_phase7_score_entry, which uses the USER_ENTERED enum default before the later migration that adds that enum value. The Phase 7.8 migration was applied successfully with prisma migrate deploy; the historical migration ordering defect remains documented rather than changing an already-checked-in migration.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
 against real student workload feedback. Phase 6.10 provides the initial
@@ -903,9 +903,7 @@ performance, weighted points, graded weight, and remaining weight display,
 Phase 7.4 provides confirmed absolute-threshold current-grade equivalents, and
 Phase 7.5 provides deterministic target requirements and reachability, Phase 7.6
 provides temporary hypothetical assessment previews without mutating real grade
-data, and Phase 7.7 provides conservative BEST_N/DROP_LOWEST_N aggregation with
-transparent category summaries. Relative statistics and the grade dashboard
-remain intentionally deferred within Phase 7.
+data, and Phase 7.7 provides conservative BEST_N/DROP_LOWEST_N aggregation with transparent category summaries. Phase 7.8 provides owned class-statistics persistence, safe score-vs-mean differences, positive-SD z-scores, and relative grade context without predicting letter grades. The Grade Dashboard remains the next Phase 7 requirement.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -973,6 +971,7 @@ prisma/migrations/20260821170000_phase6_assessment_management/
 prisma/migrations/20260821180000_phase6_personal_effort_estimates/
 prisma/migrations/20260821190000_phase6_commitment_events/
 prisma/migrations/20260821162343_phase7_score_entry/
+prisma/migrations/20260822100000_phase7_relative_grading/
 ```
 
 ---
@@ -1014,4 +1013,4 @@ the heatmap, and gives accessible forecast feedback. Phase 6 is complete.
 Phase 7.1 is complete: the pure Grade Engine calculates score normalization,
 weighted points, graded and remaining weight, category aggregation, current
 performance, and safe handling of ungraded/missing results. Phase 7.2 is complete: personal AssessmentScore persistence, owned score endpoints, points/percentage validation, and active-semester score entry are implemented
-and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. The next objective is Phase 7.8, relative grading.
+and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. Phase 7.8 is complete: owned class-statistics persistence, safe relative differences, positive-SD z-scores, and active-semester relative context are implemented without letter-grade prediction. The next objective is Phase 7.9, Grade Dashboard.

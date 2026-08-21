@@ -7,6 +7,7 @@ import {
   type GradeAssessmentStatus,
   type GradeCategory,
   type GradeCategoryResult,
+  type GradeRelativeStatistic,
   type GradeAggregationRule as EngineGradeAggregationRule,
   type GradeScenarioOverride,
   type GradeTargetAnalysis,
@@ -107,6 +108,31 @@ const scoreSchema = z
       });
     }
   });
+
+const classStatisticsSchema = z
+  .object({
+    mean: z.number().finite().min(0).max(100),
+    median: z.number().finite().min(0).max(100).nullable().optional(),
+    standardDeviation: z.number().finite().min(0).max(100).nullable().optional(),
+    minimum: z.number().finite().min(0).max(100).nullable().optional(),
+    maximum: z.number().finite().min(0).max(100).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      value.minimum !== null &&
+      value.minimum !== undefined &&
+      value.maximum !== null &&
+      value.maximum !== undefined &&
+      value.minimum > value.maximum
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum'],
+        message: 'Minimum cannot exceed maximum.',
+      });
+    }
+  });
+
 const gradeScenarioSchema = z
   .object({
     courseOfferingId: z.string().trim().min(1),
@@ -135,6 +161,7 @@ const gradeScenarioSchema = z
   });
 const assessmentInclude = {
   scores: true,
+  classStatistic: true,
   activeCourseState: {
     include: {
       gradingScheme: { include: { categories: true, thresholds: true } },
@@ -169,6 +196,16 @@ type AssessmentRecord = {
   isGroupAssessment: boolean;
   sourceType: string;
   sourceDocumentId: string | null;
+  classStatistic: {
+    id: string;
+    mean: { toString(): string };
+    median: { toString(): string } | null;
+    standardDeviation: { toString(): string } | null;
+    minimum: { toString(): string } | null;
+    maximum: { toString(): string } | null;
+    sourceType: string;
+    recordedAt: Date;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
   scores: Array<{
@@ -312,6 +349,7 @@ function calculateGradeSummaries(
       currentGrade: null as string | null,
       targetAnalyses: [] as GradeTargetAnalysis[],
       categories: [] as GradeCategoryResult[],
+      relativeStatistics: [] as GradeRelativeStatistic[],
       warnings: [
         ...(gradingScheme?.gradingMode === 'ABSOLUTE' &&
         (gradingScheme.thresholds?.length ?? 0) === 0
@@ -349,6 +387,15 @@ function calculateGradeSummaries(
               pointsPossible: decimalOrNull(assessment.pointsPossible),
             }
           : null,
+        classStatistics: assessment.classStatistic
+          ? {
+              mean: decimalOrNull(assessment.classStatistic.mean) as number,
+              median: decimalOrNull(assessment.classStatistic.median),
+              standardDeviation: decimalOrNull(assessment.classStatistic.standardDeviation),
+              minimum: decimalOrNull(assessment.classStatistic.minimum),
+              maximum: decimalOrNull(assessment.classStatistic.maximum),
+            }
+          : null,
       };
     });
 
@@ -384,6 +431,7 @@ function calculateGradeSummaries(
         currentGrade: result.currentGrade,
         targetAnalyses: result.targetAnalyses,
         categories: result.categories,
+        relativeStatistics: result.relativeStatistics,
         gradedAssessmentCount:
           categoryGradedCount +
           result.assessments.filter((assessment) => assessment.reason === 'GRADED').length,
@@ -456,6 +504,17 @@ function serializeAssessment(assessment: AssessmentRecord, userId: string) {
     isGroupAssessment: assessment.isGroupAssessment,
     sourceType: assessment.sourceType,
     sourceDocumentId: assessment.sourceDocumentId,
+    classStatistics: assessment.classStatistic
+      ? {
+          mean: decimalOrNull(assessment.classStatistic.mean),
+          median: decimalOrNull(assessment.classStatistic.median),
+          standardDeviation: decimalOrNull(assessment.classStatistic.standardDeviation),
+          minimum: decimalOrNull(assessment.classStatistic.minimum),
+          maximum: decimalOrNull(assessment.classStatistic.maximum),
+          sourceType: assessment.classStatistic.sourceType,
+          recordedAt: assessment.classStatistic.recordedAt.toISOString(),
+        }
+      : null,
     createdAt: assessment.createdAt.toISOString(),
     updatedAt: assessment.updatedAt.toISOString(),
   };
@@ -704,6 +763,79 @@ export function registerAssessmentRoutes(app: express.Express) {
       .json({ assessment: serializeAssessment(assessment as AssessmentRecord, userId) });
   });
 
+  app.put('/api/assessments/:assessmentId/class-statistics', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = classStatisticsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const existing = await loadOwnedAssessment(request.params.assessmentId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    if (existing.status === 'CANCELLED') {
+      response.status(409).json({ error: 'ASSESSMENT_CANCELLED' });
+      return;
+    }
+
+    const values = parsed.data;
+    await prisma.classStatistic.upsert({
+      where: { assessmentId: existing.id },
+      create: {
+        assessmentId: existing.id,
+        mean: values.mean,
+        median: values.median ?? null,
+        standardDeviation: values.standardDeviation ?? null,
+        minimum: values.minimum ?? null,
+        maximum: values.maximum ?? null,
+        sourceType: 'USER_ENTERED',
+        recordedAt: new Date(),
+      },
+      update: {
+        mean: values.mean,
+        median: values.median ?? null,
+        standardDeviation: values.standardDeviation ?? null,
+        minimum: values.minimum ?? null,
+        maximum: values.maximum ?? null,
+        sourceType: 'USER_ENTERED',
+        recordedAt: new Date(),
+      },
+    });
+    const assessment = await loadOwnedAssessment(existing.id, userId);
+    if (!assessment) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    response.status(200).json({ assessment: serializeAssessment(assessment, userId) });
+  });
+
+  app.delete('/api/assessments/:assessmentId/class-statistics', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const existing = await loadOwnedAssessment(request.params.assessmentId, userId);
+    if (!existing) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    await prisma.classStatistic.deleteMany({ where: { assessmentId: existing.id } });
+    const assessment = await loadOwnedAssessment(existing.id, userId);
+    if (!assessment) {
+      response.status(404).json({ error: 'ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+    response.status(200).json({ assessment: serializeAssessment(assessment, userId) });
+  });
   app.put('/api/assessments/:assessmentId/score', async (request, response) => {
     if (!prisma) {
       response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });

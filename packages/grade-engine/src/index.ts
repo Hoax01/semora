@@ -18,6 +18,27 @@ export type GradeScore = {
   percentage?: number | null;
 };
 
+export type GradeClassStatistics = {
+  mean: number;
+  median?: number | null;
+  standardDeviation?: number | null;
+  minimum?: number | null;
+  maximum?: number | null;
+};
+
+export type GradeRelativeStatistic = {
+  assessmentId: string;
+  title: string;
+  score: number;
+  mean: number;
+  median: number | null;
+  standardDeviation: number | null;
+  minimum: number | null;
+  maximum: number | null;
+  differenceFromMean: number;
+  zScore: number | null;
+};
+
 export type GradeThreshold = {
   letterGrade: string;
   minimumPercentage: number;
@@ -45,6 +66,7 @@ export type GradeAssessment = {
   pointsPossible?: number | null;
   status?: GradeAssessmentStatus;
   score?: GradeScore | null;
+  classStatistics?: GradeClassStatistics | null;
 };
 
 export type GradeCategory = {
@@ -107,6 +129,7 @@ export type GradeEngineResult = {
   targetAnalyses: GradeTargetAnalysis[];
   categories: GradeCategoryResult[];
   assessments: GradeAssessmentResult[];
+  relativeStatistics: GradeRelativeStatistic[];
   warnings: string[];
 };
 
@@ -166,6 +189,63 @@ function assessmentPercentage(assessment: GradeAssessment) {
   return ((score.pointsEarned as number) / pointsPossible) * 100;
 }
 
+function validateClassStatistics(assessment: GradeAssessment) {
+  const statistics = assessment.classStatistics;
+  if (!statistics) return;
+  assertPercentage(statistics.mean, 'Assessment ' + assessment.id + ' class mean');
+  for (const [label, value] of [
+    ['median', statistics.median],
+    ['minimum', statistics.minimum],
+    ['maximum', statistics.maximum],
+  ] as const) {
+    if (value !== null && value !== undefined) {
+      assertPercentage(value, 'Assessment ' + assessment.id + ' class ' + label);
+    }
+  }
+  if (statistics.standardDeviation !== null && statistics.standardDeviation !== undefined) {
+    assertNonNegative(
+      statistics.standardDeviation,
+      'Assessment ' + assessment.id + ' class standard deviation',
+    );
+  }
+  if (
+    statistics.minimum !== null &&
+    statistics.minimum !== undefined &&
+    statistics.maximum !== null &&
+    statistics.maximum !== undefined &&
+    statistics.minimum > statistics.maximum
+  ) {
+    throw new Error('Assessment ' + assessment.id + ' class minimum cannot exceed maximum.');
+  }
+}
+
+function relativeStatisticsFor(assessments: readonly GradeAssessment[]): GradeRelativeStatistic[] {
+  return assessments.flatMap((assessment) => {
+    const statistics = assessment.classStatistics;
+    if (!statistics || (assessment.status ?? 'UPCOMING') !== 'GRADED') return [];
+    const score = assessmentPercentage(assessment);
+    if (score === null) return [];
+    const differenceFromMean = score - statistics.mean;
+    const standardDeviation = statistics.standardDeviation ?? null;
+    return [
+      {
+        assessmentId: assessment.id,
+        title: assessment.title,
+        score: round(score),
+        mean: round(statistics.mean),
+        median: statistics.median == null ? null : round(statistics.median),
+        standardDeviation: standardDeviation == null ? null : round(standardDeviation),
+        minimum: statistics.minimum == null ? null : round(statistics.minimum),
+        maximum: statistics.maximum == null ? null : round(statistics.maximum),
+        differenceFromMean: round(differenceFromMean),
+        zScore:
+          standardDeviation !== null && standardDeviation > 0
+            ? round(differenceFromMean / standardDeviation)
+            : null,
+      },
+    ];
+  });
+}
 function validateThresholds(thresholds: readonly GradeThreshold[]) {
   const letters = new Set<string>();
   for (const threshold of thresholds) {
@@ -317,6 +397,7 @@ function validateInput(input: GradeEngineInput, totalExpectedWeight: number) {
     if (assessment.weightPercentage !== null && assessment.weightPercentage !== undefined) {
       assertPercentage(assessment.weightPercentage, 'Assessment ' + assessment.id + ' weight');
     }
+    validateClassStatistics(assessment);
     if (assessment.pointsPossible !== null && assessment.pointsPossible !== undefined) {
       assertFinite(assessment.pointsPossible, 'Assessment ' + assessment.id + ' points possible');
       if (assessment.pointsPossible <= 0) {
@@ -553,6 +634,7 @@ export function calculateGrade(input: GradeEngineInput): GradeEngineResult {
     ),
     categories: categoryResults,
     assessments: directResults,
+    relativeStatistics: relativeStatisticsFor(input.assessments),
     warnings,
   };
 }
