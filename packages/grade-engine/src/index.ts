@@ -28,6 +28,11 @@ export type GradeTargetAnalysis = {
   secured: boolean;
 };
 
+export type GradeScenarioOverride = {
+  assessmentId: string;
+  percentage: number;
+};
+
 export type GradeAssessment = {
   id: string;
   title: string;
@@ -225,6 +230,47 @@ function targetAnalysesFor(
         secured: false,
       };
     });
+}
+export function calculateGradeScenario(
+  input: GradeEngineInput,
+  overrides: readonly GradeScenarioOverride[],
+): GradeEngineResult {
+  const assessmentsById = new Map(
+    input.assessments.map((assessment) => [assessment.id, assessment]),
+  );
+  const overrideIds = new Set<string>();
+  for (const override of overrides) {
+    if (!override.assessmentId || !assessmentsById.has(override.assessmentId)) {
+      throw new Error('Grade scenario references an unknown assessment.');
+    }
+    if (overrideIds.has(override.assessmentId)) {
+      throw new Error('Grade scenario contains a duplicate assessment override.');
+    }
+    overrideIds.add(override.assessmentId);
+    assertPercentage(override.percentage, 'Grade scenario assessment ' + override.assessmentId);
+  }
+
+  const overrideById = new Map(overrides.map((override) => [override.assessmentId, override]));
+  const assessments = input.assessments.map((assessment) => {
+    const override = overrideById.get(assessment.id);
+    if (!override) return assessment;
+    const pointsPossible = assessment.pointsPossible ?? assessment.score?.pointsPossible;
+    const pointsEarned =
+      pointsPossible === null || pointsPossible === undefined
+        ? undefined
+        : (override.percentage / 100) * pointsPossible;
+    return {
+      ...assessment,
+      status: 'GRADED' as const,
+      score: {
+        percentage: override.percentage,
+        ...(pointsPossible === null || pointsPossible === undefined ? {} : { pointsPossible }),
+        ...(pointsEarned === undefined ? {} : { pointsEarned }),
+      },
+    };
+  });
+
+  return calculateGrade({ ...input, assessments });
 }
 function validateInput(input: GradeEngineInput, totalExpectedWeight: number) {
   if (!Number.isFinite(totalExpectedWeight) || totalExpectedWeight <= 0) {

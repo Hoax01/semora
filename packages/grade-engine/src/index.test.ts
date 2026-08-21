@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateGrade } from './index.js';
+import { calculateGrade, calculateGradeScenario } from './index.js';
 
 describe('grade engine level 1', () => {
   it('calculates weighted points, graded weight, remaining weight, and current performance', () => {
@@ -348,5 +348,58 @@ describe('grade engine level 1', () => {
         secured: true,
       },
     ]);
+  });
+
+  it('projects hypothetical assessment results without mutating real inputs', () => {
+    const input = {
+      gradingMode: 'ABSOLUTE' as const,
+      thresholds: [
+        { letterGrade: 'A', minimumPercentage: 90 },
+        { letterGrade: 'A-', minimumPercentage: 85 },
+        { letterGrade: 'B+', minimumPercentage: 80 },
+      ],
+      assessments: [
+        {
+          id: 'midterm',
+          title: 'Midterm',
+          weightPercentage: 40,
+          status: 'GRADED' as const,
+          score: { percentage: 80 },
+        },
+        {
+          id: 'final',
+          title: 'Final',
+          weightPercentage: 60,
+          status: 'UPCOMING' as const,
+        },
+      ],
+    };
+
+    const result = calculateGradeScenario(input, [{ assessmentId: 'final', percentage: 90 }]);
+
+    expect(result.currentPerformance).toBe(86);
+    expect(result.currentGrade).toBe('A-');
+    expect(result.gradedWeight).toBe(100);
+    expect(input.assessments[1].status).toBe('UPCOMING');
+    expect(input.assessments[1].score).toBeUndefined();
+  });
+
+  it('rejects invalid or duplicate hypothetical assessment overrides', () => {
+    const input = {
+      assessments: [{ id: 'final', title: 'Final', weightPercentage: 100 }],
+    };
+
+    expect(() =>
+      calculateGradeScenario(input, [{ assessmentId: 'unknown', percentage: 80 }]),
+    ).toThrow('unknown assessment');
+    expect(() =>
+      calculateGradeScenario(input, [
+        { assessmentId: 'final', percentage: 80 },
+        { assessmentId: 'final', percentage: 90 },
+      ]),
+    ).toThrow('duplicate assessment');
+    expect(() =>
+      calculateGradeScenario(input, [{ assessmentId: 'final', percentage: 101 }]),
+    ).toThrow('between 0 and 100');
   });
 });

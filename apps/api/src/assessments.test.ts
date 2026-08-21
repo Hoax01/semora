@@ -202,6 +202,35 @@ describe('Phase 6 and 7 assessment management', () => {
         }),
       ]),
     );
+    const scenario = await request(app)
+      .post(`/api/workspaces/${workspace.id}/grade-scenarios`)
+      .set('Cookie', ownerCookie)
+      .send({
+        courseOfferingId: section.courseOfferingId,
+        overrides: [{ assessmentId, percentage: 100 }],
+      });
+    expect(scenario.status).toBe(200);
+    expect(scenario.body).toMatchObject({ persisted: false });
+    expect(scenario.body.gradeSummary).toMatchObject({
+      currentPerformance: 100,
+      currentGrade: 'A',
+      gradedWeight: 8,
+    });
+
+    const unchangedAfterScenario = await request(app)
+      .get('/api/workspaces/' + workspace.id + '/assessments')
+      .set('Cookie', ownerCookie);
+    expect(unchangedAfterScenario.body.assessments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: assessmentId,
+          score: expect.objectContaining({ percentage: 82 }),
+        }),
+      ]),
+    );
+    expect(unchangedAfterScenario.body.gradeSummaries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ currentPerformance: 82 })]),
+    );
     const clearedScore = await request(app)
       .delete('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', ownerCookie);
@@ -352,6 +381,14 @@ describe('Phase 6 and 7 assessment management', () => {
       .get(`/api/workspaces/${workspace.id}/assessments`)
       .set('Cookie', intruderSignUp.headers['set-cookie']);
     expect(intruder.status).toBe(404);
+    const intruderScenario = await request(app)
+      .post(`/api/workspaces/${workspace.id}/grade-scenarios`)
+      .set('Cookie', intruderSignUp.headers['set-cookie'])
+      .send({
+        courseOfferingId: section.courseOfferingId,
+        overrides: [{ assessmentId, percentage: 90 }],
+      });
+    expect(intruderScenario.status).toBe(404);
     const intruderScore = await request(app)
       .put('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', intruderSignUp.headers['set-cookie'])

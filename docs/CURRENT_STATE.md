@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 7 — Grade Intelligence (in progress)
-**Next Build Objective:** Phase 7.6 — What-If Scenarios
+**Next Build Objective:** Phase 7.7 — Drop Rules
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -22,7 +22,7 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, and Phase 7.5 target analysis are implemented and regression-covered; What-If Scenarios are next. A full
+Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, and Phase 7.6 temporary what-if scenarios are implemented and regression-covered; Drop Rules are next. A full
 Phase 6 acceptance audit was also completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
@@ -357,8 +357,8 @@ events.
   equivalent, and preserve explicit unknown/ungraded states instead of treating
   missing results as zero.
 - Category aggregation currently supports equal means, points-weighted means,
-  and explicit assessment weights. Drop rules, what-if scenarios, relative
-  statistics, and the broader grade dashboard remain later Phase 7 work.
+  and explicit assessment weights. Drop rules, relative statistics, and the
+  broader grade dashboard remain later Phase 7 work.
 
 ### Grade entry
 
@@ -372,8 +372,8 @@ events.
 - The active-semester assessment timeline provides points/percentage entry,
   save, replacement, and clear controls, with local validation and responsive
   layout.
-- What-if scenarios, drop rules, relative statistics, and the grade dashboard
-  remain later Phase 7 work.
+- Drop rules, relative statistics, and the grade dashboard remain later Phase 7
+  work.
 
 ### Current performance
 
@@ -398,7 +398,7 @@ events.
   grading modes never receive a fabricated letter grade.
 - The active-semester performance card shows the current equivalent only when it
   is known; relative, unknown, ungraded, and unconfirmed-threshold states remain
-  explicit and safe. What-if grade projections remain later Phase 7 work.
+  explicit and safe. Temporary what-if previews are documented below.
 
 ### Target analysis
 
@@ -410,8 +410,20 @@ events.
   course summaries, and the active-semester grade card presents them in a calm
   target table. Impossible targets are labeled without implying a probability or
   prediction.
-- What-if scenarios, drop rules, relative statistics, and broader dashboard
-  findings remain later Phase 7 work.
+- Drop rules, relative statistics, and broader dashboard findings remain later
+  Phase 7 work.
+
+### What-if scenarios
+
+- The pure Grade Engine accepts validated hypothetical assessment percentages by
+  assessment ID, recalculates projected performance and absolute equivalents, and
+  leaves the real assessment inputs unchanged.
+- The assessment API provides an ownership-checked temporary preview route for one
+  active course. It returns server-calculated grade summaries and never writes
+  `AssessmentScore` or assessment-status data.
+- The active-semester grade card exposes hypothetical percentages for ungraded
+  assessments with known weights and labels projected results as temporary.
+  Persisted/named `GradeScenario` records are intentionally outside this phase.
 
 ### Database
 
@@ -484,10 +496,10 @@ events.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 7.5 target-analysis
-implementation, the Phase 7.4 absolute-threshold, Phase 7.3 current-performance,
-Phase 7.2 score-entry, and Phase 7.1 Grade Engine implementations, and the
-Phase 6 acceptance audit:
+The following quality suite passes after the Phase 7.6 temporary-scenario
+implementation, the Phase 7.5 target-analysis, Phase 7.4 absolute-threshold,
+Phase 7.3 current-performance, Phase 7.2 score-entry, and Phase 7.1 Grade Engine
+implementations, and the Phase 6 acceptance audit:
 
 ```text
 npm run typecheck
@@ -579,7 +591,7 @@ Current API integration coverage verifies:
   dates, separate progress and academic status, completion, cancellation,
   personal effort override/reset behavior, centralized type defaults,
   ownership isolation, active-course-state boundaries, workload forecast changes after moving a deadline or marking work done,
-  and owned score entry, replacement, clearing, validation, persistence, current-performance summary calculations, and known absolute-threshold current-grade resolution, target-analysis calculations.
+  and owned score entry, replacement, clearing, validation, persistence, current-performance summary calculations, known absolute-threshold current-grade resolution, target-analysis calculations, temporary grade-scenario previews, non-mutation, and ownership isolation.
 - Commitment-event integration coverage verifies owned create/edit/delete,
   invalid time ordering, workspace serialization, and cross-user rejection.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
@@ -877,8 +889,9 @@ provides the pure Grade Engine foundation, Phase 7.2 provides owned score
 persistence and active-semester score entry, Phase 7.3 provides current
 performance, weighted points, graded weight, and remaining weight display,
 Phase 7.4 provides confirmed absolute-threshold current-grade equivalents, and
-Phase 7.5 provides deterministic target requirements and reachability. What-if
-scenarios, drop rules, relative statistics, and the grade dashboard remain
+Phase 7.5 provides deterministic target requirements and reachability, and
+Phase 7.6 provides temporary hypothetical assessment previews without mutating
+real grade data. Drop rules, relative statistics, and the grade dashboard remain
 intentionally deferred within Phase 7.
 ```
 
@@ -988,4 +1001,4 @@ the heatmap, and gives accessible forecast feedback. Phase 6 is complete.
 Phase 7.1 is complete: the pure Grade Engine calculates score normalization,
 weighted points, graded and remaining weight, category aggregation, current
 performance, and safe handling of ungraded/missing results. Phase 7.2 is complete: personal AssessmentScore persistence, owned score endpoints, points/percentage validation, and active-semester score entry are implemented
-and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. The next objective is Phase 7.6, what-if scenarios.
+and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. The next objective is Phase 7.7, drop rules.

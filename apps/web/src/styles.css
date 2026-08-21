@@ -700,6 +700,82 @@ h1 {
   font-size: 0.95rem;
 }
 
+.grade-scenario {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid #8d83ff66;
+  border-radius: 0.55rem;
+  background: #7167d50d;
+}
+
+.grade-scenario-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.grade-scenario-heading div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.grade-scenario-heading strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.grade-scenario-heading span,
+.grade-scenario-result span,
+.grade-scenario-result small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.grade-scenario-inputs {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.grade-scenario-inputs label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+}
+
+.grade-scenario-inputs label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+}
+
+.grade-scenario-inputs input {
+  width: 4.5rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.35rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+}
+
+.grade-scenario-result {
+  display: grid;
+  gap: 0.15rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.grade-scenario-result strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
 .grade-performance-warning {
   margin: 0;
   color: #ffe4ad;

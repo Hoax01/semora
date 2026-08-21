@@ -3168,6 +3168,10 @@ function ActiveSemesterView({
   const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
   const [scoreModes, setScoreModes] = useState<Record<string, AssessmentScoreMode>>({});
+  const [gradeScenarioDrafts, setGradeScenarioDrafts] = useState<Record<string, string>>({});
+  const [gradeScenarioSummaries, setGradeScenarioSummaries] = useState<
+    Record<string, GradeSummary>
+  >({});
 
   async function loadAssessments() {
     setIsAssessmentsLoading(true);
@@ -3178,6 +3182,7 @@ function ActiveSemesterView({
       }>(`/api/workspaces/${workspace.id}/assessments`);
       setAssessments(result.assessments);
       setGradeSummaries(result.gradeSummaries);
+      setGradeScenarioSummaries({});
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load assessments.');
     } finally {
@@ -3473,6 +3478,45 @@ function ActiveSemesterView({
         });
       }
     });
+  }
+  function runGradeScenario(summary: GradeSummary, scenarioAssessments: Assessment[]) {
+    const overrides = scenarioAssessments.flatMap((assessment) => {
+      const rawValue = gradeScenarioDrafts[assessment.id]?.trim() ?? '';
+      if (!rawValue) return [];
+      const percentage = Number(rawValue);
+      return Number.isFinite(percentage) && percentage >= 0 && percentage <= 100
+        ? [{ assessmentId: assessment.id, percentage }]
+        : [{ assessmentId: assessment.id, percentage: Number.NaN }];
+    });
+    if (!overrides.length) {
+      setError('Enter at least one hypothetical percentage before previewing.');
+      return;
+    }
+    if (overrides.some((override) => !Number.isFinite(override.percentage))) {
+      setError('Hypothetical percentages must be between 0 and 100.');
+      return;
+    }
+
+    const action = 'grade-scenario-' + summary.courseOfferingId;
+    setError(undefined);
+    setBusyAction(action);
+    void apiRequest<{ gradeSummary: GradeSummary }>(
+      `/api/workspaces/${workspace.id}/grade-scenarios`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ courseOfferingId: summary.courseOfferingId, overrides }),
+      },
+    )
+      .then((result) => {
+        setGradeScenarioSummaries((summaries) => ({
+          ...summaries,
+          [summary.courseOfferingId]: result.gradeSummary,
+        }));
+      })
+      .catch((reason) => {
+        setError(reason instanceof Error ? reason.message : 'Unable to calculate this scenario.');
+      })
+      .finally(() => setBusyAction(undefined));
   }
   async function uploadOutline(
     selection: ActiveCourseSelection,
@@ -4302,101 +4346,195 @@ function ActiveSemesterView({
               <span className="course-meta">{gradeSummaries.length} course summaries</span>
             </div>
             <div className="grade-performance-grid">
-              {gradeSummaries.map((summary) => (
-                <article className="grade-performance-card" key={summary.courseOfferingId}>
-                  <div className="grade-performance-heading">
-                    <div>
-                      <span className="course-badge">{summary.courseCode}</span>
-                      <h3>{summary.courseTitle}</h3>
-                    </div>
-                    <span className="grade-performance-mode">
-                      {summary.gradingMode.toLowerCase().replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="grade-performance-main">
-                    <strong>
-                      {summary.currentPerformance === null
-                        ? 'No grade yet'
-                        : summary.currentPerformance.toFixed(1) + '%'}
-                    </strong>
-                    <small>
-                      {summary.currentPerformance === null
-                        ? 'Enter a recorded score to calculate current performance.'
-                        : 'Current performance'}
-                    </small>
-                  </div>
-                  <p className="grade-performance-basis">
-                    {summary.gradedWeight === null
-                      ? 'Current performance is unavailable from the recorded grading structure.'
-                      : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
-                  </p>
-                  <p className="grade-performance-grade">
-                    {summary.currentGrade
-                      ? 'Current equivalent: ' + summary.currentGrade
-                      : summary.gradingMode === 'ABSOLUTE'
-                        ? summary.currentPerformance === null
-                          ? 'Letter grade will appear after a graded result.'
-                          : 'Letter grade unavailable — thresholds not confirmed.'
-                        : summary.gradingMode === 'RELATIVE'
-                          ? 'Letter grade is not predicted for relative grading.'
-                          : 'Letter grade unavailable until the grading method is confirmed.'}
-                  </p>
-                  {summary.targetAnalyses.length ? (
-                    <div className="grade-targets" aria-label="Grade targets">
-                      <div className="grade-targets-heading">
-                        <span>Target</span>
-                        <span>Required on remaining</span>
+              {gradeSummaries.map((summary) => {
+                const scenarioAssessments = assessments.filter(
+                  (assessment) =>
+                    assessment.courseOfferingId === summary.courseOfferingId &&
+                    assessment.score === null &&
+                    assessment.weightPercentage !== null &&
+                    !['CANCELLED', 'DROPPED', 'EXCUSED'].includes(assessment.status),
+                );
+                const scenarioSummary = gradeScenarioSummaries[summary.courseOfferingId];
+                return (
+                  <article className="grade-performance-card" key={summary.courseOfferingId}>
+                    <div className="grade-performance-heading">
+                      <div>
+                        <span className="course-badge">{summary.courseCode}</span>
+                        <h3>{summary.courseTitle}</h3>
                       </div>
-                      {summary.targetAnalyses.map((target) => (
-                        <div className="grade-target-row" key={target.target}>
-                          <strong>{target.target}</strong>
-                          <span>
-                            {target.secured
-                              ? 'Already secured'
-                              : target.reachable
-                                ? target.requiredRemainingAverage === null
-                                  ? '—'
-                                  : target.requiredRemainingAverage.toFixed(1) + '% average'
-                                : target.requiredRemainingAverage === null
-                                  ? 'Not reachable'
-                                  : target.requiredRemainingAverage.toFixed(1) +
-                                    '% — not reachable'}
-                          </span>
+                      <span className="grade-performance-mode">
+                        {summary.gradingMode.toLowerCase().replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="grade-performance-main">
+                      <strong>
+                        {summary.currentPerformance === null
+                          ? 'No grade yet'
+                          : summary.currentPerformance.toFixed(1) + '%'}
+                      </strong>
+                      <small>
+                        {summary.currentPerformance === null
+                          ? 'Enter a recorded score to calculate current performance.'
+                          : 'Current performance'}
+                      </small>
+                    </div>
+                    <p className="grade-performance-basis">
+                      {summary.gradedWeight === null
+                        ? 'Current performance is unavailable from the recorded grading structure.'
+                        : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
+                    </p>
+                    <p className="grade-performance-grade">
+                      {summary.currentGrade
+                        ? 'Current equivalent: ' + summary.currentGrade
+                        : summary.gradingMode === 'ABSOLUTE'
+                          ? summary.currentPerformance === null
+                            ? 'Letter grade will appear after a graded result.'
+                            : 'Letter grade unavailable — thresholds not confirmed.'
+                          : summary.gradingMode === 'RELATIVE'
+                            ? 'Letter grade is not predicted for relative grading.'
+                            : 'Letter grade unavailable until the grading method is confirmed.'}
+                    </p>
+                    {summary.targetAnalyses.length ? (
+                      <div className="grade-targets" aria-label="Grade targets">
+                        <div className="grade-targets-heading">
+                          <span>Target</span>
+                          <span>Required on remaining</span>
                         </div>
-                      ))}
+                        {summary.targetAnalyses.map((target) => (
+                          <div className="grade-target-row" key={target.target}>
+                            <strong>{target.target}</strong>
+                            <span>
+                              {target.secured
+                                ? 'Already secured'
+                                : target.reachable
+                                  ? target.requiredRemainingAverage === null
+                                    ? '—'
+                                    : target.requiredRemainingAverage.toFixed(1) + '% average'
+                                  : target.requiredRemainingAverage === null
+                                    ? 'Not reachable'
+                                    : target.requiredRemainingAverage.toFixed(1) +
+                                      '% — not reachable'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="grade-performance-stats">
+                      <div>
+                        <span>Weighted points earned</span>
+                        <strong>
+                          {summary.weightedPointsEarned === null
+                            ? '—'
+                            : summary.weightedPointsEarned.toFixed(2)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Graded</span>
+                        <strong>
+                          {summary.gradedWeight === null
+                            ? '—'
+                            : summary.gradedWeight.toFixed(1) + '%'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Remaining</span>
+                        <strong>
+                          {summary.remainingWeight === null
+                            ? '—'
+                            : summary.remainingWeight.toFixed(1) + '%'}
+                        </strong>
+                      </div>
                     </div>
-                  ) : null}
-                  <div className="grade-performance-stats">
-                    <div>
-                      <span>Weighted points earned</span>
-                      <strong>
-                        {summary.weightedPointsEarned === null
-                          ? '—'
-                          : summary.weightedPointsEarned.toFixed(2)}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Graded</span>
-                      <strong>
-                        {summary.gradedWeight === null
-                          ? '—'
-                          : summary.gradedWeight.toFixed(1) + '%'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Remaining</span>
-                      <strong>
-                        {summary.remainingWeight === null
-                          ? '—'
-                          : summary.remainingWeight.toFixed(1) + '%'}
-                      </strong>
-                    </div>
-                  </div>
-                  {summary.warnings.length ? (
-                    <p className="grade-performance-warning">{summary.warnings[0]}</p>
-                  ) : null}
-                </article>
-              ))}
+                    {summary.gradingMode === 'ABSOLUTE' && scenarioAssessments.length ? (
+                      <div
+                        className="grade-scenario"
+                        aria-label={'What-if scenario for ' + summary.courseCode}
+                      >
+                        <div className="grade-scenario-heading">
+                          <div>
+                            <strong>What if?</strong>
+                            <span>Temporary preview; real scores stay unchanged.</span>
+                          </div>
+                          {scenarioSummary ? (
+                            <button
+                              className="text-button"
+                              onClick={() =>
+                                setGradeScenarioSummaries((summaries) => {
+                                  const next = { ...summaries };
+                                  delete next[summary.courseOfferingId];
+                                  return next;
+                                })
+                              }
+                              type="button"
+                            >
+                              Clear preview
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="grade-scenario-inputs">
+                          {scenarioAssessments.map((assessment) => (
+                            <label key={assessment.id}>
+                              {assessment.title}
+                              <span>
+                                <input
+                                  aria-label={'Hypothetical percentage for ' + assessment.title}
+                                  disabled={Boolean(busyAction)}
+                                  max="100"
+                                  min="0"
+                                  onChange={(event) =>
+                                    setGradeScenarioDrafts((drafts) => ({
+                                      ...drafts,
+                                      [assessment.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="—"
+                                  step="0.1"
+                                  type="number"
+                                  value={gradeScenarioDrafts[assessment.id] ?? ''}
+                                />
+                                %
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => runGradeScenario(summary, scenarioAssessments)}
+                          type="button"
+                        >
+                          {busyAction === 'grade-scenario-' + summary.courseOfferingId
+                            ? 'Calculating…'
+                            : 'Preview scenario'}
+                        </button>
+                        {scenarioSummary ? (
+                          <div className="grade-scenario-result">
+                            <span>Projected performance</span>
+                            <strong>
+                              {scenarioSummary.currentPerformance === null
+                                ? 'Unavailable'
+                                : scenarioSummary.currentPerformance.toFixed(1) + '%'}
+                            </strong>
+                            <small>
+                              {scenarioSummary.currentGrade
+                                ? 'Projected equivalent: ' + scenarioSummary.currentGrade
+                                : 'No letter-grade projection is available for this grading mode.'}
+                              {scenarioSummary.gradedWeight === null
+                                ? ''
+                                : ' Based on ' +
+                                  scenarioSummary.gradedWeight.toFixed(1) +
+                                  '% graded.'}
+                            </small>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {summary.warnings.length ? (
+                      <p className="grade-performance-warning">{summary.warnings[0]}</p>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           </section>
         ) : null}

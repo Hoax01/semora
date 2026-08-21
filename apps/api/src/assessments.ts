@@ -2,10 +2,12 @@ import express from 'express';
 import { z } from 'zod';
 import {
   calculateGrade,
+  calculateGradeScenario,
   type GradeAssessment,
   type GradeAssessmentStatus,
   type GradeCategory,
   type GradeAggregationRule as EngineGradeAggregationRule,
+  type GradeScenarioOverride,
   type GradeTargetAnalysis,
 } from '@semora/grade-engine';
 import { DEFAULT_WORKLOAD_ENGINE_CONFIG, type AssessmentType } from '@semora/workload-engine';
@@ -102,6 +104,32 @@ const scoreSchema = z
         path: ['score'],
         message: 'Provide exactly one of pointsEarned or percentage.',
       });
+    }
+  });
+const gradeScenarioSchema = z
+  .object({
+    courseOfferingId: z.string().trim().min(1),
+    overrides: z
+      .array(
+        z.object({
+          assessmentId: z.string().trim().min(1),
+          percentage: z.number().finite().min(0).max(100),
+        }),
+      )
+      .min(1)
+      .max(100),
+  })
+  .superRefine((value, context) => {
+    const ids = new Set<string>();
+    for (const [index, override] of value.overrides.entries()) {
+      if (ids.has(override.assessmentId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['overrides', index, 'assessmentId'],
+          message: 'Each assessment can only have one hypothetical result.',
+        });
+      }
+      ids.add(override.assessmentId);
     }
   });
 const assessmentInclude = {
@@ -230,7 +258,11 @@ function aggregationRuleFor(rule: string): EngineGradeAggregationRule {
   }
 }
 
-function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string) {
+function calculateGradeSummaries(
+  assessments: AssessmentRecord[],
+  userId: string,
+  scenarioOverrides: readonly GradeScenarioOverride[] = [],
+) {
   const byCourse = new Map<string, AssessmentRecord[]>();
   for (const assessment of assessments) {
     const courseOfferingId =
@@ -328,7 +360,7 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
     });
 
     try {
-      const result = calculateGrade({
+      const gradeInput = {
         totalExpectedWeight,
         ...(gradingScheme?.gradingMode === 'ABSOLUTE'
           ? {
@@ -342,7 +374,10 @@ function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string
           : {}),
         categories,
         assessments: engineAssessments,
-      });
+      };
+      const result = scenarioOverrides.length
+        ? calculateGradeScenario(gradeInput, scenarioOverrides)
+        : calculateGrade(gradeInput);
       const categoryGradedCount = result.categories.reduce(
         (sum, category) => sum + category.gradedAssessmentCount,
         0,
@@ -513,6 +548,55 @@ export function registerAssessmentRoutes(app: express.Express) {
     });
   });
 
+  app.post('/api/workspaces/:workspaceId/grade-scenarios', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = gradeScenarioSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const workspace = await prisma.semesterWorkspace.findFirst({
+      where: { id: request.params.workspaceId, userId, state: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!workspace) {
+      response.status(404).json({ error: 'WORKSPACE_NOT_FOUND' });
+      return;
+    }
+
+    const assessments = (await prisma.assessment.findMany({
+      where: {
+        activeCourseState: {
+          activeCourseSelection: {
+            workspaceId: workspace.id,
+            status: 'ACTIVE',
+            section: { courseOfferingId: parsed.data.courseOfferingId },
+          },
+        },
+      },
+      include: assessmentInclude,
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
+    })) as AssessmentRecord[];
+    if (!assessments.length) {
+      response.status(404).json({ error: 'COURSE_ASSESSMENTS_NOT_FOUND' });
+      return;
+    }
+
+    const assessmentIds = new Set(assessments.map((assessment) => assessment.id));
+    if (parsed.data.overrides.some((override) => !assessmentIds.has(override.assessmentId))) {
+      response.status(400).json({ error: 'SCENARIO_ASSESSMENT_NOT_FOUND' });
+      return;
+    }
+
+    const [gradeSummary] = calculateGradeSummaries(assessments, userId, parsed.data.overrides);
+    response.status(200).json({ gradeSummary, persisted: false });
+  });
   app.post('/api/active-selections/:selectionId/assessments', async (request, response) => {
     if (!prisma) {
       response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
