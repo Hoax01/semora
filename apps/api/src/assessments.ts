@@ -1,5 +1,12 @@
 import express from 'express';
 import { z } from 'zod';
+import {
+  calculateGrade,
+  type GradeAssessment,
+  type GradeAssessmentStatus,
+  type GradeCategory,
+  type GradeAggregationRule as EngineGradeAggregationRule,
+} from '@semora/grade-engine';
 import { DEFAULT_WORKLOAD_ENGINE_CONFIG, type AssessmentType } from '@semora/workload-engine';
 import { prisma } from './db.js';
 import { requireUserId } from './session.js';
@@ -100,6 +107,7 @@ const assessmentInclude = {
   scores: true,
   activeCourseState: {
     include: {
+      gradingScheme: { include: { categories: true } },
       activeCourseSelection: {
         include: {
           section: {
@@ -114,6 +122,7 @@ const assessmentInclude = {
 type AssessmentRecord = {
   id: string;
   activeCourseStateId: string;
+  gradeCategoryId: string | null;
   title: string;
   assessmentType: string;
   weightPercentage: { toString(): string } | null;
@@ -142,6 +151,16 @@ type AssessmentRecord = {
   }>;
 
   activeCourseState: {
+    gradingScheme: {
+      gradingMode: string;
+      totalExpectedWeight: { toString(): string } | null;
+      categories: Array<{
+        id: string;
+        name: string;
+        weightPercentage: { toString(): string } | null;
+        aggregationRule: string;
+      }>;
+    } | null;
     activeCourseSelection: {
       id: string;
       section: {
@@ -175,6 +194,159 @@ function decimalOrNull(value: { toString(): string } | null) {
   return value === null ? null : Number(value);
 }
 
+function gradeStatusFor(status: string): GradeAssessmentStatus {
+  switch (status) {
+    case 'GRADED':
+      return 'GRADED';
+    case 'SUBMITTED':
+      return 'SUBMITTED_UNGRADED';
+    case 'MISSING':
+      return 'MISSING';
+    case 'EXCUSED':
+      return 'EXCUSED';
+    case 'DROPPED':
+      return 'DROPPED';
+    case 'CANCELLED':
+      return 'CANCELLED';
+    default:
+      return 'UPCOMING';
+  }
+}
+
+function aggregationRuleFor(rule: string): EngineGradeAggregationRule {
+  switch (rule) {
+    case 'EQUAL_MEAN':
+      return 'EQUAL_MEAN';
+    case 'POINTS_WEIGHTED_MEAN':
+      return 'POINTS_WEIGHTED_MEAN';
+    default:
+      return 'EXPLICIT_ASSESSMENT_WEIGHTS';
+  }
+}
+
+function calculateGradeSummaries(assessments: AssessmentRecord[], userId: string) {
+  const byCourse = new Map<string, AssessmentRecord[]>();
+  for (const assessment of assessments) {
+    const courseOfferingId =
+      assessment.activeCourseState.activeCourseSelection.section.courseOffering.id;
+    const courseAssessments = byCourse.get(courseOfferingId) ?? [];
+    courseAssessments.push(assessment);
+    byCourse.set(courseOfferingId, courseAssessments);
+  }
+
+  return [...byCourse.entries()].map(([courseOfferingId, courseAssessments]) => {
+    const firstAssessment = courseAssessments[0] as AssessmentRecord;
+    const courseOffering =
+      firstAssessment.activeCourseState.activeCourseSelection.section.courseOffering;
+    const gradingScheme = firstAssessment.activeCourseState.gradingScheme;
+    const totalExpectedWeight =
+      gradingScheme?.totalExpectedWeight === null ||
+      gradingScheme?.totalExpectedWeight === undefined
+        ? 100
+        : Number(gradingScheme.totalExpectedWeight);
+    const unsupportedCategory = gradingScheme?.categories.find(
+      (category) =>
+        category.aggregationRule === 'BEST_N' || category.aggregationRule === 'DROP_LOWEST_N',
+    );
+
+    const baseSummary = {
+      courseOfferingId,
+      courseCode: courseOffering.course.courseCode,
+      courseTitle: courseOffering.course.title,
+      gradingMode: gradingScheme?.gradingMode ?? 'UNKNOWN',
+      totalExpectedWeight,
+      assessmentCount: courseAssessments.filter((assessment) => assessment.status !== 'CANCELLED')
+        .length,
+      gradedAssessmentCount: courseAssessments.filter(
+        (assessment) =>
+          assessment.status === 'GRADED' &&
+          assessment.scores.some(
+            (score) =>
+              score.userId === userId &&
+              (score.pointsEarned !== null || score.percentageOverride !== null),
+          ),
+      ).length,
+      weightedPointsEarned: null as number | null,
+      gradedWeight: null as number | null,
+      remainingWeight: null as number | null,
+      currentPerformance: null as number | null,
+      warnings: [] as string[],
+    };
+
+    if (unsupportedCategory) {
+      return {
+        ...baseSummary,
+        warnings: [
+          unsupportedCategory.name +
+            ' uses a drop rule; current performance is not calculated until drop rules are supported.',
+        ],
+      };
+    }
+
+    const categories: GradeCategory[] = (gradingScheme?.categories ?? [])
+      .filter((category) => category.weightPercentage !== null)
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        weightPercentage: Number(category.weightPercentage),
+        aggregationRule: aggregationRuleFor(category.aggregationRule),
+      }));
+    const categoryIds = new Set(categories.map((category) => category.id));
+    const engineAssessments: GradeAssessment[] = courseAssessments.map((assessment) => {
+      const score = assessment.scores.find((candidate) => candidate.userId === userId) ?? null;
+      return {
+        id: assessment.id,
+        title: assessment.title,
+        categoryId:
+          assessment.gradeCategoryId && categoryIds.has(assessment.gradeCategoryId)
+            ? assessment.gradeCategoryId
+            : null,
+        weightPercentage: decimalOrNull(assessment.weightPercentage),
+        pointsPossible: decimalOrNull(assessment.pointsPossible),
+        status: gradeStatusFor(assessment.status),
+        score: score
+          ? {
+              pointsEarned: decimalOrNull(score.pointsEarned),
+              percentage: decimalOrNull(score.percentageOverride),
+              pointsPossible: decimalOrNull(assessment.pointsPossible),
+            }
+          : null,
+      };
+    });
+
+    try {
+      const result = calculateGrade({
+        totalExpectedWeight,
+        categories,
+        assessments: engineAssessments,
+      });
+      const categoryGradedCount = result.categories.reduce(
+        (sum, category) => sum + category.gradedAssessmentCount,
+        0,
+      );
+      return {
+        ...baseSummary,
+        weightedPointsEarned: result.weightedPointsEarned,
+        gradedWeight: result.gradedWeight,
+        remainingWeight: result.remainingWeight,
+        currentPerformance: result.currentPerformance,
+        gradedAssessmentCount:
+          categoryGradedCount +
+          result.assessments.filter((assessment) => assessment.reason === 'GRADED').length,
+        warnings: result.warnings,
+      };
+    } catch (error) {
+      return {
+        ...baseSummary,
+        warnings: [
+          error instanceof Error
+            ? error.message
+            : 'Current performance could not be calculated from the available assessment data.',
+        ],
+      };
+    }
+  });
+}
 function serializeAssessment(assessment: AssessmentRecord, userId: string) {
   const score = assessment.scores.find((candidate) => candidate.userId === userId) ?? null;
   const personalEffortHours = decimalOrNull(assessment.personalEffortHours);
@@ -312,6 +484,7 @@ export function registerAssessmentRoutes(app: express.Express) {
       assessments: assessments.map((assessment) =>
         serializeAssessment(assessment as AssessmentRecord, userId),
       ),
+      gradeSummaries: calculateGradeSummaries(assessments as AssessmentRecord[], userId),
     });
   });
 

@@ -566,6 +566,104 @@ h1 {
   background: var(--surface);
 }
 
+.grade-performance-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.grade-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.25rem;
+}
+
+.grade-performance-card {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.grade-performance-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.grade-performance-heading > div {
+  min-width: 0;
+}
+
+.grade-performance-heading h3 {
+  margin: 0.35rem 0 0;
+  overflow: hidden;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grade-performance-mode {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  text-transform: capitalize;
+}
+
+.grade-performance-main {
+  display: grid;
+  gap: 0.2rem;
+  padding-top: 0.35rem;
+}
+
+.grade-performance-main strong {
+  color: var(--text-primary);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.grade-performance-main small,
+.grade-performance-basis,
+.grade-performance-stats span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.grade-performance-basis {
+  margin: 0;
+}
+
+.grade-performance-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.grade-performance-stats > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.grade-performance-stats strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.grade-performance-warning {
+  margin: 0;
+  color: #ffe4ad;
+  font-size: 0.75rem;
+}
 .assessment-entry-form {
   display: grid;
   gap: 1rem;
@@ -3126,7 +3224,8 @@ h1 {
     text-align: left;
   }
 
-  .active-course-grid {
+  .active-course-grid,
+  .grade-performance-grid {
     grid-template-columns: 1fr;
   }
 

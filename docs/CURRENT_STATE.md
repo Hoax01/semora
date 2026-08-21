@@ -2,7 +2,7 @@
 
 **Last Updated:** August 21, 2026
 **Current Phase:** Phase 7 — Grade Intelligence (in progress)
-**Next Build Objective:** Phase 7.3 — Current Performance
+**Next Build Objective:** Phase 7.4 — Absolute Grade Thresholds
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -22,7 +22,7 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation and Phase 7.2 score entry/personal score persistence are implemented and regression-covered; Current Performance is next. A full
+Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, and Phase 7.3 current performance are implemented and regression-covered; Absolute Grade Thresholds are next. A full
 Phase 6 acceptance audit was also completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
@@ -357,7 +357,7 @@ events.
   treating missing results as zero.
 - Category aggregation currently supports equal means, points-weighted means,
   and explicit assessment weights. Drop rules, thresholds, target analysis,
-  what-if scenarios, relative statistics, and dashboard/API wiring remain
+  what-if scenarios, relative statistics, and the broader grade dashboard remain
   later Phase 7 work.
 
 ### Grade entry
@@ -372,8 +372,21 @@ events.
 - The active-semester assessment timeline provides points/percentage entry,
   save, replacement, and clear controls, with local validation and responsive
   layout.
-- Current performance display, target analysis, what-if scenarios, drop rules,
+- Target analysis, what-if scenarios, drop rules,
   relative statistics, and the grade dashboard remain later Phase 7 work.
+
+### Current performance
+
+- The owned assessment response now returns per-course grade summaries calculated
+  by packages/grade-engine. Summaries include grading mode, weighted points
+  earned, graded weight, remaining weight, current performance, assessment
+  counts, and calculation warnings.
+- The active-semester view shows course-level performance cards with explicit
+  “Based on X% of course graded” context, weighted points, graded weight, and
+  remaining weight. Missing scores remain ungraded rather than becoming zero.
+- Supported current calculations cover equal-mean, points-weighted-mean, and
+  explicit assessment weights. Drop-rule categories remain visibly
+  uncalculated until Phase 7.7.
 ### Database
 
 - PostgreSQL + Prisma schema for universities, terms, courses, offerings,
@@ -445,8 +458,8 @@ events.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 7.2 score-entry
-implementation, the Phase 7.1 Grade Engine implementation, and the Phase 6 acceptance audit:
+The following quality suite passes after the Phase 7.3 current-performance
+implementation, the Phase 7.2 score-entry and Phase 7.1 Grade Engine implementations, and the Phase 6 acceptance audit:
 
 ```text
 npm run typecheck
@@ -538,7 +551,7 @@ Current API integration coverage verifies:
   dates, separate progress and academic status, completion, cancellation,
   personal effort override/reset behavior, centralized type defaults,
   ownership isolation, active-course-state boundaries, workload forecast changes after moving a deadline or marking work done,
-  and owned score entry, replacement, clearing, validation, and persistence.
+  and owned score entry, replacement, clearing, validation, persistence, and current-performance summary calculations.
 - Commitment-event integration coverage verifies owned create/edit/delete,
   invalid time ordering, workspace serialization, and cross-user rejection.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
@@ -832,9 +845,9 @@ Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
 against real student workload feedback. Phase 6.10 provides the initial
 command-center summary and peak forecast. Phase 6.11 covers manual deadline changes and immediate forecast refresh.
 Phase 6.12 covers completion feedback and pressure removal. Phase 7.1 now
-provides the pure Grade Engine foundation, and Phase 7.2 provides owned score
-persistence and active-semester score entry. Target analysis, what-if scenarios,
-drop rules, relative statistics, and the grade dashboard remain intentionally deferred within Phase 7.
+provides the pure Grade Engine foundation, Phase 7.2 provides owned score
+persistence and active-semester score entry, and Phase 7.3 provides current
+performance, weighted points, graded weight, and remaining weight display. Target analysis, what-if scenarios, drop rules, relative statistics, and the grade dashboard remain intentionally deferred within Phase 7.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -943,4 +956,4 @@ the heatmap, and gives accessible forecast feedback. Phase 6 is complete.
 Phase 7.1 is complete: the pure Grade Engine calculates score normalization,
 weighted points, graded and remaining weight, category aggregation, current
 performance, and safe handling of ungraded/missing results. Phase 7.2 is complete: personal AssessmentScore persistence, owned score endpoints, points/percentage validation, and active-semester score entry are implemented
-and regression-covered. The next objective is Phase 7.3, current performance and graded/remaining weight display.
+and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. The next objective is Phase 7.4, absolute grade thresholds.

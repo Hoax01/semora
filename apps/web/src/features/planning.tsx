@@ -258,6 +258,20 @@ type Assessment = {
   updatedAt: string;
 };
 
+type GradeSummary = {
+  courseOfferingId: string;
+  courseCode: string;
+  courseTitle: string;
+  gradingMode: string;
+  totalExpectedWeight: number;
+  assessmentCount: number;
+  gradedAssessmentCount: number;
+  weightedPointsEarned: number | null;
+  gradedWeight: number | null;
+  remainingWeight: number | null;
+  currentPerformance: number | null;
+  warnings: string[];
+};
 type AssessmentDraft = {
   activeSelectionId: string;
   title: string;
@@ -3128,6 +3142,7 @@ function ActiveSemesterView({
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [gradeSummaries, setGradeSummaries] = useState<GradeSummary[]>([]);
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
   const [workload, setWorkload] = useState<Workload>();
   const [isWorkloadLoading, setIsWorkloadLoading] = useState(true);
@@ -3149,10 +3164,12 @@ function ActiveSemesterView({
   async function loadAssessments() {
     setIsAssessmentsLoading(true);
     try {
-      const result = await apiRequest<{ assessments: Assessment[] }>(
-        `/api/workspaces/${workspace.id}/assessments`,
-      );
+      const result = await apiRequest<{
+        assessments: Assessment[];
+        gradeSummaries: GradeSummary[];
+      }>(`/api/workspaces/${workspace.id}/assessments`);
       setAssessments(result.assessments);
+      setGradeSummaries(result.gradeSummaries);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load assessments.');
     } finally {
@@ -4263,6 +4280,82 @@ function ActiveSemesterView({
           </div>
         </form>
 
+        {!isAssessmentsLoading && gradeSummaries.length ? (
+          <section className="grade-performance-panel" aria-labelledby="grade-performance-title">
+            <div className="panel-heading-row">
+              <div>
+                <p className="eyebrow">NAVIGATE / GRADES</p>
+                <h2 id="grade-performance-title">How you are performing</h2>
+                <p className="panel-description">
+                  Recorded scores show performance on completed graded work; missing scores are not
+                  treated as zero.
+                </p>
+              </div>
+              <span className="course-meta">{gradeSummaries.length} course summaries</span>
+            </div>
+            <div className="grade-performance-grid">
+              {gradeSummaries.map((summary) => (
+                <article className="grade-performance-card" key={summary.courseOfferingId}>
+                  <div className="grade-performance-heading">
+                    <div>
+                      <span className="course-badge">{summary.courseCode}</span>
+                      <h3>{summary.courseTitle}</h3>
+                    </div>
+                    <span className="grade-performance-mode">
+                      {summary.gradingMode.toLowerCase().replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="grade-performance-main">
+                    <strong>
+                      {summary.currentPerformance === null
+                        ? 'No grade yet'
+                        : summary.currentPerformance.toFixed(1) + '%'}
+                    </strong>
+                    <small>
+                      {summary.currentPerformance === null
+                        ? 'Enter a recorded score to calculate current performance.'
+                        : 'Current performance'}
+                    </small>
+                  </div>
+                  <p className="grade-performance-basis">
+                    {summary.gradedWeight === null
+                      ? 'Current performance is unavailable from the recorded grading structure.'
+                      : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
+                  </p>
+                  <div className="grade-performance-stats">
+                    <div>
+                      <span>Weighted points earned</span>
+                      <strong>
+                        {summary.weightedPointsEarned === null
+                          ? '—'
+                          : summary.weightedPointsEarned.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Graded</span>
+                      <strong>
+                        {summary.gradedWeight === null
+                          ? '—'
+                          : summary.gradedWeight.toFixed(1) + '%'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Remaining</span>
+                      <strong>
+                        {summary.remainingWeight === null
+                          ? '—'
+                          : summary.remainingWeight.toFixed(1) + '%'}
+                      </strong>
+                    </div>
+                  </div>
+                  {summary.warnings.length ? (
+                    <p className="grade-performance-warning">{summary.warnings[0]}</p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {isAssessmentsLoading ? <p className="assessment-empty">Loading assessments…</p> : null}
         {!isAssessmentsLoading && !assessments.length ? (
           <p className="assessment-empty">

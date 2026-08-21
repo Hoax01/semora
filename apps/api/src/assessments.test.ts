@@ -125,6 +125,19 @@ describe('Phase 6 and 7 assessment management', () => {
       ]),
     );
 
+    expect(listedWithScore.body.gradeSummaries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          totalExpectedWeight: 100,
+          weightedPointsEarned: 6.56,
+          gradedWeight: 8,
+          remainingWeight: 92,
+          currentPerformance: 82,
+          assessmentCount: 1,
+          gradedAssessmentCount: 1,
+        }),
+      ]),
+    );
     const clearedScore = await request(app)
       .delete('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', ownerCookie);
