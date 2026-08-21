@@ -38,6 +38,16 @@ HTTP smoke or automated API/engine checks.
 
 ---
 
+## Phase 0–3 feedback audit — August 22, 2026
+
+- Fixed the sign-in handoff by using the same full-page session hydration as sign-up; this prevents the protected route from racing the newly issued Better Auth session cookie. The auth card also has explicit centered grid alignment.
+- Added a `Computer Science` catalogue alias for `CS` offerings, with an API regression test. Re-imported the local Fall 2026 LUMS catalogue through the corrected importer so the current database now stores `CS 370` as `Operating Systems` and cleanly handles neighboring wrapped titles.
+- Narrowed LUMS PDF title extraction to the verified course-row window around each course code, preventing the first line of the next wrapped title from being concatenated into the current title. Added a parser regression fixture.
+- Added visible recurring-meeting validation for reversed times, plus inline explanations for HARD, SOFT, and FLEXIBLE commitments. The UI now explicitly supports office hours as a HARD recurring commitment; mixed fixed and flexible obligations should be entered as separate commitments because flexibility applies to the whole record.
+- Clarified that unsaved section/course/commitment changes and workload-priority changes are temporary previews; the selected candidate and saved preferences remain unchanged. Preliminary metric copy now distinguishes lower-is-lighter load metrics from higher-is-better fit/balance metrics, and early, late, and long-day signals are presented as always-visible cards.
+- Clarified default-medium preferences, manually editable structural workload estimates, one-off effort semantics, and that workload profiles/course ratings are stored once per workspace and course offering and reused by candidate options. Workload inputs now accept two-decimal weekly-hour values such as `6.63`; workload dimensions retain their existing one-decimal database precision.
+- Added regression coverage for Computer Science search and two-decimal estimated weekly hours. Focused and full checks passed: 88 tests, typecheck, build, format check, lint, and Prisma migration status. Interactive browser control remained unavailable because the local Windows browser-runtime helper exited before opening a page; API and engine verification passed.
+
 ## Implemented
 
 ### Repository and tooling

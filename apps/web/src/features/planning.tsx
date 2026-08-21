@@ -1086,6 +1086,7 @@ export function PlanningPage() {
   const [preferenceDraft, setPreferenceDraft] = useState<PreferenceDraft>(defaultPreferenceDraft);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
+  const [commitmentFormError, setCommitmentFormError] = useState<string>();
 
   async function loadWorkspace() {
     if (!workspaceId) return;
@@ -1369,6 +1370,7 @@ export function PlanningPage() {
     field: 'name' | 'category' | 'weeklyEffortHours' | 'flexibility',
     value: string,
   ) {
+    setCommitmentFormError(undefined);
     setCommitmentDraft(
       (current) =>
         ({
@@ -1383,6 +1385,7 @@ export function PlanningPage() {
     field: keyof CommitmentDraftMeeting,
     value: string,
   ) {
+    setCommitmentFormError(undefined);
     setCommitmentDraft((current) => ({
       ...current,
       meetings: current.meetings.map((meeting, meetingIndex) =>
@@ -1392,6 +1395,7 @@ export function PlanningPage() {
   }
 
   function addCommitmentMeeting() {
+    setCommitmentFormError(undefined);
     setCommitmentDraft((current) => ({
       ...current,
       meetings: [
@@ -1402,6 +1406,7 @@ export function PlanningPage() {
   }
 
   function removeCommitmentMeeting(index: number) {
+    setCommitmentFormError(undefined);
     setCommitmentDraft((current) => ({
       ...current,
       meetings: current.meetings.filter((_, meetingIndex) => meetingIndex !== index),
@@ -1410,7 +1415,15 @@ export function PlanningPage() {
 
   function saveCommitment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setCommitmentFormError(undefined);
     if (!workspaceId || !commitmentDraft.name.trim()) return;
+    const invalidMeetingIndex = commitmentDraft.meetings.findIndex(
+      (meeting) => meeting.startTime >= meeting.endTime,
+    );
+    if (invalidMeetingIndex >= 0) {
+      setCommitmentFormError(`Recurring time ${invalidMeetingIndex + 1} must end after it starts.`);
+      return;
+    }
     const payload = {
       name: commitmentDraft.name.trim(),
       category: commitmentDraft.category,
@@ -1429,6 +1442,7 @@ export function PlanningPage() {
         },
       );
       setCommitmentDraft(emptyCommitmentDraft());
+      setCommitmentFormError(undefined);
     });
   }
 
@@ -2080,8 +2094,9 @@ export function PlanningPage() {
                   </article>
                 </div>
                 <p className="interaction-pressure-help">
-                  Metrics are preliminary and reflect the currently known schedule, workload
-                  profiles, commitments, and course ratings.
+                  These are explainable planning signals, not grades or guarantees. Load metrics are
+                  lighter when lower; fit and balance metrics are better when higher. Confidence and
+                  completeness show how much known data supports the current estimate.
                 </p>
               </section>
               <section className="findings-panel" aria-labelledby="findings-title">
@@ -2119,33 +2134,44 @@ export function PlanningPage() {
                   </p>
                 )}
               </section>
-              <div className="intelligence-notes">
-                {candidateAnalysis.schedule.longDays.length ? (
-                  <p>
-                    <strong>Long day:</strong> {formatDayList(candidateAnalysis.schedule.longDays)}{' '}
-                    reaches at least six hours of class time.
-                  </p>
-                ) : null}
-                {candidateAnalysis.schedule.earlyClassMinutes ? (
-                  <p>
-                    <strong>Early classes:</strong>{' '}
-                    {formatMinutes(candidateAnalysis.schedule.earlyClassMinutes)} begin before
-                    09:00.
-                  </p>
-                ) : null}
-                {candidateAnalysis.schedule.lateClassMinutes ? (
-                  <p>
-                    <strong>Late classes:</strong>{' '}
-                    {formatMinutes(candidateAnalysis.schedule.lateClassMinutes)} continue after
-                    18:00.
-                  </p>
-                ) : null}
-                {!candidateAnalysis.schedule.longDays.length &&
-                !candidateAnalysis.schedule.earlyClassMinutes &&
-                !candidateAnalysis.schedule.lateClassMinutes ? (
-                  <p>Your fixed class schedule has no detected long, early, or late-day pattern.</p>
-                ) : null}
-              </div>
+              <section className="schedule-signals-panel" aria-labelledby="schedule-signals-title">
+                <div className="interaction-pressure-heading">
+                  <div>
+                    <p className="eyebrow">SCHEDULE SIGNALS</p>
+                    <h3 id="schedule-signals-title">Early, late, and long-day checks</h3>
+                  </div>
+                  <span className="course-meta">Based on fixed class meetings</span>
+                </div>
+                <div className="schedule-signal-grid">
+                  <article>
+                    <span>Early class exposure</span>
+                    <strong>
+                      {candidateAnalysis.schedule.earlyClassMinutes
+                        ? formatMinutes(candidateAnalysis.schedule.earlyClassMinutes)
+                        : 'None'}
+                    </strong>
+                    <small>Class time before 09:00</small>
+                  </article>
+                  <article>
+                    <span>Late class exposure</span>
+                    <strong>
+                      {candidateAnalysis.schedule.lateClassMinutes
+                        ? formatMinutes(candidateAnalysis.schedule.lateClassMinutes)
+                        : 'None'}
+                    </strong>
+                    <small>Class time after 18:00</small>
+                  </article>
+                  <article>
+                    <span>Long days</span>
+                    <strong>
+                      {candidateAnalysis.schedule.longDays.length
+                        ? formatDayList(candidateAnalysis.schedule.longDays)
+                        : 'None'}
+                    </strong>
+                    <small>At least six hours of class time</small>
+                  </article>
+                </div>
+              </section>
               <section className="scenario-panel" aria-labelledby="scenario-title">
                 <div className="interaction-pressure-heading">
                   <div>
@@ -2154,9 +2180,14 @@ export function PlanningPage() {
                   </div>
                   <span className="course-meta">Current candidate stays unchanged</span>
                 </div>
+                <p className="interaction-pressure-help">
+                  A preview changes only this comparison. Nothing is saved: the candidate, your
+                  preferences, and the selected sections stay unchanged. “High” gives avoiding
+                  modeled workload more weight in the preview.
+                </p>
                 <div className="scenario-preference-control">
                   <label>
-                    Try a different workload priority
+                    Preview a different workload priority
                     <select
                       defaultValue={String(preferenceDraft.workloadPriority)}
                       disabled={Boolean(busyAction)}
@@ -2218,8 +2249,9 @@ export function PlanningPage() {
                   </div>
                 ) : (
                   <p className="interaction-pressure-help">
-                    Use “Try this section”, “Try without course”, or “Try without commitment” to
-                    compare a possible change here.
+                    Choose “Preview this section”, “Preview without course”, or “Preview without
+                    commitment” below to compare a temporary change. The saved candidate stays
+                    unchanged.
                   </p>
                 )}
               </section>
@@ -2327,7 +2359,7 @@ export function PlanningPage() {
                               onClick={() => exploreRemoveCommitment(commitment)}
                               type="button"
                             >
-                              Try without
+                              Preview without
                             </button>
                             <button
                               className="secondary-button compact-button"
@@ -2420,10 +2452,16 @@ export function PlanningPage() {
                         <option value="FLEXIBLE">Flexible — can move</option>
                       </select>
                     </label>
+                    <p className="form-help">
+                      Hard blocks cannot overlap classes. Soft blocks may overlap but are flagged;
+                      flexible blocks do not block the timetable. Flexibility applies to the whole
+                      commitment, so keep fixed office hours and flexible work as separate
+                      commitments.
+                    </p>
                     <div className="commitment-meetings-heading">
                       <div>
                         <strong>Recurring times</strong>
-                        <span>Optional fixed blocks for the timetable.</span>
+                        <span>Optional weekly blocks, such as office hours.</span>
                       </div>
                       <button className="text-button" onClick={addCommitmentMeeting} type="button">
                         + Add time
@@ -2485,6 +2523,11 @@ export function PlanningPage() {
                         </div>
                       ))}
                     </div>
+                    {commitmentFormError ? (
+                      <p className="form-error" role="alert">
+                        {commitmentFormError}
+                      </p>
+                    ) : null}
                     <button
                       disabled={busyAction === 'commitment' || !commitmentDraft.name.trim()}
                       type="submit"
@@ -2499,11 +2542,12 @@ export function PlanningPage() {
                       <h3>One-off events</h3>
                       <p>
                         Capture an interview, tournament, grading block, or other date-specific
-                        demand.
+                        demand. Estimated effort is the total extra time around the event, not only
+                        the time spent in the event itself.
                       </p>
                     </div>
                     <span className="course-meta">
-                      Affects workload, not the recurring timetable
+                      Workload pressure, not the recurring timetable
                     </span>
                   </div>
                   {commitmentEvents.length ? (
@@ -2708,8 +2752,9 @@ export function PlanningPage() {
                 </div>
                 <form className="preferences-form" onSubmit={savePreferences}>
                   <p className="preferences-intro">
-                    Choose what matters most. These preferences will guide later semester
-                    comparisons without forcing you through a long setup.
+                    Choose what matters most. These preferences guide semester comparisons without
+                    forcing you through a long setup. If you have not saved preferences yet, every
+                    choice starts at Medium.
                   </p>
                   <div className="preference-grid">
                     {(
@@ -2942,8 +2987,9 @@ export function PlanningPage() {
                                     }
                                   >
                                     <p className="workload-editor-help">
-                                      Unknown dimensions stay blank. Values are estimates, not
-                                      grades or official course facts.
+                                      Semora starts with structural estimates where available. You
+                                      can adjust them manually; blank means unknown. Higher values
+                                      mean heavier modeled demand, not better performance.
                                     </p>
                                     <div className="workload-field-grid">
                                       {workloadProfileFields.map(([field, label]) => (
@@ -2955,7 +3001,7 @@ export function PlanningPage() {
                                             min="0"
                                             name={field}
                                             placeholder="Unknown"
-                                            step="0.5"
+                                            step="0.01"
                                             type="number"
                                           />
                                         </label>
@@ -2968,13 +3014,16 @@ export function PlanningPage() {
                                           min="0"
                                           name="estimatedWeeklyHours"
                                           placeholder="Unknown"
-                                          step="0.25"
+                                          step="0.01"
                                           type="number"
                                         />
                                       </label>
                                     </div>
                                     <div className="workload-editor-actions">
-                                      <span>Saved per semester and course offering.</span>
+                                      <span>
+                                        Saved once per course offering in this workspace and reused
+                                        by every candidate.
+                                      </span>
                                       <div>
                                         <button
                                           className="secondary-button compact-button"
@@ -3016,7 +3065,7 @@ export function PlanningPage() {
                                 onClick={() => exploreRemoveCourse(selection)}
                                 type="button"
                               >
-                                Try without course
+                                Preview without course
                               </button>
                               <button
                                 className="danger-button compact-button"
@@ -3141,7 +3190,7 @@ export function PlanningPage() {
                                   onClick={() => exploreSection(section.id)}
                                   type="button"
                                 >
-                                  Try without saving
+                                  Preview this section
                                 </button>
                               ) : null}
                             </article>

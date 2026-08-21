@@ -49,7 +49,6 @@ async function getApi<T>(url: string): Promise<T> {
 }
 
 function AuthPage({ mode }: { mode: AuthMode }) {
-  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -72,7 +71,9 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       if (isSignUp) {
         window.location.replace('/');
       } else {
-        navigate('/', { replace: true });
+        // Reload so the protected route reads the session cookie after Better Auth
+        // has committed it. SPA navigation can race the initial session request.
+        window.location.replace('/');
       }
     } catch {
       setError('Unable to reach Semora. Check that the API is running.');

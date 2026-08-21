@@ -36,6 +36,8 @@ body {
 
 .auth-shell {
   display: grid;
+  align-items: center;
+  justify-items: center;
   min-height: 100vh;
   place-content: center;
   padding: 2rem;
@@ -43,7 +45,9 @@ body {
 }
 
 .auth-card {
+  justify-self: center;
   width: min(100%, 30rem);
+  margin-inline: auto;
   padding: clamp(1.5rem, 5vw, 3rem);
   border: 1px solid var(--border-subtle);
   border-radius: 1.5rem;
@@ -2197,6 +2201,44 @@ h1 {
   color: var(--text-primary);
 }
 
+.schedule-signals-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.schedule-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.schedule-signal-grid article {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.55rem;
+  background: var(--surface);
+}
+
+.schedule-signal-grid span,
+.schedule-signal-grid small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.schedule-signal-grid strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
 .weekly-schedule-panel {
   margin-top: 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
@@ -3635,6 +3677,10 @@ h1 {
 
   .intelligence-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-signal-grid {
+    grid-template-columns: 1fr;
   }
 
   .preference-fit-summary {

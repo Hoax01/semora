@@ -78,6 +78,19 @@ describe('email/password authentication', () => {
       ]),
     );
 
+    const departmentSearch = await request(app)
+      .get('/api/catalogue')
+      .query({ term: 'Fall 2026', q: 'Computer Science' })
+      .set('Cookie', sessionCookie);
+
+    expect(departmentSearch.status).toBe(200);
+    expect(departmentSearch.body.courses.length).toBeGreaterThan(0);
+    expect(
+      departmentSearch.body.courses.every((course: { courseCode: string }) =>
+        course.courseCode.startsWith('CS'),
+      ),
+    ).toBe(true);
+
     const courseDetails = await request(app)
       .get(`/api/catalogue/${csCourse.id}`)
       .set('Cookie', sessionCookie);
@@ -429,12 +442,12 @@ describe('Phase 2 planning foundation', () => {
     const workloadProfile = await request(app)
       .patch(`/api/workspaces/${workspaceId}/workload-profiles/${courseOfferingId}`)
       .set('Cookie', ownerCookie)
-      .send({ projectIntensity: 8, estimatedWeeklyHours: 9 });
+      .send({ projectIntensity: 8, estimatedWeeklyHours: 6.63 });
     expect(workloadProfile.status).toBe(200);
     expect(workloadProfile.body.workloadProfile).toMatchObject({
       courseOfferingId,
       projectIntensity: 8,
-      estimatedWeeklyHours: 9,
+      estimatedWeeklyHours: 6.63,
       confidence: 0.8,
       source: 'USER_ESTIMATE',
     });
@@ -448,7 +461,7 @@ describe('Phase 2 planning foundation', () => {
         courseOfferingId,
         profile: expect.objectContaining({
           projectIntensity: 8,
-          estimatedWeeklyHours: 9,
+          estimatedWeeklyHours: 6.63,
           source: 'USER_ESTIMATE',
         }),
       }),

@@ -99,7 +99,8 @@ function parsePage(items: PdfTextItem[]) {
       region
         .filter((item) => {
           const x = item.transform[4] ?? 0;
-          return x >= 88 && x < 200;
+          const y = item.transform[5] ?? 0;
+          return x >= 88 && x < 200 && Math.abs(y - rowY) <= 5;
         })
         .sort((left, right) => {
           const yDifference = (right.transform[5] ?? 0) - (left.transform[5] ?? 0);

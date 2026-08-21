@@ -105,4 +105,22 @@ describe('LUMS schedule adapter', () => {
       'Saima Mujtaba Rana',
     ]);
   });
+
+  it('removes a neighboring wrapped title fragment from a course title', () => {
+    const catalogue = buildLumsCatalogue([
+      [
+        item('CS 370', 38, 400),
+        item('Operating Systems', 89.73, 400),
+        item('3', 204.67, 400),
+        item('CS 3812', 38, 385),
+        item('Introduction to Blockchain: Technology and Applications', 89.73, 388),
+        item('3', 204.67, 385),
+      ],
+    ]);
+
+    expect(catalogue.courses).toMatchObject([
+      { courseCode: 'CS 370', title: 'Operating Systems' },
+      { courseCode: 'CS 3812', title: 'Introduction to Blockchain: Technology and Applications' },
+    ]);
+  });
 });

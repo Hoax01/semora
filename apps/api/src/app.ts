@@ -105,12 +105,21 @@ function parseCourseCodePrefix(query: string) {
   return `${match[1]?.toUpperCase()}${match[2] ? ` ${match[2].toUpperCase()}` : ''}`;
 }
 
+const departmentAliases: Record<string, string[]> = {
+  'computer science': ['CS'],
+};
+
 function catalogueTextSearch(query: string) {
+  const normalizedQuery = query.replace(/\s+/g, ' ').toLowerCase();
+  const departmentAliasPrefixes = departmentAliases[normalizedQuery] ?? [];
   return {
     OR: [
       { course: { courseCode: { contains: query, mode: 'insensitive' as const } } },
       { course: { title: { contains: query, mode: 'insensitive' as const } } },
       { course: { department: { contains: query, mode: 'insensitive' as const } } },
+      ...departmentAliasPrefixes.map((prefix) => ({
+        course: { courseCode: { startsWith: prefix, mode: 'insensitive' as const } },
+      })),
     ],
   };
 }
