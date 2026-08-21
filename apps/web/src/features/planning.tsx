@@ -213,6 +213,49 @@ type ActiveCourseSelection = Selection & {
   } | null;
 };
 
+type AssessmentType =
+  | 'ASSIGNMENT'
+  | 'QUIZ'
+  | 'PROJECT'
+  | 'PRESENTATION'
+  | 'MIDTERM'
+  | 'FINAL'
+  | 'PARTICIPATION'
+  | 'OTHER';
+
+type Assessment = {
+  id: string;
+  activeSelectionId: string;
+  courseOfferingId: string;
+  courseCode: string;
+  courseTitle: string;
+  title: string;
+  assessmentType: AssessmentType;
+  weightPercentage: number | null;
+  pointsPossible: number | null;
+  dueDate: string | null;
+  datePrecision: 'EXACT' | 'UNKNOWN';
+  status: string;
+  workStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE';
+  progressPercentage: number | null;
+  estimatedEffortHours: number | null;
+  effortConfidence: number | null;
+  isGroupAssessment: boolean;
+  sourceType: string;
+  sourceDocumentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AssessmentDraft = {
+  activeSelectionId: string;
+  title: string;
+  assessmentType: AssessmentType;
+  weightPercentage: string;
+  dueDate: string;
+  progressPercentage: string;
+};
+
 type Meeting = {
   day: string;
   startTime: string;
@@ -606,6 +649,12 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     }
     if (body?.error === 'ACTIVE_SELECTION_NOT_FOUND') {
       throw new Error('That active course is no longer available. Refresh and try again.');
+    }
+    if (body?.error === 'ASSESSMENT_NOT_FOUND') {
+      throw new Error('That assessment is no longer available. Refresh and try again.');
+    }
+    if (body?.error === 'ASSESSMENT_CANCELLED') {
+      throw new Error('Cancelled assessments cannot be edited.');
     }
     throw new Error('Semora could not save this change. Please try again.');
   }
@@ -2545,6 +2594,50 @@ function ActiveSemesterView({
   const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
+  const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
+    activeSelectionId: workspace.activeCourseSelections[0]?.id ?? '',
+    title: '',
+    assessmentType: 'ASSIGNMENT',
+    weightPercentage: '',
+    dueDate: '',
+    progressPercentage: '0',
+  });
+  const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
+
+  async function loadAssessments() {
+    setIsAssessmentsLoading(true);
+    try {
+      const result = await apiRequest<{ assessments: Assessment[] }>(
+        `/api/workspaces/${workspace.id}/assessments`,
+      );
+      setAssessments(result.assessments);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load assessments.');
+    } finally {
+      setIsAssessmentsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAssessments();
+  }, [workspace.id]);
+
+  useEffect(() => {
+    if (
+      assessmentDraft.activeSelectionId &&
+      workspace.activeCourseSelections.some(
+        (selection) => selection.id === assessmentDraft.activeSelectionId,
+      )
+    ) {
+      return;
+    }
+    setAssessmentDraft((draft) => ({
+      ...draft,
+      activeSelectionId: workspace.activeCourseSelections[0]?.id ?? '',
+    }));
+  }, [workspace.activeCourseSelections, assessmentDraft.activeSelectionId]);
 
   useEffect(() => {
     if (!appliedCourseSearch) {
@@ -2579,6 +2672,7 @@ function ActiveSemesterView({
     try {
       await mutation();
       await onReload();
+      await loadAssessments();
       return true;
     } catch (reason) {
       setError(
@@ -2620,6 +2714,86 @@ function ActiveSemesterView({
     if (!window.confirm(`Drop ${selection.courseCode} from this semester?`)) return;
     void runMutation('drop-course', () =>
       apiRequest(`/api/active-selections/${selection.id}/drop`, { method: 'POST' }),
+    );
+  }
+
+  function resetAssessmentDraft(selectionId = workspace.activeCourseSelections[0]?.id ?? '') {
+    setAssessmentDraft({
+      activeSelectionId: selectionId,
+      title: '',
+      assessmentType: 'ASSIGNMENT',
+      weightPercentage: '',
+      dueDate: '',
+      progressPercentage: '0',
+    });
+  }
+
+  function editAssessment(assessment: Assessment) {
+    setEditingAssessmentId(assessment.id);
+    setAssessmentDraft({
+      activeSelectionId: assessment.activeSelectionId,
+      title: assessment.title,
+      assessmentType: assessment.assessmentType,
+      weightPercentage: assessment.weightPercentage?.toString() ?? '',
+      dueDate: assessment.dueDate ?? '',
+      progressPercentage: Math.round(assessment.progressPercentage ?? 0).toString(),
+    });
+  }
+
+  function assessmentPayload() {
+    const weight = assessmentDraft.weightPercentage.trim();
+    const progress = assessmentDraft.progressPercentage.trim();
+    return {
+      title: assessmentDraft.title.trim(),
+      assessmentType: assessmentDraft.assessmentType,
+      weightPercentage: weight ? Number(weight) : null,
+      dueDate: assessmentDraft.dueDate || null,
+      datePrecision: assessmentDraft.dueDate ? 'EXACT' : 'UNKNOWN',
+      progressPercentage: progress ? Number(progress) : 0,
+    };
+  }
+
+  function saveAssessment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assessmentDraft.activeSelectionId || !assessmentDraft.title.trim()) return;
+    const payload = assessmentPayload();
+    if (editingAssessmentId) {
+      void runMutation('assessment-edit', () =>
+        apiRequest(`/api/assessments/${editingAssessmentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }),
+      ).then((succeeded) => {
+        if (succeeded) {
+          setEditingAssessmentId(undefined);
+          resetAssessmentDraft();
+        }
+      });
+      return;
+    }
+    void runMutation('assessment-create', () =>
+      apiRequest(`/api/active-selections/${assessmentDraft.activeSelectionId}/assessments`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    ).then((succeeded) => {
+      if (succeeded) resetAssessmentDraft(assessmentDraft.activeSelectionId);
+    });
+  }
+
+  function cancelAssessment(assessment: Assessment) {
+    if (!window.confirm(`Cancel ${assessment.title}? It will remain in your history.`)) return;
+    void runMutation(`assessment-cancel-${assessment.id}`, () =>
+      apiRequest(`/api/assessments/${assessment.id}`, { method: 'DELETE' }),
+    );
+  }
+
+  function markAssessmentDone(assessment: Assessment) {
+    void runMutation(`assessment-done-${assessment.id}`, () =>
+      apiRequest(`/api/assessments/${assessment.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ workStatus: 'DONE' }),
+      }),
     );
   }
 
@@ -2804,6 +2978,258 @@ function ActiveSemesterView({
         ) : (
           <p className="schedule-empty">Your active timetable has no Monday–Friday blocks yet.</p>
         )}
+      </section>
+
+      <section className="assessments-panel" aria-labelledby="assessments-panel-title">
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">NAVIGATE / ASSESSMENTS</p>
+            <h2 id="assessments-panel-title">What is coming</h2>
+          </div>
+          <span className="course-meta">
+            {assessments.filter((assessment) => assessment.status !== 'CANCELLED').length} active
+            items
+          </span>
+        </div>
+
+        <form className="assessment-entry-form" onSubmit={saveAssessment}>
+          <div className="assessment-entry-heading">
+            <div>
+              <strong>{editingAssessmentId ? 'Edit assessment' : 'Add an assessment'}</strong>
+              <small>
+                {editingAssessmentId
+                  ? 'Update the date, weight, or work progress.'
+                  : 'Enter it manually if no outline is available yet.'}
+              </small>
+            </div>
+            {editingAssessmentId ? (
+              <button
+                className="quiet-button compact-button"
+                onClick={() => {
+                  setEditingAssessmentId(undefined);
+                  resetAssessmentDraft();
+                }}
+                type="button"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+          <div className="assessment-entry-grid">
+            <label>
+              Course
+              <select
+                disabled={Boolean(editingAssessmentId) || !workspace.activeCourseSelections.length}
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({
+                    ...draft,
+                    activeSelectionId: event.target.value,
+                  }))
+                }
+                value={assessmentDraft.activeSelectionId}
+              >
+                {workspace.activeCourseSelections.map((selection) => (
+                  <option key={selection.id} value={selection.id}>
+                    {selection.courseCode} · Section {selection.sectionCode}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Assessment
+              <input
+                maxLength={160}
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({ ...draft, title: event.target.value }))
+                }
+                placeholder="e.g. Assignment 2"
+                required
+                value={assessmentDraft.title}
+              />
+            </label>
+            <label>
+              Type
+              <select
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({
+                    ...draft,
+                    assessmentType: event.target.value as AssessmentType,
+                  }))
+                }
+                value={assessmentDraft.assessmentType}
+              >
+                {[
+                  ['ASSIGNMENT', 'Assignment'],
+                  ['QUIZ', 'Quiz'],
+                  ['PROJECT', 'Project'],
+                  ['PRESENTATION', 'Presentation'],
+                  ['MIDTERM', 'Midterm'],
+                  ['FINAL', 'Final'],
+                  ['PARTICIPATION', 'Participation'],
+                  ['OTHER', 'Other'],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Due date
+              <input
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({ ...draft, dueDate: event.target.value }))
+                }
+                type="date"
+                value={assessmentDraft.dueDate}
+              />
+            </label>
+            <label>
+              Weight %
+              <input
+                max="100"
+                min="0"
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({
+                    ...draft,
+                    weightPercentage: event.target.value,
+                  }))
+                }
+                step="0.1"
+                type="number"
+                value={assessmentDraft.weightPercentage}
+              />
+            </label>
+            <label>
+              Work progress %
+              <input
+                max="100"
+                min="0"
+                onChange={(event) =>
+                  setAssessmentDraft((draft) => ({
+                    ...draft,
+                    progressPercentage: event.target.value,
+                  }))
+                }
+                step="1"
+                type="number"
+                value={assessmentDraft.progressPercentage}
+              />
+            </label>
+          </div>
+          <div className="assessment-entry-actions">
+            <button
+              disabled={Boolean(busyAction) || !assessmentDraft.activeSelectionId}
+              type="submit"
+            >
+              {busyAction === 'assessment-create'
+                ? 'Adding…'
+                : busyAction === 'assessment-edit'
+                  ? 'Saving…'
+                  : editingAssessmentId
+                    ? 'Save assessment'
+                    : 'Add assessment'}
+            </button>
+            <small>Dates can remain unknown until they are announced.</small>
+          </div>
+        </form>
+
+        {isAssessmentsLoading ? <p className="assessment-empty">Loading assessments…</p> : null}
+        {!isAssessmentsLoading && !assessments.length ? (
+          <p className="assessment-empty">
+            No assessments yet. Add one manually or verify a course outline to build your timeline.
+          </p>
+        ) : null}
+        {!isAssessmentsLoading && assessments.length ? (
+          <div className="assessment-timeline">
+            {assessments.map((assessment) => {
+              const isCancelled = assessment.status === 'CANCELLED';
+              const isDone = assessment.workStatus === 'DONE';
+              return (
+                <article
+                  className={`assessment-timeline-item${isCancelled ? ' assessment-cancelled' : ''}`}
+                  key={assessment.id}
+                >
+                  <div className="assessment-timeline-date">
+                    <strong>{assessment.dueDate ? assessment.dueDate.slice(5) : 'TBA'}</strong>
+                    <small>{assessment.dueDate ? 'due date' : 'date unknown'}</small>
+                  </div>
+                  <div className="assessment-timeline-content">
+                    <div className="assessment-timeline-heading">
+                      <div>
+                        <span className="course-badge">{assessment.courseCode}</span>
+                        <h3>{assessment.title}</h3>
+                      </div>
+                      <span
+                        className={`assessment-status status-${assessment.workStatus.toLowerCase()}`}
+                      >
+                        {isCancelled
+                          ? 'Cancelled'
+                          : isDone
+                            ? 'Work done'
+                            : assessment.workStatus === 'IN_PROGRESS'
+                              ? 'In progress'
+                              : 'Not started'}
+                      </span>
+                    </div>
+                    <p className="assessment-meta">
+                      {assessment.assessmentType.toLowerCase()} ·{' '}
+                      {assessment.weightPercentage === null
+                        ? 'Weight unknown'
+                        : `${assessment.weightPercentage}%`}{' '}
+                      ·{' '}
+                      {assessment.sourceType === 'USER_ENTERED'
+                        ? 'Entered by you'
+                        : 'From course outline'}
+                    </p>
+                    {assessment.progressPercentage !== null ? (
+                      <div
+                        className="assessment-progress"
+                        aria-label={`${assessment.progressPercentage}% work progress`}
+                      >
+                        <span style={{ width: `${assessment.progressPercentage}%` }} />
+                      </div>
+                    ) : null}
+                    <div className="assessment-actions">
+                      {!isCancelled && !isDone ? (
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => markAssessmentDone(assessment)}
+                          type="button"
+                        >
+                          {busyAction === `assessment-done-${assessment.id}`
+                            ? 'Updating…'
+                            : 'Mark work done'}
+                        </button>
+                      ) : null}
+                      {!isCancelled ? (
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => editAssessment(assessment)}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      {!isCancelled ? (
+                        <button
+                          className="danger-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => cancelAssessment(assessment)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       <section className="active-courses-panel" aria-labelledby="active-courses-title">

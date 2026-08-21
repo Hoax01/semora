@@ -105,6 +105,7 @@ enum ExtractionVerificationState {
 
 enum AcademicSourceType {
   VERIFIED_OUTLINE
+  USER_ENTERED
 }
 
 enum GradeAggregationRule {
@@ -139,6 +140,12 @@ enum AssessmentStatus {
   EXCUSED
   DROPPED
   CANCELLED
+}
+
+enum AssessmentWorkStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
 }
 
 model User {
@@ -489,6 +496,8 @@ model Assessment {
   dueAt                DateTime?               @map("due_at") @db.Date
   datePrecision        AssessmentDatePrecision @map("date_precision")
   status               AssessmentStatus        @default(UPCOMING)
+  workStatus           AssessmentWorkStatus    @default(NOT_STARTED) @map("work_status")
+  progressPercentage   Decimal?                @map("progress_percentage") @db.Decimal(5, 2)
   estimatedEffortHours Decimal?                @map("estimated_effort_hours") @db.Decimal(5, 2)
   effortConfidence     Decimal?                @map("effort_confidence") @db.Decimal(3, 2)
   isGroupAssessment    Boolean                 @default(false) @map("is_group_assessment")

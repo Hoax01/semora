@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.1 complete)
-**Next Build Objective:** Phase 6.2 — Assessment Management
+**Current Phase:** Phase 6 — Semester Command Center (6.2 complete)
+**Next Build Objective:** Phase 6.3 — Personal Effort Estimates
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -16,9 +16,10 @@ document-normalization foundation, private outline upload/storage, extraction
 job state, a free local deterministic provider, deterministic validation, the
 mandatory review/verification flow, canonical persistence, and an opt-in
 ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
-6.1 pure deterministic Workload Engine package is now implemented and
-regression-covered; assessment CRUD, one-off commitment events, pressure API
-integration, and the command-center UI remain incomplete.
+6.1 pure deterministic Workload Engine package and Phase 6.2 manual assessment
+management are now implemented and regression-covered; personal effort
+overrides, one-off commitment events, pressure API integration, and the full
+command-center forecast UI remain incomplete.
 
 ---
 
@@ -173,10 +174,19 @@ integration, and the command-center UI remain incomplete.
   an active selection. Each mutation is term-scoped, serialized per workspace,
   rejects duplicate active course offerings and critical timetable conflicts,
   and preserves dropped selection history.
+- Ownership-checked assessment APIs support listing assessments for an active
+  workspace, manual creation against an owned active course, editing academic
+  fields and separate work progress, and cancellation without deleting the
+  historical row. Manual records use `USER_ENTERED` provenance and work status
+  is kept separate from academic result status.
 - The planner exposes a deliberate Lock Semester panel and an active-semester
   dashboard with selected-course cards, a Monday-to-Friday timetable, active
   credit totals, and simple Add/Drop and section-switch controls. Candidate
   planning data remains separate from active-semester mutations.
+- The active-semester dashboard now includes an assessment timeline and manual
+  assessment entry form. Users can view assessments across active courses, add
+  an assessment without an outline, edit title/type/date/weight/progress, mark
+  work done, and cancel an assessment while retaining it in the timeline.
 
 ### Extraction foundation
 
@@ -280,6 +290,7 @@ integration, and the command-center UI remain incomplete.
   - `20260821140000_phase5_extraction_jobs`
   - `20260821150000_phase5_extraction_verification`
   - `20260821160000_phase5_canonical_academic_data`
+  - `20260821170000_phase6_assessment_management`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -313,6 +324,10 @@ integration, and the command-center UI remain incomplete.
 - Phase 5 migrations now persist document metadata, extraction jobs, temporary
   extraction drafts, verification events, and verified-outline-derived
   canonical academic structure scoped to each active course state.
+- Phase 6.2 adds `AssessmentWorkStatus`, optional progress percentage, and
+  `USER_ENTERED` academic-source provenance. The existing `Assessment` remains
+  scoped through the user's active course state; no shared-assessment model was
+  introduced.
 
 ---
 
@@ -406,6 +421,9 @@ Current API integration coverage verifies:
 - `@semora/workload-engine` unit coverage verifies explicit/default effort,
   urgency, deadline extension, completion, overlap, commitment pressure,
   unknown-date behavior, importance separation, and active overdue work.
+- Assessment API integration coverage verifies manual creation, exact/unknown
+  dates, separate progress and academic status, completion, cancellation,
+  ownership isolation, and active-course-state boundaries.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
   six pages, six non-empty pages, 260 normalized blocks, and 14,658 text
   characters. The local `LUMS_data/` corpus remains ignored and is not a test
@@ -688,9 +706,10 @@ queries on one client. The exercised requests and assertions pass, but the
 adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
-against real student workload feedback. The engine package is intentionally
-not wired into API routes or the active-semester dashboard until Phase 6.2
-assessment management and Phase 6.4 commitment events provide those inputs.
+against real student workload feedback. Phase 6.2 exposes the assessment data
+needed by the engine, but pressure API integration and the forecast dashboard
+remain intentionally deferred until the remaining Phase 6 input and UI chunks
+are implemented.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -739,11 +758,16 @@ apps/api/src/documents.ts
 apps/api/src/document-storage.ts
 apps/api/src/documents.test.ts
 apps/api/src/extraction-jobs.ts
+apps/api/src/assessments.ts
+apps/api/src/assessments.test.ts
 apps/web/src/features/extraction-review.tsx
+apps/web/src/features/planning.tsx
+apps/web/src/styles.css
 prisma/migrations/20260821150000_phase5_extraction_verification/
 prisma/migrations/20260821160000_phase5_canonical_academic_data/
 prisma/migrations/20260821130000_phase5_documents/
 prisma/migrations/20260821140000_phase5_extraction_jobs/
+prisma/migrations/20260821170000_phase6_assessment_management/
 ```
 
 ---
@@ -762,6 +786,7 @@ upload boundary, extraction-job/provider contracts, deterministic validation,
 mandatory review/verification, canonical persistence, and benchmark reporting
 are in place. Phase 6.1 is complete: the deterministic Workload Engine
 consumes verified canonical assessment-shaped data; draft JSON remains out of
-scope for engine inputs. The next objective is Phase 6.2, assessment
-management with manual CRUD/progress updates that can feed this engine even
-when extraction is unavailable.
+scope for engine inputs. Phase 6.2 is complete: users can manually manage
+assessment timeline items even when extraction is unavailable, with separate
+work progress and academic result status. The next objective is Phase 6.3,
+personal effort estimates and type-based workload defaults in the user flow.
