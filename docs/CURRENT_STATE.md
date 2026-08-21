@@ -23,12 +23,18 @@ weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
 Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, Phase 7.8 relative grading, and Phase 7.9 Grade Dashboard are implemented and regression-covered. Phase 7 acceptance criteria are satisfied; Phase 8 product polish is next. A full
-Phase 6 acceptance audit was also completed on August 21, 2026: the primary
+Phase 6 acceptance audit was completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
 and the responsive active dashboard. The audit hardened the native assessment
 date field to retain values delivered through both browser input and change
-events.
+events. On August 22, 2026, the complete automated suite and an authenticated
+HTTP smoke test from Phase 0 through Phase 7 passed, covering the final grade
+dashboard, relative context, outline verification, workload recalculation,
+deadline movement, and completion feedback. Interactive browser control was
+also attempted for this audit, but the local Windows browser-runtime helper
+exited before a page could be opened; no product failure was observed in the
+HTTP smoke or automated API/engine checks.
 
 ---
 
@@ -521,10 +527,10 @@ events.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 7.6 temporary-scenario
-implementation, the Phase 7.5 target-analysis, Phase 7.4 absolute-threshold,
-Phase 7.3 current-performance, Phase 7.2 score-entry, and Phase 7.1 Grade Engine
-implementations, and the Phase 6 acceptance audit:
+The following quality suite passes after the Phase 7.9 Grade Dashboard
+implementation and the complete Phase 7/end-to-end audit. The suite currently
+reports 87 passing tests across the API, extraction, grade-engine,
+semester-engine, and workload-engine packages:
 
 ```text
 npm run typecheck
@@ -616,7 +622,7 @@ Current API integration coverage verifies:
   dates, separate progress and academic status, completion, cancellation,
   personal effort override/reset behavior, centralized type defaults,
   ownership isolation, active-course-state boundaries, workload forecast changes after moving a deadline or marking work done,
-  and owned score entry, replacement, clearing, validation, persistence, current-performance summary calculations, known absolute-threshold current-grade resolution, target-analysis calculations, temporary grade-scenario previews, BEST_N/DROP_LOWEST_N calculations, non-mutation, and ownership isolation.
+  and owned score entry, replacement, clearing, validation, persistence, current-performance summary calculations, known absolute-threshold current-grade resolution, target-analysis calculations, temporary grade-scenario previews, BEST_N/DROP_LOWEST_N calculations, relative statistics, remaining-assessment dashboard mapping, non-mutation, and ownership isolation.
 - Commitment-event integration coverage verifies owned create/edit/delete,
   invalid time ordering, workspace serialization, and cross-user rejection.
 - A real deduplicated LUMS outline was parsed successfully in smoke verification:
@@ -653,6 +659,14 @@ Current API integration coverage verifies:
   completion feedback, and the 390-pixel responsive dashboard. No new browser
   errors occurred after the date-input fix; the only recorded errors were
   stale logs from the intentionally failed first patch during the audit.
+- The August 22 end-to-end HTTP smoke used a fresh throwaway account and passed
+  the authenticated Phase 0–7 path: health/database checks, catalogue and
+  planning, lock/Add-Drop, outline upload/extraction/review/verification,
+  assessment scores and class statistics, relative grade context, temporary
+  grade scenarios, workload pressure, deadline movement, and completion
+  feedback. The interactive browser-runtime attempt was blocked by the local
+  Windows sandbox helper before page discovery; this is an environment
+  limitation, not an application failure.
 
 ### Phase 2 implementation status
 
