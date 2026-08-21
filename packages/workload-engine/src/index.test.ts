@@ -59,6 +59,9 @@ describe('workload engine', () => {
     expect(near.upcomingAssessments[0]?.taskPressure).toBeGreaterThan(
       far.upcomingAssessments[0]?.taskPressure ?? 0,
     );
+    expect(near.upcomingAssessments[0]?.urgency).toBeGreaterThan(
+      far.upcomingAssessments[0]?.urgency ?? 0,
+    );
   });
 
   it('reduces pressure when a deadline is extended', () => {
@@ -104,6 +107,21 @@ describe('workload engine', () => {
     expect(overlapping.findings.some((finding) => finding.type === 'ASSESSMENT_CLUSTER')).toBe(
       true,
     );
+    expect(overlapping.upcomingAssessments.every((item) => item.overlapCount === 1)).toBe(true);
+  });
+
+  it('exposes preparation and deadline-compression factors', () => {
+    const result = analyzeWorkload({
+      ...baseInput,
+      assessments: [assessment({ estimatedEffortHours: 12, dueAt: '2026-09-03' })],
+    });
+
+    expect(result.upcomingAssessments[0]).toMatchObject({
+      preparationDays: DEFAULT_WORKLOAD_ENGINE_CONFIG.preparationDays.ASSIGNMENT,
+      importance: expect.any(Number),
+      urgency: expect.any(Number),
+      deadlineCompression: expect.any(Number),
+    });
   });
 
   it('adds dated commitment demand and a collision finding', () => {

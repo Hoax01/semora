@@ -165,6 +165,9 @@ export type ResolvedAssessment = {
   effortSource: 'EXPLICIT' | 'GENERIC_DEFAULT' | 'UNKNOWN';
   effortConfidence: number;
   importance: number | null;
+  urgency: number | null;
+  deadlineCompression: number | null;
+  overlapCount: number;
   taskPressure: number | null;
   isMajor: boolean;
   status: AssessmentCompletionStatus | CanonicalAssessmentStatus;
@@ -456,6 +459,15 @@ function resolveAssessment(
       : 10 * (1 - Math.exp(-remainingEffortHours / config.effortReferenceHours));
   const urgency =
     due === null ? null : 10 / (1 + Math.max(0, daysBetween(current, due)) / preparationDays);
+  const deadlineCompression =
+    due === null || remainingEffortHours === null
+      ? null
+      : Math.min(
+          2,
+          remainingEffortHours /
+            config.dailyCapacityHours /
+            Math.max(1, daysBetween(current, due) + 1),
+        );
   const taskPressure =
     effortScore === null || urgency === null || importance === null
       ? effortScore === null || urgency === null
@@ -482,6 +494,9 @@ function resolveAssessment(
     effortSource,
     effortConfidence,
     importance: importance === null ? null : round(importance),
+    urgency: urgency === null ? null : round(urgency),
+    deadlineCompression: deadlineCompression === null ? null : round(deadlineCompression),
+    overlapCount: 0,
     taskPressure: taskPressure === null ? null : round(taskPressure),
     isMajor,
     status: assessment.completionStatus ?? assessment.status ?? 'NOT_STARTED',
@@ -635,6 +650,20 @@ export function analyzeWorkload(input: WorkloadAnalysisInput): PressureAnalysis 
   const resolved = input.assessments.map((assessment) =>
     resolveAssessment(assessment, config, current),
   );
+  for (let firstIndex = 0; firstIndex < resolved.length; firstIndex += 1) {
+    const first = resolved[firstIndex];
+    if (!first?.preparationStart || !first.dueAt || first.remainingEffortHours === null) continue;
+    for (let secondIndex = firstIndex + 1; secondIndex < resolved.length; secondIndex += 1) {
+      const second = resolved[secondIndex];
+      if (!second?.preparationStart || !second.dueAt || second.remainingEffortHours === null) {
+        continue;
+      }
+      if (first.preparationStart <= second.dueAt && second.preparationStart <= first.dueAt) {
+        first.overlapCount += 1;
+        second.overlapCount += 1;
+      }
+    }
+  }
   const { start, end } = buildRange(input, current, resolved, commitments);
   const dates = dateRange(start, end);
   const workByDate = new Map<string, DayWork>();

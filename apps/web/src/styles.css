@@ -576,6 +576,77 @@ h1 {
   background: var(--surface-elevated);
 }
 
+.workload-calculations-panel {
+  margin-top: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.workload-calculation-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+}
+
+.workload-calculation-summary > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.workload-calculation-summary strong {
+  color: var(--text-primary);
+  font-size: 1.15rem;
+}
+
+.workload-calculation-summary span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.workload-calculation-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.workload-calculation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.workload-calculation-row h3,
+.workload-calculation-row p {
+  margin: 0;
+}
+
+.workload-calculation-row h3 {
+  margin-top: 0.15rem;
+  font-size: 0.98rem;
+}
+
+.workload-calculation-factors {
+  display: grid;
+  flex-shrink: 0;
+  gap: 0.2rem;
+  color: var(--accent-soft);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-align: right;
+}
+
 .assessment-entry-heading,
 .assessment-timeline-heading,
 .assessment-entry-actions,
@@ -2782,6 +2853,19 @@ h1 {
 
   .assessment-entry-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .workload-calculation-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .workload-calculation-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workload-calculation-factors {
+    text-align: left;
   }
 
   .assessment-entry-grid label:nth-child(1),

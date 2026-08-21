@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.4 complete)
-**Next Build Objective:** Phase 6.5 — Workload Calculations
+**Current Phase:** Phase 6 — Semester Command Center (6.5 complete)
+**Next Build Objective:** Phase 6.6 — Daily Pressure
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -17,9 +17,10 @@ job state, a free local deterministic provider, deterministic validation, the
 mandatory review/verification flow, canonical persistence, and an opt-in
 ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
 6.1 pure deterministic Workload Engine package, Phase 6.2 manual assessment
-management, Phase 6.3 personal effort estimates, and Phase 6.4 one-off
-commitment events are now implemented and regression-covered; pressure API
-integration and the full command-center forecast UI remain incomplete.
+management, Phase 6.3 personal effort estimates, Phase 6.4 one-off commitment
+events, and Phase 6.5 workload calculations are now implemented and
+regression-covered; daily and weekly pressure surfaces and the full
+command-center forecast UI remain incomplete.
 
 ---
 
@@ -155,8 +156,8 @@ integration and the full command-center forecast UI remain incomplete.
   interest and career-relevance ratings per workspace and course offering,
   validate exact academic-term ownership, and clear ratings when requested.
 - Workspace responses include owned commitment names, categories, flexibility,
-  weekly effort, and recurring meeting blocks for schedule rendering. No
-  one-off event model is exposed in this phase.
+  weekly effort, recurring meeting blocks, and nested one-off events for the
+  active workspace.
 - Ownership-checked commitment CRUD APIs support validated create, atomic edit
   (including full recurring-meeting replacement), and delete operations. Invalid
   intervals, duplicate recurring meetings, and cross-user access are rejected.
@@ -186,6 +187,10 @@ integration and the full command-center forecast UI remain incomplete.
 - Ownership-checked one-off commitment-event APIs support create, edit, delete,
   timestamp validation, effort bounds, flexibility overrides, and nested event
   serialization on owned workspace commitments.
+- Ownership-checked workload calculations expand owned recurring commitments
+  and one-off events into engine demand, resolve assessment effort provenance,
+  and return explainable preparation, urgency, compression, overlap, and task
+  pressure factors for the active workspace.
 - The planner exposes a deliberate Lock Semester panel and an active-semester
   dashboard with selected-course cards, a Monday-to-Friday timetable, active
   credit totals, and simple Add/Drop and section-switch controls. Candidate
@@ -194,6 +199,10 @@ integration and the full command-center forecast UI remain incomplete.
   assessment entry form. Users can view assessments across active courses, add
   an assessment without an outline, edit title/type/date/weight/progress, mark
   work done, and cancel an assessment while retaining it in the timeline.
+- The active-semester dashboard includes a workload-calculation summary with
+  factor-level demand explanations for dated assessments and commitment
+  pressure contribution. Daily/weekly pressure arrays and findings remain
+  deferred to their later Phase 6 requirements.
 - Assessment effort resolves through the Workload Engine's centralized type
   defaults, preserves outline-derived effort separately, and supports a
   user-scoped personal estimate that can be cleared to restore the fallback.
@@ -351,12 +360,15 @@ integration and the full command-center forecast UI remain incomplete.
 - Phase 6.4 adds `CommitmentEvent` records linked to workspace commitments.
   Recurring commitment schedule rows remain separate from one-off dated event
   demand, and event records cascade with their parent commitment.
+- Phase 6.5 adds workload calculation integration without persisting derived
+  snapshots. The active-semester surface now exposes dated assessment factors
+  and aggregate commitment pressure from owned recurring and one-off demand.
 
 ---
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 6.4 commitment-event
+The following quality suite passes after the Phase 6.5 workload-calculation
 implementation:
 
 ```text
@@ -732,9 +744,10 @@ queries on one client. The exercised requests and assertions pass, but the
 adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
-against real student workload feedback. Phase 6.4 stores one-off commitment
-events but does not yet feed them into the pressure API or forecast dashboard;
-those integrations remain intentionally deferred to later Phase 6 chunks.
+against real student workload feedback. Phase 6.5 exposes factor-level workload
+calculations and aggregate commitment pressure, but daily/weekly pressure
+series, findings, heatmap, and forecast surfaces remain intentionally deferred
+to later Phase 6 chunks.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -785,6 +798,8 @@ apps/api/src/documents.test.ts
 apps/api/src/extraction-jobs.ts
 apps/api/src/assessments.ts
 apps/api/src/assessments.test.ts
+apps/api/src/workload.ts
+apps/api/src/workload.test.ts
 apps/web/src/features/extraction-review.tsx
 apps/web/src/features/planning.tsx
 apps/web/src/styles.css
@@ -818,5 +833,7 @@ assessment timeline items even when extraction is unavailable, with separate
 work progress and academic result status. Phase 6.3 is complete: effective
 effort uses centralized type defaults, preserves verified outline estimates,
 and supports reversible personal overrides. Phase 6.4 is complete: users can
-create, edit, and remove one-off dated events linked to commitments. The next
-objective is Phase 6.5, workload calculations.
+create, edit, and remove one-off dated events linked to commitments. Phase 6.5
+is complete: owned active-semester data now produces explainable workload
+factors and aggregate commitment pressure. The next objective is Phase 6.6,
+daily pressure.

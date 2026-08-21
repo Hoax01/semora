@@ -259,6 +259,46 @@ type AssessmentDraft = {
   personalEffortHours: string;
 };
 
+type WorkloadCalculation = {
+  id: string;
+  courseId: string;
+  courseCode: string | null;
+  courseTitle: string | null;
+  title: string;
+  type: AssessmentType;
+  dueAt: string | null;
+  preparationStart: string | null;
+  preparationDays: number;
+  remainingEffortHours: number | null;
+  estimatedEffortHours: number | null;
+  effortSource: 'PERSONAL_ESTIMATE' | 'OUTLINE_ESTIMATE' | 'GENERIC_DEFAULT' | 'UNKNOWN';
+  effortConfidence: number;
+  importance: number | null;
+  urgency: number | null;
+  deadlineCompression: number | null;
+  overlapCount: number;
+  taskPressure: number | null;
+  isMajor: boolean;
+  status: string;
+};
+
+type Workload = {
+  engineVersion: string;
+  asOf: string;
+  confidence: number;
+  completeness: number;
+  assessments: WorkloadCalculation[];
+  summary: {
+    assessmentCount: number;
+    datedAssessmentCount: number;
+    unknownDateCount: number;
+    remainingEffortHours: number;
+    overlappingAssessmentCount: number;
+    commitmentOccurrenceCount: number;
+    commitmentPressure: number;
+  };
+};
+
 type Meeting = {
   day: string;
   startTime: string;
@@ -2937,6 +2977,8 @@ function ActiveSemesterView({
   const [error, setError] = useState<string>();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
+  const [workload, setWorkload] = useState<Workload>();
+  const [isWorkloadLoading, setIsWorkloadLoading] = useState(true);
   const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
     activeSelectionId: workspace.activeCourseSelections[0]?.id ?? '',
     title: '',
@@ -2962,8 +3004,23 @@ function ActiveSemesterView({
     }
   }
 
+  async function loadWorkload() {
+    setIsWorkloadLoading(true);
+    try {
+      const result = await apiRequest<{ workload: Workload }>(
+        `/api/workspaces/${workspace.id}/workload`,
+      );
+      setWorkload(result.workload);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to calculate workload.');
+    } finally {
+      setIsWorkloadLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadAssessments();
+    void loadWorkload();
   }, [workspace.id]);
 
   useEffect(() => {
@@ -3015,6 +3072,7 @@ function ActiveSemesterView({
       await mutation();
       await onReload();
       await loadAssessments();
+      await loadWorkload();
       return true;
     } catch (reason) {
       setError(
@@ -3324,6 +3382,86 @@ function ActiveSemesterView({
         ) : (
           <p className="schedule-empty">Your active timetable has no Monday–Friday blocks yet.</p>
         )}
+      </section>
+
+      <section
+        className="workload-calculations-panel"
+        aria-labelledby="workload-calculations-title"
+      >
+        <div className="panel-heading-row">
+          <div>
+            <p className="eyebrow">NAVIGATE / WORKLOAD</p>
+            <h2 id="workload-calculations-title">What is creating demand</h2>
+          </div>
+          {workload ? (
+            <span className="course-meta">
+              {Math.round(workload.completeness * 100)}% date coverage · engine{' '}
+              {workload.engineVersion}
+            </span>
+          ) : null}
+        </div>
+        {isWorkloadLoading ? <p className="assessment-empty">Calculating workload…</p> : null}
+        {!isWorkloadLoading && workload ? (
+          <>
+            <div className="workload-calculation-summary">
+              <div>
+                <strong>{workload.summary.remainingEffortHours}h</strong>
+                <span>remaining estimated effort</span>
+              </div>
+              <div>
+                <strong>{workload.summary.overlappingAssessmentCount}</strong>
+                <span>assessments with overlap</span>
+              </div>
+              <div>
+                <strong>{workload.summary.commitmentPressure}</strong>
+                <span>commitment pressure contribution</span>
+              </div>
+            </div>
+            {workload.assessments.length ? (
+              <div className="workload-calculation-list">
+                {workload.assessments.slice(0, 4).map((assessment) => (
+                  <article className="workload-calculation-row" key={assessment.id}>
+                    <div>
+                      <p className="course-code">{assessment.courseCode ?? 'Course unknown'}</p>
+                      <h3>{assessment.title}</h3>
+                      <p className="course-meta">
+                        {assessment.remainingEffortHours === null
+                          ? 'Effort unknown'
+                          : `${assessment.remainingEffortHours}h remaining`}{' '}
+                        · {assessment.preparationDays} day preparation horizon ·{' '}
+                        {assessment.overlapCount
+                          ? `overlaps ${assessment.overlapCount} other demand${assessment.overlapCount === 1 ? '' : 's'}`
+                          : 'no preparation overlap'}
+                      </p>
+                    </div>
+                    <div className="workload-calculation-factors">
+                      <span>
+                        Urgency{' '}
+                        {assessment.urgency === null ? 'unknown' : assessment.urgency.toFixed(1)}
+                      </span>
+                      <span>
+                        Importance{' '}
+                        {assessment.importance === null
+                          ? 'unknown'
+                          : assessment.importance.toFixed(1)}
+                      </span>
+                      <span>
+                        Compression{' '}
+                        {assessment.deadlineCompression === null
+                          ? 'unknown'
+                          : assessment.deadlineCompression.toFixed(2)}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="assessment-empty">
+                No dated assessments are available for calculation yet.
+              </p>
+            )}
+          </>
+        ) : null}
       </section>
 
       <section className="assessments-panel" aria-labelledby="assessments-panel-title">
