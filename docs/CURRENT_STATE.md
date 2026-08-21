@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 21, 2026
-**Current Phase:** Phase 6 — Semester Command Center (6.8 complete)
-**Next Build Objective:** Phase 6.9 — Semester Heatmap
+**Current Phase:** Phase 6 — Semester Command Center (6.9 complete)
+**Next Build Objective:** Phase 6.10 — Dashboard
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -19,9 +19,9 @@ ground-truth benchmark are now implemented. Phase 5 is complete. The Phase
 6.1 pure deterministic Workload Engine package, Phase 6.2 manual assessment
 management, Phase 6.3 personal effort estimates, Phase 6.4 one-off commitment
 events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
-weekly pressure, and Phase 6.8 pressure findings are now implemented and
-regression-covered; the heatmap and full command-center forecast UI remain
-incomplete.
+weekly pressure, Phase 6.8 pressure findings, and Phase 6.9 semester heatmap
+are now implemented and regression-covered; the full command-center forecast
+UI remains incomplete.
 
 ---
 
@@ -198,6 +198,8 @@ incomplete.
 - The workload response also returns the current week and deterministic weekly
   pressure series, including Monday-to-Sunday range, pressure band, estimated
   demand when complete, major-assessment count, course count, and driver IDs.
+- Weekly pressure entries also include readable driver metadata for heatmap
+  explanations, while the underlying deterministic driver IDs remain present.
 - The workload response also returns deterministic structured pressure findings
   with severity, message keys, time windows, modeled pressure where available,
   and related assessment/commitment IDs.
@@ -216,8 +218,8 @@ incomplete.
   bands, demand, major-assessment counts, and course counts. A severity-ranked
   findings panel explains pressure spikes, assessment clusters, deadline
   compression, commitment collisions, early-start opportunities, and date
-  uncertainty. Heatmap interactions remain deferred to the next Phase 6
-  requirement.
+  uncertainty. The semester heatmap renders the full weekly term series and
+  selecting a week explains its modeled assessment and commitment drivers.
 - Assessment effort resolves through the Workload Engine's centralized type
   defaults, preserves outline-derived effort separately, and supports a
   user-scoped personal estimate that can be cleared to restore the fallback.
@@ -384,7 +386,7 @@ incomplete.
 
 ## Tests and verification
 
-The following quality suite passes after the Phase 6.8 pressure-findings
+The following quality suite passes after the Phase 6.9 semester-heatmap
 implementation:
 
 ```text
@@ -760,10 +762,10 @@ queries on one client. The exercised requests and assertions pass, but the
 adapter/driver usage should be revisited when dependencies are upgraded.
 
 Phase 6.1 uses configurable heuristic defaults and has not yet been calibrated
-against real student workload feedback. Phase 6.8 exposes daily/weekly
-pressure and structured findings but does not yet provide the semester heatmap
-or full forecast-dashboard surfaces; those remain intentionally deferred to
-later Phase 6 chunks.
+against real student workload feedback. Phase 6.9 exposes daily/weekly
+pressure, structured findings, and the selectable semester heatmap but does
+not yet provide the full forecast-dashboard surfaces; those remain
+intentionally deferred to the final Phase 6 chunk.
 ```
 
 The Codex sandbox requires a per-command Git safe-directory override because
@@ -856,4 +858,6 @@ workspace exposes current and upcoming daily pressure values. Phase 6.7 is
 complete: the active workspace exposes current and upcoming weekly pressure
 values. Phase 6.8 is complete: the active workspace exposes deterministic,
 severity-ranked pressure findings with explainable windows and related demand.
-The next objective is Phase 6.9, semester heatmap.
+Phase 6.9 is complete: the active workspace exposes a full-term selectable
+weekly heatmap with readable pressure drivers. The next objective is Phase
+6.10, the command-center dashboard.

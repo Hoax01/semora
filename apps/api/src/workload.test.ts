@@ -152,6 +152,9 @@ describe('Phase 6 workload calculations', () => {
           majorAssessmentCount: expect.any(Number),
           uniqueCourseCount: expect.any(Number),
           drivers: expect.arrayContaining([expect.any(String)]),
+          driverDetails: expect.arrayContaining([
+            expect.objectContaining({ kind: 'ASSESSMENT', label: expect.any(String) }),
+          ]),
         }),
       ]),
     );

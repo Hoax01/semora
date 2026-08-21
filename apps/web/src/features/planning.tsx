@@ -290,6 +290,13 @@ type DailyPressure = {
   drivers: string[];
 };
 
+type PressureDriverDetails = {
+  id: string;
+  kind: 'ASSESSMENT' | 'COMMITMENT' | 'UNKNOWN';
+  label: string;
+  courseCode: string | null;
+};
+
 type WeeklyPressure = {
   weekStart: string;
   weekEnd: string;
@@ -299,6 +306,7 @@ type WeeklyPressure = {
   majorAssessmentCount: number;
   uniqueCourseCount: number;
   drivers: string[];
+  driverDetails: PressureDriverDetails[];
 };
 
 type PressureFinding = {
@@ -3097,6 +3105,7 @@ function ActiveSemesterView({
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
   const [workload, setWorkload] = useState<Workload>();
   const [isWorkloadLoading, setIsWorkloadLoading] = useState(true);
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>();
   const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
     activeSelectionId: workspace.activeCourseSelections[0]?.id ?? '',
     title: '',
@@ -3129,6 +3138,12 @@ function ActiveSemesterView({
         `/api/workspaces/${workspace.id}/workload`,
       );
       setWorkload(result.workload);
+      setSelectedWeekStart((current) =>
+        current && result.workload.weeklyPressure.some((week) => week.weekStart === current)
+          ? current
+          : (result.workload.currentWeekPressure?.weekStart ??
+            result.workload.weeklyPressure[0]?.weekStart),
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to calculate workload.');
     } finally {
@@ -3408,6 +3423,9 @@ function ActiveSemesterView({
       timeToMinutes(entry.meeting.endTime) > scheduleStartMinutes &&
       timeToMinutes(entry.meeting.startTime) < scheduleEndMinutes,
   );
+  const selectedWeek = workload?.weeklyPressure.find(
+    (week) => week.weekStart === selectedWeekStart,
+  );
 
   return (
     <main className="planner-page active-semester-page">
@@ -3597,6 +3615,78 @@ function ActiveSemesterView({
             ) : (
               <p className="assessment-empty">No weekly pressure is scheduled yet.</p>
             )}
+            <section className="semester-heatmap-panel" aria-labelledby="semester-heatmap-title">
+              <div className="interaction-pressure-heading">
+                <div>
+                  <p className="eyebrow">FULL TERM</p>
+                  <h3 id="semester-heatmap-title">Semester heatmap</h3>
+                </div>
+                <span className="course-meta">Select a week to see its drivers</span>
+              </div>
+              {workload.weeklyPressure.length ? (
+                <div className="semester-heatmap" aria-label="Semester weekly pressure heatmap">
+                  {workload.weeklyPressure.map((week, index) => {
+                    const isSelected = week.weekStart === selectedWeekStart;
+                    return (
+                      <button
+                        aria-label={`Week ${index + 1}, ${formatPressureRange(week.weekStart, week.weekEnd)}, ${week.pressure.toFixed(1)} ${week.band}`}
+                        aria-pressed={isSelected}
+                        className={`semester-heatmap-cell semester-heatmap-${week.band.toLowerCase()}${isSelected ? ' semester-heatmap-selected' : ''}`}
+                        key={week.weekStart}
+                        onClick={() => setSelectedWeekStart(week.weekStart)}
+                        type="button"
+                      >
+                        <span>W{index + 1}</span>
+                        <strong>{week.pressure.toFixed(1)}</strong>
+                        <small>{week.band}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="assessment-empty">No weekly pressure is available for this term.</p>
+              )}
+              {selectedWeek ? (
+                <div className="semester-heatmap-detail">
+                  <div className="semester-heatmap-detail-heading">
+                    <div>
+                      <p className="eyebrow">SELECTED PERIOD</p>
+                      <h4>{formatPressureRange(selectedWeek.weekStart, selectedWeek.weekEnd)}</h4>
+                    </div>
+                    <strong>
+                      {selectedWeek.pressure.toFixed(1)} · {selectedWeek.band}
+                    </strong>
+                  </div>
+                  <p className="course-meta">
+                    {selectedWeek.estimatedDemandHours === null
+                      ? 'Estimated demand is uncertain.'
+                      : `${selectedWeek.estimatedDemandHours}h estimated demand`}{' '}
+                    · {selectedWeek.majorAssessmentCount} major assessment
+                    {selectedWeek.majorAssessmentCount === 1 ? '' : 's'} ·{' '}
+                    {selectedWeek.uniqueCourseCount} course
+                    {selectedWeek.uniqueCourseCount === 1 ? '' : 's'} ·{' '}
+                    {Math.round(workload.confidence * 100)}% confidence
+                  </p>
+                  {selectedWeek.driverDetails.length ? (
+                    <ul className="semester-heatmap-drivers">
+                      {selectedWeek.driverDetails.map((driver) => (
+                        <li key={driver.id}>
+                          <span>{driver.kind}</span>
+                          <strong>
+                            {driver.courseCode ? `${driver.courseCode} · ` : ''}
+                            {driver.label}
+                          </strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="interaction-pressure-help">
+                      No modeled demand drivers are present in this week.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </section>
             <section
               className="findings-panel workload-findings-panel"
               aria-labelledby="pressure-findings-title"

@@ -149,7 +149,17 @@ function serializeDailyPressure(day: DailyPressure) {
   };
 }
 
-function serializeWeeklyPressure(week: WeeklyPressure) {
+type WorkloadDriverDetails = {
+  id: string;
+  kind: 'ASSESSMENT' | 'COMMITMENT' | 'UNKNOWN';
+  label: string;
+  courseCode: string | null;
+};
+
+function serializeWeeklyPressure(
+  week: WeeklyPressure,
+  driverDetails: ReadonlyMap<string, WorkloadDriverDetails>,
+) {
   return {
     weekStart: week.weekStart,
     weekEnd: week.weekEnd,
@@ -159,6 +169,15 @@ function serializeWeeklyPressure(week: WeeklyPressure) {
     majorAssessmentCount: week.majorAssessmentCount,
     uniqueCourseCount: week.uniqueCourseCount,
     drivers: week.drivers,
+    driverDetails: week.drivers.map(
+      (id) =>
+        driverDetails.get(id) ?? {
+          id,
+          kind: 'UNKNOWN' as const,
+          label: 'Unknown demand',
+          courseCode: null,
+        },
+    ),
   };
 }
 
@@ -269,6 +288,25 @@ export function registerWorkloadRoutes(app: express.Express) {
       workspace.academicTerm.startDate,
       workspace.academicTerm.endDate,
     );
+    const driverDetails = new Map<string, WorkloadDriverDetails>();
+    for (const assessment of assessments) {
+      const courseOffering =
+        assessment.activeCourseState.activeCourseSelection.section.courseOffering;
+      driverDetails.set(assessment.id, {
+        id: assessment.id,
+        kind: 'ASSESSMENT',
+        label: assessment.title,
+        courseCode: courseOffering.course.courseCode,
+      });
+    }
+    for (const commitment of workloadCommitments) {
+      driverDetails.set(commitment.id, {
+        id: commitment.id,
+        kind: 'COMMITMENT',
+        label: commitment.name,
+        courseCode: null,
+      });
+    }
     const analysis = analyzeWorkload({
       currentAt,
       semesterStartAt: workspace.academicTerm.startDate,
@@ -280,9 +318,11 @@ export function registerWorkloadRoutes(app: express.Express) {
     const currentDayPressure = analysis.currentDayPressure
       ? serializeDailyPressure(analysis.currentDayPressure)
       : null;
-    const weeklyPressure = analysis.weeklyPressure.map(serializeWeeklyPressure);
+    const weeklyPressure = analysis.weeklyPressure.map((week) =>
+      serializeWeeklyPressure(week, driverDetails),
+    );
     const currentWeekPressure = analysis.currentWeekPressure
-      ? serializeWeeklyPressure(analysis.currentWeekPressure)
+      ? serializeWeeklyPressure(analysis.currentWeekPressure, driverDetails)
       : null;
     const pressureByCommitmentId = new Map<string, number>();
     for (const day of analysis.dailyPressure) {
