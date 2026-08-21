@@ -47,4 +47,62 @@ describe('LUMS schedule adapter', () => {
     );
     expect(catalogue.courses[1]?.sections).toEqual(catalogue.courses[0]?.sections);
   });
+
+  it('keeps all section rows before the next course code', () => {
+    const catalogue = buildLumsCatalogue([
+      [
+        item('MKTG 201', 38, 271),
+        item('Principles of Marketing', 89.73, 271),
+        item('3', 204.67, 271),
+        item('LEC 1', 244.9, 271),
+        item('MW', 336.86, 271),
+        item('9:30AM', 382.84, 271),
+        item('10:45AM', 440.31, 271),
+        item('Komal Zain', 486.29, 271),
+        item('LEC 2', 244.9, 256),
+        item('TR', 336.86, 256),
+        item('3:30PM', 382.84, 256),
+        item('4:45PM', 440.31, 256),
+        item('Komal Zain', 486.29, 256),
+        item('LEC 3', 244.9, 241),
+        item('TR', 336.86, 241),
+        item('9:30AM', 382.84, 241),
+        item('10:45AM', 440.31, 241),
+        item('Aaminah Zaman Malik', 486.29, 241),
+        item('LEC 4', 244.9, 226),
+        item('MW', 336.86, 226),
+        item('11:00AM', 382.84, 226),
+        item('12:15PM', 440.31, 226),
+        item('Mahira Ilyas', 486.29, 226),
+        item('LEC 5', 244.9, 211),
+        item('TR', 336.86, 211),
+        item('11:00AM', 382.84, 211),
+        item('12:15PM', 440.31, 211),
+        item('Saima Mujtaba Rana', 486.29, 211),
+        item('MKTG 222', 38, 196),
+        item('Retail Management', 89.73, 196),
+        item('3', 204.67, 196),
+        item('LEC 1', 244.9, 196),
+        item('MW', 336.86, 196),
+        item('2:00PM', 382.84, 196),
+        item('3:15PM', 440.31, 196),
+        item('Mahira Ilyas', 486.29, 196),
+      ],
+    ]);
+
+    expect(catalogue.courses[0]?.sections.map((section) => section.sectionCode)).toEqual([
+      'LEC 1',
+      'LEC 2',
+      'LEC 3',
+      'LEC 4',
+      'LEC 5',
+    ]);
+    expect(catalogue.courses[0]?.sections.map((section) => section.instructorDisplay)).toEqual([
+      'Komal Zain',
+      'Komal Zain',
+      'Aaminah Zaman Malik',
+      'Mahira Ilyas',
+      'Saima Mujtaba Rana',
+    ]);
+  });
 });

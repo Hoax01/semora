@@ -99,6 +99,22 @@ const catalogueInclude = {
   sections: { include: { meetings: true }, orderBy: { sectionCode: 'asc' as const } },
 } as const;
 
+function parseCourseCodePrefix(query: string) {
+  const match = /^([A-Za-z]{2,8})(?:\s*[- ]?\s*(\d{1,4}[A-Za-z]?))?$/.exec(query);
+  if (!match) return null;
+  return `${match[1]?.toUpperCase()}${match[2] ? ` ${match[2].toUpperCase()}` : ''}`;
+}
+
+function catalogueTextSearch(query: string) {
+  return {
+    OR: [
+      { course: { courseCode: { contains: query, mode: 'insensitive' as const } } },
+      { course: { title: { contains: query, mode: 'insensitive' as const } } },
+      { course: { department: { contains: query, mode: 'insensitive' as const } } },
+    ],
+  };
+}
+
 app.get('/api/catalogue', async (request, response) => {
   if (!prisma) {
     response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
@@ -109,6 +125,7 @@ app.get('/api/catalogue', async (request, response) => {
   const query = String(request.query.q ?? '').trim();
   const termId = String(request.query.termId ?? '').trim();
   const termName = String(request.query.term ?? '').trim();
+  const codePrefix = parseCourseCodePrefix(query);
   const term = termId
     ? await prisma.academicTerm.findUnique({ where: { id: termId } })
     : await prisma.academicTerm.findFirst({
@@ -120,22 +137,30 @@ app.get('/api/catalogue', async (request, response) => {
     return;
   }
 
-  const offerings = await prisma.courseOffering.findMany({
+  const searchWhere = codePrefix
+    ? { course: { courseCode: { startsWith: codePrefix, mode: 'insensitive' as const } } }
+    : query
+      ? catalogueTextSearch(query)
+      : {};
+  let offerings = await prisma.courseOffering.findMany({
     where: {
       academicTermId: term.id,
-      ...(query
-        ? {
-            OR: [
-              { course: { courseCode: { contains: query, mode: 'insensitive' } } },
-              { course: { title: { contains: query, mode: 'insensitive' } } },
-              { course: { department: { contains: query, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
+      ...searchWhere,
     },
     include: catalogueInclude,
     orderBy: { course: { courseCode: 'asc' } },
   });
+
+  if (codePrefix && offerings.length === 0) {
+    offerings = await prisma.courseOffering.findMany({
+      where: {
+        academicTermId: term.id,
+        ...catalogueTextSearch(query),
+      },
+      include: catalogueInclude,
+      orderBy: { course: { courseCode: 'asc' } },
+    });
+  }
 
   response.status(200).json({
     term: { id: term.id, name: term.name, universityId: term.universityId },

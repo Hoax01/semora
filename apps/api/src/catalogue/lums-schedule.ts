@@ -90,7 +90,7 @@ function parsePage(items: PdfTextItem[]) {
     const previousY = codeItems[index - 1]?.transform[5];
     const nextY = codeItems[index + 1]?.transform[5];
     const upperBoundary = previousY === undefined ? rowY + 12 : (previousY + rowY) / 2;
-    const lowerBoundary = nextY === undefined ? 0 : (rowY + nextY) / 2;
+    const lowerBoundary = nextY === undefined ? 0 : nextY;
     const region = content.filter((item) => {
       const y = item.transform[5] ?? 0;
       return y <= upperBoundary && y > lowerBoundary;

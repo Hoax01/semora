@@ -52,6 +52,11 @@ describe('email/password authentication', () => {
 
     expect(catalogue.status).toBe(200);
     expect(catalogue.body.courses.length).toBeGreaterThan(0);
+    expect(
+      catalogue.body.courses.every((course: { courseCode: string }) =>
+        course.courseCode.startsWith('CS'),
+      ),
+    ).toBe(true);
     const csCourse = catalogue.body.courses.find((course: { courseCode: string }) =>
       course.courseCode.startsWith('CS'),
     );
@@ -60,6 +65,18 @@ describe('email/password authentication', () => {
       credits: 3,
     });
     expect(csCourse.sections[0].meetings.length).toBeGreaterThan(0);
+
+    const titleSearch = await request(app)
+      .get('/api/catalogue')
+      .query({ term: 'Fall 2026', q: 'Operating Systems' })
+      .set('Cookie', sessionCookie);
+
+    expect(titleSearch.status).toBe(200);
+    expect(titleSearch.body.courses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: expect.stringMatching(/Operating Systems/i) }),
+      ]),
+    );
 
     const courseDetails = await request(app)
       .get(`/api/catalogue/${csCourse.id}`)
@@ -203,7 +220,8 @@ describe('Phase 2 planning foundation', () => {
     expect(catalogue.status).toBe(200);
     expect(catalogue.body.term.id).toBe(fall2026.id);
     const courseWithMultipleSections = catalogue.body.courses.find(
-      (course: { sections: unknown[] }) => course.sections.length >= 2,
+      (course: { credits: number; sections: unknown[] }) =>
+        course.credits === 3 && course.sections.length >= 2,
     );
     expect(courseWithMultipleSections).toBeDefined();
     const firstSectionId = courseWithMultipleSections.sections[0].id as string;
@@ -629,12 +647,14 @@ describe('Phase 2 planning foundation', () => {
       startTime: string;
       endTime: string;
     }>;
+    const firstSectionMeetings = courseWithMultipleSections.sections[0]
+      .meetings as typeof activeMeetings;
     const additionalCourse = catalogue.body.courses.find(
       (course: { id: string; sections: Array<{ meetings: typeof activeMeetings }> }) =>
         course.id !== courseWithMultipleSections.id &&
         course.sections.some((section) =>
           section.meetings.every((meeting) =>
-            activeMeetings.every(
+            [...activeMeetings, ...firstSectionMeetings].every(
               (activeMeeting) =>
                 meeting.day !== activeMeeting.day ||
                 toMinutes(meeting.endTime) <= toMinutes(activeMeeting.startTime) ||
@@ -646,7 +666,7 @@ describe('Phase 2 planning foundation', () => {
     expect(additionalCourse).toBeDefined();
     const additionalSection = additionalCourse.sections.find((section) =>
       section.meetings.every((meeting) =>
-        activeMeetings.every(
+        [...activeMeetings, ...firstSectionMeetings].every(
           (activeMeeting) =>
             meeting.day !== activeMeeting.day ||
             toMinutes(meeting.endTime) <= toMinutes(activeMeeting.startTime) ||

@@ -51,10 +51,17 @@ events.
 - Email/password sign-up and sign-in screens.
 - Session-aware protected root route, loading state, authenticated application
   shell, and sign-out action.
+- Successful registration performs a full navigation to the protected dashboard
+  so the new session is hydrated before workspace setup begins. Vite now fails
+  clearly if port 5173 is already occupied instead of silently serving an
+  untrusted origin for Better Auth.
 - Vite development proxy routes `/api` requests to the API.
 - Protected Fall 2026 catalogue screen with search, course rows, and course
   detail views showing sections, credits, instructors, capacities, and meeting
   times.
+- Catalogue search prioritizes course-code prefixes for code-shaped queries
+  such as `CS`, `MKTG`, or `CS 3`, while still supporting title and department
+  searches such as `Operating Systems` or `Computer Science`.
 - First-time semester setup for selecting an available university/academic
   term and creating the user's term-specific planning workspace.
 - Initial responsive Semester Designer surface with visible candidate tabs,
@@ -133,7 +140,8 @@ events.
   rejected before mutation.
 - LUMS class-schedule PDF adapter at `catalogue:convert-lums`; the adapter
   preserves cross-listed aliases, expands compact day codes, and resolves
-  duplicate official section labels without dropping schedule rows.
+  duplicate official section labels without dropping schedule rows, including
+  all section rows immediately before the next course code.
 - Protected term and workspace APIs. Workspace creation is idempotent per user
   and academic term and creates the typed default preference record.
 - Ownership-checked candidate-semester APIs for create, rename, duplicate, and
@@ -379,8 +387,8 @@ events.
   commitment overlap as a compatibility penalty. It has no database, HTTP,
   React, or LLM dependencies.
 - Official Fall 2026 LUMS schedule imported into the local PostgreSQL service
-  on port 5432: 520 course offerings, 823 section/component records, and 1,441
-  day-specific meetings.
+  on port 5432: 520 course offerings, 951 section/component records, and 1,658
+  day-specific meetings after correcting the PDF row-boundary parser.
 - Development seeding is bootstrap-only: an already-populated Fall 2026 term is
   left unchanged, while a clean database receives 10 offerings, 20 sections,
   and 40 meetings. It no longer overwrites or supplements an official import.
@@ -430,10 +438,11 @@ Current API integration coverage verifies:
 - importer validation and repeat execution were verified with the checked-in
   example JSON fixture; the second run reused the same canonical records.
 - the official schedule converted to exactly 520 course-code rows and was
-  imported twice without duplication; database counts remained 520 offerings,
-  823 sections, and 1,441 meetings.
+  imported without duplication; database counts are 520 offerings, 951
+  sections, and 1,658 meetings.
 - LUMS schedule parsing covers wrapped titles, cross-listed aliases, compact
-  day codes, and duplicate source section labels.
+  day codes, duplicate source section labels, and trailing section rows such as
+  MKTG 201 LEC 4 and LEC 5.
 - term discovery, idempotent workspace creation, one default preference record,
   candidate validation, candidate create/rename/duplicate/archive behavior,
   and rejection of cross-user workspace/candidate access.
@@ -667,19 +676,19 @@ and schedule range/alignment defects.
 - The Phase 0–4 migrations, corrected clean-database seed, and API suite were
   verified against a temporary PostgreSQL database during the earlier audit.
   The temporary database was removed after verification.
-- The official local catalogue was restored to 520 offerings, 823 sections,
-  and 1,441 meetings after the audit discovered that the old seed had mutated
-  it. A full catalogue fingerprint was unchanged before and after running the
-  corrected seed against that populated term.
+- The official local catalogue now contains 520 offerings, 951 sections, and
+  1,658 meetings after correcting the PDF parser's course-row boundary and
+  re-running the official import. MKTG 201 now exposes five sections,
+  including Mahira Ilyas and Saima Mujtaba Rana.
 
 ### Phase 1 acceptance audit
 
 - The authenticated web UI was manually reviewed against the imported local
-  database. Sign-up and sign-out worked, the Fall 2026 catalogue loaded, a
-  `CS 370` search returned the expected course, and its detail view showed
-  credits, both sections, instructors, and day/time meetings.
+  database. Sign-up arrives directly at the protected dashboard, code and title
+  searches return the expected results, and the `MKTG 201` detail view shows all
+  five sections with the Mahira Ilyas and Saima Mujtaba Rana timings.
 - The official schedule conversion/import is repeatable and currently contains
-  520 offerings, 823 sections/components, and 1,441 day-specific meetings.
+  520 offerings, 951 sections/components, and 1,658 day-specific meetings.
 - The outline audit produced 386 unique PDFs from 392 readable source PDFs by
   excluding only six byte-identical duplicate pairs. The original folder was
   preserved unchanged.

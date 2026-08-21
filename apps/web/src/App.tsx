@@ -69,7 +69,11 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         setError(result.error.message ?? 'Unable to continue. Please try again.');
         return;
       }
-      navigate('/', { replace: true });
+      if (isSignUp) {
+        window.location.replace('/');
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch {
       setError('Unable to reach Semora. Check that the API is running.');
     } finally {
