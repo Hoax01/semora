@@ -605,6 +605,7 @@ model Commitment {
   updatedAt         DateTime              @updatedAt @map("updated_at")
   workspace         SemesterWorkspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   meetings          CommitmentMeeting[]
+  events            CommitmentEvent[]
 
   @@index([workspaceId])
   @@map("commitments")
@@ -620,6 +621,22 @@ model CommitmentMeeting {
 
   @@unique([commitmentId, dayOfWeek, startTime, endTime])
   @@map("commitment_meetings")
+}
+
+model CommitmentEvent {
+  id                    String                @id @default(cuid())
+  commitmentId          String                @map("commitment_id")
+  title                 String
+  startAt               DateTime              @map("start_at")
+  endAt                 DateTime              @map("end_at")
+  estimatedEffortHours  Decimal?              @map("estimated_effort_hours") @db.Decimal(5, 2)
+  flexibilityOverride   CommitmentFlexibility? @map("flexibility_override")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  commitment            Commitment            @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@index([commitmentId, startAt])
+  @@map("commitment_events")
 }
 
 model Session {

@@ -485,6 +485,53 @@ describe('Phase 2 planning foundation', () => {
       flexibility: 'HARD',
       weeklyEffortHours: 2,
     });
+    const commitmentEvent = await request(app)
+      .post(`/api/commitments/${hardCommitment.body.commitment.id}/events`)
+      .set('Cookie', ownerCookie)
+      .send({
+        title: 'TA grading block',
+        startAt: '2026-10-13T09:00:00.000Z',
+        endAt: '2026-10-13T13:00:00.000Z',
+        estimatedEffortHours: 4,
+        flexibilityOverride: 'HARD',
+      });
+    expect(commitmentEvent.status).toBe(201);
+    expect(commitmentEvent.body.event).toMatchObject({
+      title: 'TA grading block',
+      estimatedEffortHours: 4,
+      flexibilityOverride: 'HARD',
+    });
+    const editedCommitmentEvent = await request(app)
+      .patch(`/api/commitment-events/${commitmentEvent.body.event.id}`)
+      .set('Cookie', ownerCookie)
+      .send({
+        title: 'TA grading deadline',
+        startAt: '2026-10-13T10:00:00.000Z',
+        endAt: '2026-10-13T14:00:00.000Z',
+        estimatedEffortHours: 5,
+        flexibilityOverride: null,
+      });
+    expect(editedCommitmentEvent.status).toBe(200);
+    expect(editedCommitmentEvent.body.event).toMatchObject({
+      title: 'TA grading deadline',
+      estimatedEffortHours: 5,
+      flexibilityOverride: null,
+    });
+    const workspaceWithEvent = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', ownerCookie);
+    expect(workspaceWithEvent.body.workspace.commitments[0].events).toEqual([
+      expect.objectContaining({ id: commitmentEvent.body.event.id, title: 'TA grading deadline' }),
+    ]);
+    const invalidCommitmentEvent = await request(app)
+      .post(`/api/commitments/${hardCommitment.body.commitment.id}/events`)
+      .set('Cookie', ownerCookie)
+      .send({
+        title: 'Invalid event',
+        startAt: '2026-10-13T14:00:00.000Z',
+        endAt: '2026-10-13T13:00:00.000Z',
+      });
+    expect(invalidCommitmentEvent.status).toBe(400);
     const conflictedValidation = await request(app)
       .get(`/api/candidates/${optionA.body.candidate.id}/validation`)
       .set('Cookie', ownerCookie);
@@ -677,6 +724,16 @@ describe('Phase 2 planning foundation', () => {
       password,
     });
     const intruderCookie = intruderSignUp.headers['set-cookie'];
+
+    const foreignCommitmentEvent = await request(app)
+      .patch(`/api/commitment-events/${commitmentEvent.body.event.id}`)
+      .set('Cookie', intruderCookie)
+      .send({
+        title: 'Stolen event',
+        startAt: '2026-10-13T10:00:00.000Z',
+        endAt: '2026-10-13T11:00:00.000Z',
+      });
+    expect(foreignCommitmentEvent.status).toBe(404);
 
     const foreignWorkspace = await request(app)
       .get(`/api/workspaces/${workspaceId}`)

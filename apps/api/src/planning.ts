@@ -62,6 +62,23 @@ const commitmentMeetingSchema = z.object({
   startTime: z.string().regex(timePattern),
   endTime: z.string().regex(timePattern),
 });
+const commitmentEventRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120),
+    startAt: z.string().datetime({ offset: true }),
+    endAt: z.string().datetime({ offset: true }),
+    estimatedEffortHours: z.number().finite().min(0).max(168).nullable().optional(),
+    flexibilityOverride: z.enum(commitmentFlexibilities).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (new Date(value.startAt).getTime() >= new Date(value.endAt).getTime()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endAt'],
+        message: 'Event must end after it starts.',
+      });
+    }
+  });
 const commitmentRequestSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
@@ -175,7 +192,10 @@ const activeCourseSelectionInclude = {
   },
 } as const;
 
-const commitmentInclude = { meetings: true } as const;
+const commitmentInclude = {
+  meetings: true,
+  events: { orderBy: { startAt: 'asc' as const } },
+} as const;
 
 const workspaceInclude = {
   academicTerm: { include: { university: true } },
@@ -283,6 +303,16 @@ type CommitmentRecord = {
     startTime: Date;
     endTime: Date;
   }>;
+  events?: Array<CommitmentEventRecord>;
+};
+
+type CommitmentEventRecord = {
+  id: string;
+  title: string;
+  startAt: Date;
+  endAt: Date;
+  estimatedEffortHours: { toString(): string } | null;
+  flexibilityOverride: string | null;
 };
 
 type PreferencesRecord = {
@@ -441,6 +471,14 @@ function serializeCommitment(commitment: CommitmentRecord) {
       day: meeting.dayOfWeek,
       startTime: formatTime(meeting.startTime),
       endTime: formatTime(meeting.endTime),
+    })),
+    events: (commitment.events ?? []).map((event) => ({
+      id: event.id,
+      title: event.title,
+      startAt: event.startAt.toISOString(),
+      endAt: event.endAt.toISOString(),
+      estimatedEffortHours: decimalOrNull(event.estimatedEffortHours),
+      flexibilityOverride: event.flexibilityOverride as 'HARD' | 'SOFT' | 'FLEXIBLE' | null,
     })),
   };
 }
@@ -1243,6 +1281,109 @@ export function registerPlanningRoutes(app: express.Express) {
 
     await prisma.commitment.delete({ where: { id: existing.id } });
     response.status(200).json({ commitmentId: existing.id });
+  });
+
+  app.post('/api/commitments/:commitmentId/events', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = commitmentEventRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const commitment = await prisma.commitment.findFirst({
+      where: { id: request.params.commitmentId, workspace: { userId } },
+      select: { id: true },
+    });
+    if (!commitment) {
+      response.status(404).json({ error: 'COMMITMENT_NOT_FOUND' });
+      return;
+    }
+    const event = await prisma.commitmentEvent.create({
+      data: {
+        commitmentId: commitment.id,
+        title: parsed.data.title,
+        startAt: new Date(parsed.data.startAt),
+        endAt: new Date(parsed.data.endAt),
+        estimatedEffortHours: parsed.data.estimatedEffortHours ?? null,
+        flexibilityOverride: parsed.data.flexibilityOverride ?? null,
+      },
+    });
+    response.status(201).json({
+      event: {
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+        estimatedEffortHours: decimalOrNull(event.estimatedEffortHours),
+        flexibilityOverride: event.flexibilityOverride,
+      },
+    });
+  });
+
+  app.patch('/api/commitment-events/:eventId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = commitmentEventRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+    const existing = await prisma.commitmentEvent.findFirst({
+      where: { id: request.params.eventId, commitment: { workspace: { userId } } },
+      select: { id: true },
+    });
+    if (!existing) {
+      response.status(404).json({ error: 'COMMITMENT_EVENT_NOT_FOUND' });
+      return;
+    }
+    const event = await prisma.commitmentEvent.update({
+      where: { id: existing.id },
+      data: {
+        title: parsed.data.title,
+        startAt: new Date(parsed.data.startAt),
+        endAt: new Date(parsed.data.endAt),
+        estimatedEffortHours: parsed.data.estimatedEffortHours ?? null,
+        flexibilityOverride: parsed.data.flexibilityOverride ?? null,
+      },
+    });
+    response.status(200).json({
+      event: {
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt.toISOString(),
+        estimatedEffortHours: decimalOrNull(event.estimatedEffortHours),
+        flexibilityOverride: event.flexibilityOverride,
+      },
+    });
+  });
+
+  app.delete('/api/commitment-events/:eventId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const existing = await prisma.commitmentEvent.findFirst({
+      where: { id: request.params.eventId, commitment: { workspace: { userId } } },
+      select: { id: true },
+    });
+    if (!existing) {
+      response.status(404).json({ error: 'COMMITMENT_EVENT_NOT_FOUND' });
+      return;
+    }
+    await prisma.commitmentEvent.delete({ where: { id: existing.id } });
+    response.status(200).json({ eventId: existing.id });
   });
 
   app.get('/api/candidates/:candidateId/validation', async (request, response) => {

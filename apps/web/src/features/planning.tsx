@@ -344,6 +344,16 @@ type Commitment = {
   weeklyEffortHours: number;
   flexibility: string;
   meetings: Meeting[];
+  events: CommitmentEvent[];
+};
+
+type CommitmentEvent = {
+  id: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  estimatedEffortHours: number | null;
+  flexibilityOverride: CommitmentFlexibility | null;
 };
 
 type CommitmentCategory =
@@ -357,6 +367,16 @@ type CommitmentDraft = {
   weeklyEffortHours: string;
   flexibility: CommitmentFlexibility;
   meetings: CommitmentDraftMeeting[];
+};
+
+type CommitmentEventDraft = {
+  id?: string;
+  commitmentId: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  estimatedEffortHours: string;
+  flexibilityOverride: CommitmentFlexibility | 'INHERIT';
 };
 
 type University = {
@@ -444,6 +464,23 @@ function emptyCommitmentDraft(): CommitmentDraft {
     flexibility: 'FLEXIBLE',
     meetings: [],
   };
+}
+
+function emptyCommitmentEventDraft(commitmentId = ''): CommitmentEventDraft {
+  return {
+    commitmentId,
+    title: '',
+    startAt: '',
+    endAt: '',
+    estimatedEffortHours: '',
+    flexibilityOverride: 'INHERIT',
+  };
+}
+
+function dateTimeInputFromIso(value: string) {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function timeToMinutes(value: string) {
@@ -659,6 +696,12 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     if (body?.error === 'ASSESSMENT_CANCELLED') {
       throw new Error('Cancelled assessments cannot be edited.');
     }
+    if (body?.error === 'COMMITMENT_NOT_FOUND') {
+      throw new Error('That commitment is no longer available. Refresh and try again.');
+    }
+    if (body?.error === 'COMMITMENT_EVENT_NOT_FOUND') {
+      throw new Error('That one-off event is no longer available. Refresh and try again.');
+    }
     throw new Error('Semora could not save this change. Please try again.');
   }
   return response.json() as Promise<T>;
@@ -777,6 +820,9 @@ export function PlanningPage() {
   const [scenarioDescription, setScenarioDescription] = useState<string>();
   const [validationRefresh, setValidationRefresh] = useState(0);
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>(emptyCommitmentDraft);
+  const [commitmentEventDraft, setCommitmentEventDraft] = useState<CommitmentEventDraft>(
+    emptyCommitmentEventDraft(),
+  );
   const [preferenceDraft, setPreferenceDraft] = useState<PreferenceDraft>(defaultPreferenceDraft);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
@@ -815,6 +861,23 @@ export function PlanningPage() {
   useEffect(() => {
     setPreferenceDraft(preferenceDraftFrom(workspace?.preferences ?? null));
   }, [workspace?.preferences?.updatedAt]);
+
+  useEffect(() => {
+    const defaultCommitmentId = workspace?.commitments[0]?.id ?? '';
+    if (
+      commitmentEventDraft.commitmentId &&
+      workspace?.commitments.some(
+        (commitment) => commitment.id === commitmentEventDraft.commitmentId,
+      )
+    ) {
+      return;
+    }
+    if (commitmentEventDraft.commitmentId === defaultCommitmentId) return;
+    setCommitmentEventDraft((current) => ({
+      ...current,
+      commitmentId: defaultCommitmentId,
+    }));
+  }, [workspace?.commitments, commitmentEventDraft.commitmentId]);
 
   useEffect(() => {
     if (!selectedCandidateId) {
@@ -1117,6 +1180,68 @@ export function PlanningPage() {
     });
   }
 
+  function editCommitmentEvent(event: CommitmentEvent, commitmentId: string) {
+    setCommitmentEventDraft({
+      id: event.id,
+      commitmentId,
+      title: event.title,
+      startAt: dateTimeInputFromIso(event.startAt),
+      endAt: dateTimeInputFromIso(event.endAt),
+      estimatedEffortHours: event.estimatedEffortHours?.toString() ?? '',
+      flexibilityOverride: event.flexibilityOverride ?? 'INHERIT',
+    });
+  }
+
+  function saveCommitmentEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId || !commitmentEventDraft.commitmentId || !commitmentEventDraft.title.trim()) {
+      return;
+    }
+    const startAt = new Date(commitmentEventDraft.startAt);
+    const endAt = new Date(commitmentEventDraft.endAt);
+    if (
+      Number.isNaN(startAt.getTime()) ||
+      Number.isNaN(endAt.getTime()) ||
+      startAt.getTime() >= endAt.getTime()
+    ) {
+      setError('One-off events must have an end time after their start time.');
+      return;
+    }
+    const effort = commitmentEventDraft.estimatedEffortHours.trim();
+    const payload = {
+      title: commitmentEventDraft.title.trim(),
+      startAt: startAt.toISOString(),
+      endAt: endAt.toISOString(),
+      estimatedEffortHours: effort ? Number(effort) : null,
+      flexibilityOverride:
+        commitmentEventDraft.flexibilityOverride === 'INHERIT'
+          ? null
+          : commitmentEventDraft.flexibilityOverride,
+    };
+    void runMutation('commitment-event', async () => {
+      await apiRequest(
+        commitmentEventDraft.id
+          ? `/api/commitment-events/${commitmentEventDraft.id}`
+          : `/api/commitments/${commitmentEventDraft.commitmentId}/events`,
+        {
+          method: commitmentEventDraft.id ? 'PATCH' : 'POST',
+          body: JSON.stringify(payload),
+        },
+      );
+      setCommitmentEventDraft(emptyCommitmentEventDraft(commitmentEventDraft.commitmentId));
+    });
+  }
+
+  function removeCommitmentEvent(event: CommitmentEvent) {
+    if (!window.confirm(`Remove ${event.title} from this semester?`)) return;
+    void runMutation('delete-commitment-event', async () => {
+      await apiRequest(`/api/commitment-events/${event.id}`, { method: 'DELETE' });
+      if (commitmentEventDraft.id === event.id) {
+        setCommitmentEventDraft(emptyCommitmentEventDraft(commitmentEventDraft.commitmentId));
+      }
+    });
+  }
+
   function updatePreference(field: keyof PreferenceDraft, value: number) {
     setPreferenceDraft((current) => ({ ...current, [field]: value }));
   }
@@ -1214,6 +1339,16 @@ export function PlanningPage() {
   const activeSelection = selectedCandidate?.selections.find(
     (selection) => selection.courseOfferingId === activeOfferingId,
   );
+  const commitmentEvents =
+    workspace?.commitments
+      .flatMap((commitment) =>
+        commitment.events.map((event) => ({
+          ...event,
+          commitmentName: commitment.name,
+          commitmentId: commitment.id,
+        })),
+      )
+      .sort((first, second) => first.startAt.localeCompare(second.startAt)) ?? [];
   const conflictIds = new Set(
     candidateValidation?.clashes.flatMap((clash) => [clash.first.id, clash.second.id]) ?? [],
   );
@@ -2096,6 +2231,209 @@ export function PlanningPage() {
                     >
                       {commitmentDraft.id ? 'Save commitment' : 'Add commitment'}
                     </button>
+                  </form>
+                </div>
+                <div className="commitment-events">
+                  <div className="commitment-events-heading">
+                    <div>
+                      <h3>One-off events</h3>
+                      <p>
+                        Capture an interview, tournament, grading block, or other date-specific
+                        demand.
+                      </p>
+                    </div>
+                    <span className="course-meta">
+                      Affects workload, not the recurring timetable
+                    </span>
+                  </div>
+                  {commitmentEvents.length ? (
+                    <div className="commitment-event-list">
+                      {commitmentEvents.map((event) => (
+                        <article className="commitment-event-row" key={event.id}>
+                          <div>
+                            <p className="course-code">{event.commitmentName}</p>
+                            <h4>{event.title}</h4>
+                            <p className="course-meta">
+                              {new Date(event.startAt).toLocaleString(undefined, {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              })}{' '}
+                              –{' '}
+                              {new Date(event.endAt).toLocaleTimeString(undefined, {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                              {' · '}
+                              {event.estimatedEffortHours === null
+                                ? 'Effort unknown'
+                                : `${event.estimatedEffortHours} hours estimated`}
+                            </p>
+                          </div>
+                          <div className="commitment-actions">
+                            <button
+                              className="secondary-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => editCommitmentEvent(event, event.commitmentId)}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="danger-button compact-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => removeCommitmentEvent(event)}
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="selected-courses-empty">
+                      No one-off events yet. Add one for a date-specific commitment.
+                    </p>
+                  )}
+                  <form className="commitment-event-form" onSubmit={saveCommitmentEvent}>
+                    <div className="panel-heading-row">
+                      <h4>
+                        {commitmentEventDraft.id ? 'Edit one-off event' : 'Add one-off event'}
+                      </h4>
+                      {commitmentEventDraft.id ? (
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            setCommitmentEventDraft(
+                              emptyCommitmentEventDraft(commitmentEventDraft.commitmentId),
+                            )
+                          }
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="commitment-event-form-row">
+                      <label>
+                        Parent commitment
+                        <select
+                          disabled={Boolean(commitmentEventDraft.id)}
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              commitmentId: event.target.value,
+                            }))
+                          }
+                          required
+                          value={commitmentEventDraft.commitmentId}
+                        >
+                          <option value="">Choose a commitment</option>
+                          {workspace.commitments.map((commitment) => (
+                            <option key={commitment.id} value={commitment.id}>
+                              {commitment.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Event title
+                        <input
+                          maxLength={120}
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              title: event.target.value,
+                            }))
+                          }
+                          placeholder="e.g. Lahore Cup"
+                          required
+                          value={commitmentEventDraft.title}
+                        />
+                      </label>
+                    </div>
+                    <div className="commitment-event-form-row">
+                      <label>
+                        Starts
+                        <input
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              startAt: event.target.value,
+                            }))
+                          }
+                          required
+                          type="datetime-local"
+                          value={commitmentEventDraft.startAt}
+                        />
+                      </label>
+                      <label>
+                        Ends
+                        <input
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              endAt: event.target.value,
+                            }))
+                          }
+                          required
+                          type="datetime-local"
+                          value={commitmentEventDraft.endAt}
+                        />
+                      </label>
+                    </div>
+                    <div className="commitment-event-form-row">
+                      <label>
+                        Estimated effort hours
+                        <input
+                          max="168"
+                          min="0"
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              estimatedEffortHours: event.target.value,
+                            }))
+                          }
+                          placeholder="Optional"
+                          step="0.25"
+                          type="number"
+                          value={commitmentEventDraft.estimatedEffortHours}
+                        />
+                      </label>
+                      <label>
+                        Flexibility for this event
+                        <select
+                          onChange={(event) =>
+                            setCommitmentEventDraft((current) => ({
+                              ...current,
+                              flexibilityOverride: event.target.value as
+                                CommitmentFlexibility | 'INHERIT',
+                            }))
+                          }
+                          value={commitmentEventDraft.flexibilityOverride}
+                        >
+                          <option value="INHERIT">Use parent commitment</option>
+                          <option value="HARD">Hard — cannot move</option>
+                          <option value="SOFT">Soft — avoid if possible</option>
+                          <option value="FLEXIBLE">Flexible — can move</option>
+                        </select>
+                      </label>
+                    </div>
+                    <button
+                      disabled={
+                        Boolean(busyAction) ||
+                        !workspace.commitments.length ||
+                        !commitmentEventDraft.commitmentId
+                      }
+                      type="submit"
+                    >
+                      {commitmentEventDraft.id ? 'Save event' : 'Add event'}
+                    </button>
+                    {!workspace.commitments.length ? (
+                      <small className="form-help">
+                        Add a commitment first so this event has the right category and ownership.
+                      </small>
+                    ) : null}
                   </form>
                 </div>
               </section>

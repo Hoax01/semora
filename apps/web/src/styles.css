@@ -1603,6 +1603,100 @@ h1 {
   color: var(--text-secondary);
 }
 
+.commitment-events {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.commitment-events-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.commitment-events-heading h3,
+.commitment-events-heading p,
+.commitment-event-row h4,
+.commitment-event-row p {
+  margin: 0;
+}
+
+.commitment-events-heading h3 {
+  font-size: 1rem;
+}
+
+.commitment-events-heading p {
+  margin-top: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.commitment-event-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.commitment-event-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #a68be066;
+  border-radius: 0.65rem;
+  background: #a68be00c;
+}
+
+.commitment-event-row h4 {
+  margin-top: 0.15rem;
+  font-size: 0.95rem;
+}
+
+.commitment-event-form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.commitment-event-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.commitment-event-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.commitment-event-form input,
+.commitment-event-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 400;
+}
+
+.form-help {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .icon-button {
   width: 2rem;
   height: 2rem;
@@ -2603,6 +2697,16 @@ h1 {
   }
 
   .commitment-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .commitment-events-heading,
+  .commitment-event-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commitment-event-form-row {
     grid-template-columns: 1fr;
   }
 
