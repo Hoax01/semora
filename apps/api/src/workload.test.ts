@@ -137,6 +137,24 @@ describe('Phase 6 workload calculations', () => {
         }),
       ]),
     );
+    expect(result.body.workload.currentWeekPressure).toMatchObject({
+      weekStart: '2026-08-31',
+      weekEnd: '2026-09-06',
+      pressure: expect.any(Number),
+      band: expect.any(String),
+    });
+    expect(result.body.workload.weeklyPressure.length).toBeGreaterThan(1);
+    expect(result.body.workload.weeklyPressure).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          weekStart: '2026-09-07',
+          weekEnd: '2026-09-13',
+          majorAssessmentCount: expect.any(Number),
+          uniqueCourseCount: expect.any(Number),
+          drivers: expect.arrayContaining([expect.any(String)]),
+        }),
+      ]),
+    );
     expect(result.body.workload.assessments).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

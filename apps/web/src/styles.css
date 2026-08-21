@@ -654,6 +654,65 @@ h1 {
   border-top-color: #c95d68;
 }
 
+.weekly-pressure-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.weekly-pressure-heading h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+.weekly-pressure-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.weekly-pressure-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto minmax(12rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.weekly-pressure-row > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.weekly-pressure-row time,
+.weekly-pressure-row small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.weekly-pressure-row strong {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.weekly-pressure-band {
+  color: var(--accent-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.weekly-pressure-high,
+.weekly-pressure-severe {
+  color: #e48772;
+}
+
 .workload-calculation-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2931,6 +2990,14 @@ h1 {
 
   .daily-pressure-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weekly-pressure-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .weekly-pressure-row small {
+    grid-column: 1 / -1;
   }
 
   .workload-calculation-row {

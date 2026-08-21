@@ -88,6 +88,7 @@ describe('workload engine', () => {
 
     expect(upcoming.dailyPressure.some((day) => day.pressure > 0)).toBe(true);
     expect(done.dailyPressure.every((day) => day.pressure === 0)).toBe(true);
+    expect(done.dailyPressure.every((day) => day.estimatedDemandHours === 0)).toBe(true);
     expect(done.upcomingAssessments).toHaveLength(0);
   });
 
@@ -106,6 +107,26 @@ describe('workload engine', () => {
     });
     expect(preparationDay?.pressure).toBeGreaterThan(0);
     expect(dueDay?.pressure).toBeGreaterThan(0);
+  });
+
+  it('aggregates daily pressure into Monday-to-Sunday weeks', () => {
+    const result = analyzeWorkload({ ...baseInput, assessments: [assessment()] });
+    const currentWeek = result.weeklyPressure.find((week) => week.weekStart === '2026-08-31');
+    const dueWeek = result.weeklyPressure.find((week) => week.weekStart === '2026-09-07');
+
+    expect(currentWeek).toMatchObject({
+      weekEnd: '2026-09-06',
+      pressure: expect.any(Number),
+      estimatedDemandHours: expect.any(Number),
+      majorAssessmentCount: 1,
+      uniqueCourseCount: 1,
+      drivers: ['assessment-1'],
+    });
+    expect(dueWeek).toMatchObject({
+      weekEnd: '2026-09-13',
+      pressure: expect.any(Number),
+      drivers: ['assessment-1'],
+    });
   });
 
   it('raises pressure when preparation windows overlap', () => {

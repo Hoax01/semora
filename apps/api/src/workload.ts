@@ -4,6 +4,7 @@ import {
   DEFAULT_WORKLOAD_ENGINE_CONFIG,
   type AssessmentType,
   type DailyPressure,
+  type WeeklyPressure,
   type WorkloadAssessment,
   type WorkloadCommitment,
 } from '@semora/workload-engine';
@@ -147,6 +148,19 @@ function serializeDailyPressure(day: DailyPressure) {
   };
 }
 
+function serializeWeeklyPressure(week: WeeklyPressure) {
+  return {
+    weekStart: week.weekStart,
+    weekEnd: week.weekEnd,
+    pressure: week.pressure,
+    band: week.band,
+    estimatedDemandHours: week.estimatedDemandHours,
+    majorAssessmentCount: week.majorAssessmentCount,
+    uniqueCourseCount: week.uniqueCourseCount,
+    drivers: week.drivers,
+  };
+}
+
 export function registerWorkloadRoutes(app: express.Express) {
   app.get('/api/workspaces/:workspaceId/workload', async (request, response) => {
     if (!prisma) {
@@ -252,6 +266,10 @@ export function registerWorkloadRoutes(app: express.Express) {
     const currentDayPressure = analysis.currentDayPressure
       ? serializeDailyPressure(analysis.currentDayPressure)
       : null;
+    const weeklyPressure = analysis.weeklyPressure.map(serializeWeeklyPressure);
+    const currentWeekPressure = analysis.currentWeekPressure
+      ? serializeWeeklyPressure(analysis.currentWeekPressure)
+      : null;
     const pressureByCommitmentId = new Map<string, number>();
     for (const day of analysis.dailyPressure) {
       for (const contribution of day.contributions) {
@@ -295,6 +313,8 @@ export function registerWorkloadRoutes(app: express.Express) {
         completeness: analysis.completeness,
         currentDayPressure,
         dailyPressure,
+        currentWeekPressure,
+        weeklyPressure,
         assessments: upcomingAssessments,
         summary: {
           assessmentCount: workloadAssessments.length,

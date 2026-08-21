@@ -290,6 +290,17 @@ type DailyPressure = {
   drivers: string[];
 };
 
+type WeeklyPressure = {
+  weekStart: string;
+  weekEnd: string;
+  pressure: number;
+  band: 'LIGHT' | 'MANAGEABLE' | 'MODERATE' | 'HIGH' | 'SEVERE';
+  estimatedDemandHours: number | null;
+  majorAssessmentCount: number;
+  uniqueCourseCount: number;
+  drivers: string[];
+};
+
 type Workload = {
   engineVersion: string;
   asOf: string;
@@ -297,6 +308,8 @@ type Workload = {
   completeness: number;
   currentDayPressure: DailyPressure | null;
   dailyPressure: DailyPressure[];
+  currentWeekPressure: WeeklyPressure | null;
+  weeklyPressure: WeeklyPressure[];
   assessments: WorkloadCalculation[];
   summary: {
     assessmentCount: number;
@@ -595,6 +608,24 @@ function formatPressureDate(value: string) {
     day: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatPressureRange(start: string, end: string) {
+  const startDate = new Date(`${start}T00:00:00.000Z`);
+  const endDate = new Date(`${end}T00:00:00.000Z`);
+  const month = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(startDate);
+  const endMonth = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(endDate);
+  const startDay = startDate.getUTCDate();
+  const endDay = endDate.getUTCDate();
+  return month === endMonth
+    ? `${month} ${startDay}–${endDay}`
+    : `${month} ${startDay}–${endMonth} ${endDay}`;
 }
 
 function findingTitle(type: string) {
@@ -3456,6 +3487,47 @@ function ActiveSemesterView({
               </div>
             ) : (
               <p className="assessment-empty">No daily pressure is scheduled yet.</p>
+            )}
+            <div className="weekly-pressure-heading">
+              <div>
+                <p className="eyebrow">FORECAST / WEEKS</p>
+                <h3>Pressure by week</h3>
+              </div>
+              {workload.currentWeekPressure ? (
+                <span className="course-meta">
+                  Current week {workload.currentWeekPressure.pressure.toFixed(1)} ·{' '}
+                  {workload.currentWeekPressure.band}
+                </span>
+              ) : null}
+            </div>
+            {workload.weeklyPressure.length ? (
+              <div className="weekly-pressure-list" aria-label="Weekly workload pressure">
+                {workload.weeklyPressure.slice(0, 6).map((week) => (
+                  <article className="weekly-pressure-row" key={week.weekStart}>
+                    <div>
+                      <time dateTime={week.weekStart}>
+                        {formatPressureRange(week.weekStart, week.weekEnd)}
+                      </time>
+                      <strong>{week.pressure.toFixed(1)}</strong>
+                    </div>
+                    <span
+                      className={`weekly-pressure-band weekly-pressure-${week.band.toLowerCase()}`}
+                    >
+                      {week.band}
+                    </span>
+                    <small>
+                      {week.estimatedDemandHours === null
+                        ? 'Demand uncertain'
+                        : `${week.estimatedDemandHours}h demand`}{' '}
+                      · {week.majorAssessmentCount} major assessment
+                      {week.majorAssessmentCount === 1 ? '' : 's'} · {week.uniqueCourseCount} course
+                      {week.uniqueCourseCount === 1 ? '' : 's'}
+                    </small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="assessment-empty">No weekly pressure is scheduled yet.</p>
             )}
             <div className="workload-calculation-summary">
               <div>

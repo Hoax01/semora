@@ -795,11 +795,11 @@ export function analyzeWorkload(input: WorkloadAnalysisInput): PressureAnalysis 
         normalize(work.rawPressure, config.normalizationScale),
         config.pressureBands,
       ),
-      estimatedDemandHours:
-        work.drivers.size &&
-        [...work.drivers.values()].every((driver) => driver.estimatedDemandHours !== null)
-          ? round(work.demandHours)
-          : null,
+      estimatedDemandHours: [...work.drivers.values()].every(
+        (driver) => driver.estimatedDemandHours !== null,
+      )
+        ? round(work.demandHours)
+        : null,
       drivers: contributions.map((driver) => driver.id),
       contributions,
     } satisfies DailyPressure;
