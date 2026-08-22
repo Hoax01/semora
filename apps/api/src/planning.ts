@@ -279,6 +279,7 @@ type ActiveCourseSelectionRecord = {
     id: string;
     dataCompleteness: { toString(): string };
     dataConfidence: { toString(): string };
+    instructorDisplay: string | null;
     outlineDocument: {
       id: string;
       originalFilename: string;
@@ -430,7 +431,11 @@ function serializeActiveCourseSelection(selection: ActiveCourseSelectionRecord) 
     ...serializeSelection({
       id: selection.id,
       sectionId: selection.sectionId,
-      section: selection.section,
+      section: {
+        ...selection.section,
+        instructorDisplay:
+          selection.state?.instructorDisplay ?? selection.section.instructorDisplay,
+      },
     }),
     status: selection.status,
     addedAt: selection.addedAt.toISOString(),

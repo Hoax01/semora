@@ -351,6 +351,7 @@ model ActiveCourseState {
   id                      String                @id @default(cuid())
   activeCourseSelectionId String                @unique @map("active_course_selection_id")
   outlineDocumentId       String?               @unique @map("outline_document_id")
+  instructorDisplay       String?               @map("instructor_display")
   dataCompleteness        Decimal               @default(0) @map("data_completeness") @db.Decimal(3, 2)
   dataConfidence          Decimal               @default(0) @map("data_confidence") @db.Decimal(3, 2)
   createdAt               DateTime              @default(now()) @map("created_at")

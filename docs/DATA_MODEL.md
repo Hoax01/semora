@@ -1592,6 +1592,7 @@ ActiveCourseState
 -----------------
 id
 active_course_selection_id
+instructor_display nullable
 
 grading_scheme_id
 workload_profile_id nullable

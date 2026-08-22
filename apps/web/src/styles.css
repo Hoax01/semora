@@ -1761,6 +1761,67 @@ h1 {
   font-weight: 400;
 }
 
+.review-instructor-editor {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.review-instructor-heading {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.review-instructor-heading small {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
+.review-instructor-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.review-instructor-row,
+.review-instructor-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.review-instructor-row label,
+.review-instructor-add label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.review-instructor-row input,
+.review-instructor-add input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.45rem;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  font: inherit;
+  font-weight: 400;
+}
+
+.review-remove-button {
+  align-self: end;
+  padding: 0.58rem 0.1rem;
+  color: #ffb5b5;
+}
+
 .review-confidence {
   flex-shrink: 0;
   padding: 0.35rem 0.55rem;
@@ -3623,7 +3684,7 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .review-edit-row .icon-button {
+  .review-remove-button {
     justify-self: start;
   }
 

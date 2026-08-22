@@ -33,7 +33,11 @@ type ExtractionJobRecord = {
     storageKey: string;
     mimeType: string;
     userId: string;
-    activeCourseState: { id: string; outlineDocumentId: string | null } | null;
+    activeCourseState: {
+      id: string;
+      outlineDocumentId: string | null;
+      instructorDisplay: string | null;
+    } | null;
     courseOffering: {
       course: { courseCode: string; title: string };
     } | null;
@@ -296,6 +300,7 @@ async function persistCanonicalAcademicData(
     await transaction.activeCourseState.update({
       where: { id: activeCourseStateId },
       data: {
+        instructorDisplay: extraction.courseIdentity.instructors.join(', ') || null,
         dataCompleteness,
         dataConfidence: extraction.overallConfidence,
       },

@@ -148,6 +148,7 @@ export function ExtractionReviewPage() {
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [blockingIssues, setBlockingIssues] = useState<string[]>([]);
+  const [newInstructorName, setNewInstructorName] = useState('');
 
   useEffect(() => {
     if (!jobId) return;
@@ -198,6 +199,43 @@ export function ExtractionReviewPage() {
         itemIndex === index ? { ...assessment, ...patch } : assessment,
       ),
     }));
+  }
+
+  function updateInstructor(index: number, value: string) {
+    updatePayload((current) => ({
+      ...current,
+      courseIdentity: {
+        ...current.courseIdentity,
+        instructors: current.courseIdentity.instructors.map((instructor, itemIndex) =>
+          itemIndex === index ? value : instructor,
+        ),
+      },
+    }));
+  }
+
+  function removeInstructor(index: number) {
+    updatePayload((current) => ({
+      ...current,
+      courseIdentity: {
+        ...current.courseIdentity,
+        instructors: current.courseIdentity.instructors.filter(
+          (_instructor, itemIndex) => itemIndex !== index,
+        ),
+      },
+    }));
+  }
+
+  function addInstructor() {
+    const name = newInstructorName.trim();
+    if (!name) return;
+    updatePayload((current) => ({
+      ...current,
+      courseIdentity: {
+        ...current.courseIdentity,
+        instructors: [...current.courseIdentity.instructors, name],
+      },
+    }));
+    setNewInstructorName('');
   }
 
   async function saveDraft() {
@@ -369,11 +407,60 @@ export function ExtractionReviewPage() {
                 />
               </label>
             </div>
-            <p className="course-meta">
-              {payload.courseIdentity.instructors.length
-                ? payload.courseIdentity.instructors.join(', ')
-                : 'Instructor not found'}
-            </p>
+            <div className="review-instructor-editor">
+              <div className="review-instructor-heading">
+                <span>Instructor names</span>
+                <small>Correct the extracted name or add a co-instructor.</small>
+              </div>
+              <div className="review-instructor-list">
+                {payload.courseIdentity.instructors.map((instructor, index) => (
+                  <div className="review-instructor-row" key={`${instructor}-${index}`}>
+                    <label>
+                      Instructor {index + 1}
+                      <input
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) => updateInstructor(index, event.target.value)}
+                        value={instructor}
+                      />
+                    </label>
+                    <button
+                      aria-label={`Remove instructor ${index + 1}`}
+                      className="text-button review-remove-button"
+                      disabled={!isReviewable || Boolean(busyAction)}
+                      onClick={() => removeInstructor(index)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="review-instructor-add">
+                <label>
+                  Add instructor
+                  <input
+                    disabled={!isReviewable || Boolean(busyAction)}
+                    onChange={(event) => setNewInstructorName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addInstructor();
+                      }
+                    }}
+                    placeholder="Enter a name"
+                    value={newInstructorName}
+                  />
+                </label>
+                <button
+                  className="secondary-button compact-button"
+                  disabled={!isReviewable || Boolean(busyAction) || !newInstructorName.trim()}
+                  onClick={addInstructor}
+                  type="button"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
             <ReviewEvidence evidence={payload.courseIdentity.evidence} />
           </section>
 
@@ -439,7 +526,7 @@ export function ExtractionReviewPage() {
                     />
                   </label>
                   <button
-                    className="icon-button"
+                    className="text-button review-remove-button"
                     disabled={!isReviewable || Boolean(busyAction)}
                     onClick={() =>
                       updatePayload((current) => ({
@@ -566,7 +653,7 @@ export function ExtractionReviewPage() {
                     />
                   </label>
                   <button
-                    className="icon-button"
+                    className="text-button review-remove-button"
                     disabled={!isReviewable || Boolean(busyAction)}
                     onClick={() =>
                       updatePayload((current) => ({

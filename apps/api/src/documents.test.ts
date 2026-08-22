@@ -145,6 +145,7 @@ describe('Phase 5 document storage', () => {
 
     const reviewPayload = locallyProcessed.body.extractionJob.draft.payload;
     reviewPayload.gradingScheme.categories[0].name = 'Coursework';
+    reviewPayload.courseIdentity.instructors = ['Dr. Grace Hopper', 'Dr. Alan Turing'];
     const savedReview = await request(app)
       .put(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/review`)
       .set('Cookie', ownerCookie)
@@ -182,6 +183,16 @@ describe('Phase 5 document storage', () => {
     expect(canonical?.gradingScheme?.categories.map((category) => category.name)).toContain(
       'Coursework',
     );
+    expect(canonical?.instructorDisplay).toBe('Dr. Grace Hopper, Dr. Alan Turing');
+    const workspaceAfterVerification = await request(app)
+      .get(`/api/workspaces/${workspaceId}`)
+      .set('Cookie', ownerCookie);
+    expect(workspaceAfterVerification.status).toBe(200);
+    expect(
+      workspaceAfterVerification.body.workspace.activeCourseSelections.find(
+        (selection: { id: string }) => selection.id === activeSelection.id,
+      ).instructor,
+    ).toBe('Dr. Grace Hopper, Dr. Alan Turing');
     expect(canonical?.assessments.length).toBeGreaterThan(0);
     expect(
       canonical?.assessments.every((assessment) => assessment.sourceType === 'VERIFIED_OUTLINE'),

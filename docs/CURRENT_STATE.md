@@ -48,6 +48,12 @@ HTTP smoke or automated API/engine checks.
 - Clarified default-medium preferences, manually editable structural workload estimates, one-off effort semantics, and that workload profiles/course ratings are stored once per workspace and course offering and reused by candidate options. Workload inputs use 0.25 spinner increments while allowing existing off-quarter values such as `6.63` to save unchanged; workload dimensions retain their existing one-decimal database precision.
 - Added regression coverage for Computer Science search and two-decimal estimated weekly hours. Focused and full checks passed: 88 tests, typecheck, build, format check, lint, and Prisma migration status. Interactive browser control remained unavailable because the local Windows browser-runtime helper exited before opening a page; API and engine verification passed.
 
+## Phase 5 review polish — August 22, 2026
+
+- Fixed outline-review category and assessment remove actions: they no longer use the fixed-size icon-button style, so the label stays inside the row and the responsive action column remains usable.
+- Course identity review now exposes editable instructor-name fields with add/remove support for multiple instructors. Verified corrections persist on the user-owned `ActiveCourseState` and are returned through the active-semester workspace response without mutating shared catalogue section data.
+- Added migration `20260822110000_phase5_instructor_review` and extended the Phase 5 integration test to verify instructor correction through review, verification, canonical persistence, and dashboard serialization. The in-app browser smoke attempt remained unavailable because the local Windows browser-runtime helper exited before opening a page; automated UI build, API integration, and engine checks passed.
+
 ## Implemented
 
 ### Repository and tooling
@@ -339,7 +345,10 @@ HTTP smoke or automated API/engine checks.
   for a newer outline attached to the same active course. Engines consume
   those typed records rather than draft JSON. The web active-semester course
   cards provide outline upload, processing, and a two-column evidence-backed
-  review workspace whose completion copy reflects canonical persistence.
+  review workspace whose completion copy reflects canonical persistence. Course
+  identity review supports editing and adding multiple instructor names; verified
+  names are stored on the user-owned active course state and shown by the active
+  workspace response.
 - Every successful extraction intentionally enters review. The fraction that
   needs human correction is not yet a measured product percentage; it requires
   production correction tracking. The opt-in Phase 5.10 benchmark now compares
@@ -486,6 +495,7 @@ HTTP smoke or automated API/engine checks.
   - `20260821170000_phase6_assessment_management`
   - `20260821180000_phase6_personal_effort_estimates`
   - `20260821190000_phase6_commitment_events`
+  - `20260822110000_phase5_instructor_review`
 - Phase 2 planning persistence now includes `SemesterPreferences`,
   `CandidateSemester`, `CandidateCourseSelection`, `UserCoursePreference`,
   `Commitment`, and `CommitmentMeeting`, with workspace ownership and safe
@@ -998,6 +1008,7 @@ apps/api/src/workload.test.ts
 apps/web/src/features/extraction-review.tsx
 apps/web/src/features/planning.tsx
 apps/web/src/styles.css
+prisma/migrations/20260822110000_phase5_instructor_review/
 prisma/migrations/20260821150000_phase5_extraction_verification/
 prisma/migrations/20260821160000_phase5_canonical_academic_data/
 prisma/migrations/20260821130000_phase5_documents/
