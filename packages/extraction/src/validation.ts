@@ -33,6 +33,12 @@ function evidenceOf(extraction: CourseDocumentExtraction) {
   return extraction.courseIdentity.evidence;
 }
 
+function ruleRequiresN(
+  rule: CourseDocumentExtraction['gradingScheme']['categories'][number]['aggregationRule'],
+) {
+  return rule === 'BEST_N' || rule === 'DROP_LOWEST_N';
+}
+
 export function validateCourseDocumentExtraction(
   input: CourseDocumentExtraction,
   context: ExtractionValidationContext = {},
@@ -74,6 +80,31 @@ export function validateCourseDocumentExtraction(
           (category) => `${category.name}: ${category.weightPercentage ?? 'unknown'}%`,
         ),
         `DUPLICATE_GRADING_CATEGORY:${key}`,
+      );
+    }
+  }
+
+  for (const [index, category] of extraction.gradingScheme.categories.entries()) {
+    if (ruleRequiresN(category.aggregationRule) && category.ruleParameterN === null) {
+      addConflict(
+        `gradingScheme.categories[${index}].ruleParameterN`,
+        `${category.aggregationRule} requires a positive N value.`,
+        [category.name],
+        `MISSING_RULE_PARAMETER_N:${normalized(category.name)}`,
+      );
+    }
+  }
+
+  const knownCategoryNames = new Set(
+    extraction.gradingScheme.categories.map((category) => normalized(category.name)),
+  );
+  for (const assessment of extraction.assessments) {
+    if (assessment.category && !knownCategoryNames.has(normalized(assessment.category))) {
+      addConflict(
+        'assessments.category',
+        'An assessment references a grading category that does not exist.',
+        [assessment.category],
+        `UNKNOWN_ASSESSMENT_CATEGORY:${normalized(assessment.category)}`,
       );
     }
   }
@@ -155,6 +186,13 @@ export function validateCourseDocumentExtraction(
 
   const result = courseDocumentExtractionSchema.parse({
     ...extraction,
+    gradingScheme: {
+      ...extraction.gradingScheme,
+      categories: extraction.gradingScheme.categories.map((category) => ({
+        ...category,
+        ruleParameterN: ruleRequiresN(category.aggregationRule) ? category.ruleParameterN : null,
+      })),
+    },
     warnings,
     conflicts,
     overallConfidence: conflicts.length

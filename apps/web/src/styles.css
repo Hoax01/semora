@@ -1900,10 +1900,34 @@ h1 {
   margin-top: 0;
 }
 
+.review-category-row {
+  grid-template-columns: minmax(9rem, 1.25fr) minmax(6rem, 0.65fr) minmax(15rem, 1.5fr) auto;
+}
+
+.review-category-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(4rem, 0.35fr);
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.review-category-help,
+.review-assessment-help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.review-category-help {
+  grid-column: 1 / -1;
+}
+
 .review-assessment-row {
   grid-template-columns:
-    minmax(9rem, 1.4fr) minmax(7rem, 0.8fr) minmax(5rem, 0.5fr) minmax(8rem, 0.7fr)
-    auto;
+    minmax(8rem, 1.2fr) minmax(8rem, 1fr) minmax(7rem, 0.8fr) minmax(5rem, 0.5fr)
+    minmax(8rem, 0.7fr) auto;
 }
 
 .review-subsection,
@@ -3677,6 +3701,15 @@ h1 {
 
   .review-edit-row,
   .review-assessment-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .review-category-rule,
+  .review-category-help {
+    grid-column: 1 / -1;
+  }
+
+  .review-category-rule {
     grid-template-columns: 1fr 1fr;
   }
 

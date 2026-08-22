@@ -85,7 +85,7 @@ function serializeExtractionJob(job: ExtractionJobRecord) {
     draft: job.draft
       ? {
           id: job.draft.id,
-          payload: job.draft.draftPayload,
+          payload: courseDocumentExtractionSchema.parse(job.draft.draftPayload),
           overallConfidence: Number(job.draft.overallConfidence),
           createdAt: job.draft.createdAt.toISOString(),
         }
@@ -159,6 +159,12 @@ function categoryForAssessment(
   assessment: CourseDocumentExtraction['assessments'][number],
   categories: CourseDocumentExtraction['gradingScheme']['categories'],
 ) {
+  if (assessment.category) {
+    const explicitCategory = categories.find(
+      (category) => normalizedLabel(category.name) === normalizedLabel(assessment.category ?? ''),
+    );
+    if (explicitCategory) return explicitCategory;
+  }
   if (categories.length === 1) return categories[0];
   const title = normalizedLabel(assessment.title);
   const type = normalizedLabel(assessment.type);
@@ -234,7 +240,8 @@ async function persistCanonicalAcademicData(
           gradingSchemeId: gradingScheme.id,
           name: category.name,
           weightPercentage: category.weightPercentage,
-          aggregationRule: 'EXPLICIT_WEIGHTS',
+          aggregationRule: category.aggregationRule,
+          ruleParameterN: category.ruleParameterN,
           displayOrder,
         },
       });

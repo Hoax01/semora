@@ -145,6 +145,9 @@ describe('Phase 5 document storage', () => {
 
     const reviewPayload = locallyProcessed.body.extractionJob.draft.payload;
     reviewPayload.gradingScheme.categories[0].name = 'Coursework';
+    reviewPayload.gradingScheme.categories[0].aggregationRule = 'DROP_LOWEST_N';
+    reviewPayload.gradingScheme.categories[0].ruleParameterN = 1;
+    reviewPayload.assessments[0].category = 'Coursework';
     reviewPayload.courseIdentity.instructors = ['Dr. Grace Hopper', 'Dr. Alan Turing'];
     const savedReview = await request(app)
       .put(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/review`)
@@ -182,6 +185,18 @@ describe('Phase 5 document storage', () => {
     });
     expect(canonical?.gradingScheme?.categories.map((category) => category.name)).toContain(
       'Coursework',
+    );
+    expect(canonical?.gradingScheme?.categories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Coursework',
+          aggregationRule: 'DROP_LOWEST_N',
+          ruleParameterN: 1,
+        }),
+      ]),
+    );
+    expect(canonical?.assessments[0]?.gradeCategoryId).toBe(
+      canonical?.gradingScheme?.categories.find((category) => category.name === 'Coursework')?.id,
     );
     expect(canonical?.instructorDisplay).toBe('Dr. Grace Hopper, Dr. Alan Turing');
     const workspaceAfterVerification = await request(app)

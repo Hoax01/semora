@@ -4548,36 +4548,47 @@ function ActiveSemesterView({
                         ? 'Current performance is unavailable from the recorded grading structure.'
                         : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
                     </p>
-                    {summary.categories
-                      .filter(
-                        (category) =>
-                          category.aggregationRule === 'BEST_N' ||
-                          category.aggregationRule === 'DROP_LOWEST_N',
-                      )
-                      .map((category) => (
-                        <p className="grade-rule-note" key={category.categoryId}>
-                          <strong>{category.name}</strong>{' '}
-                          {category.aggregationRule === 'BEST_N'
-                            ? 'Best ' +
-                              (category.ruleParameterN ?? '?') +
-                              ' of ' +
+                    {summary.categories.map((category) => (
+                      <p className="grade-rule-note" key={category.categoryId}>
+                        <strong>{category.name}</strong>{' '}
+                        {category.aggregationRule === 'EQUAL_MEAN'
+                          ? 'Equal weight across ' +
+                            category.assessmentCount +
+                            ' assessment' +
+                            (category.assessmentCount === 1 ? '' : 's') +
+                            '.'
+                          : category.aggregationRule === 'POINTS_WEIGHTED_MEAN'
+                            ? 'Points-weighted across ' +
                               category.assessmentCount +
+                              ' assessment' +
+                              (category.assessmentCount === 1 ? '' : 's') +
                               '.'
-                            : 'Drop lowest ' +
-                              (category.ruleParameterN ?? '?') +
-                              ' of ' +
-                              category.assessmentCount +
-                              '.'}{' '}
-                          {category.droppedAssessmentCount > 0
+                            : category.aggregationRule === 'EXPLICIT_WEIGHTS'
+                              ? 'Individual assessment weights.'
+                              : category.aggregationRule === 'BEST_N'
+                                ? 'Best ' +
+                                  (category.ruleParameterN ?? '?') +
+                                  ' of ' +
+                                  category.assessmentCount +
+                                  '.'
+                                : 'Drop lowest ' +
+                                  (category.ruleParameterN ?? '?') +
+                                  ' of ' +
+                                  category.assessmentCount +
+                                  '.'}{' '}
+                        {category.aggregationRule === 'BEST_N' ||
+                        category.aggregationRule === 'DROP_LOWEST_N'
+                          ? category.droppedAssessmentCount > 0
                             ? category.droppedAssessmentCount +
                               ' lowest graded result' +
                               (category.droppedAssessmentCount === 1 ? '' : 's') +
                               ' currently excluded.'
                             : category.gradedAssessmentCount > 0
                               ? 'Provisional: all graded results currently count.'
-                              : 'No graded results yet.'}
-                        </p>
-                      ))}
+                              : 'No graded results yet.'
+                          : null}
+                      </p>
+                    ))}
                     <p className="grade-performance-grade">
                       {summary.currentGrade
                         ? 'Current equivalent: ' + summary.currentGrade

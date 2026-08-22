@@ -54,6 +54,27 @@ HTTP smoke or automated API/engine checks.
 - Course identity review now exposes editable instructor-name fields with add/remove support for multiple instructors. Verified corrections persist on the user-owned `ActiveCourseState` and are returned through the active-semester workspace response without mutating shared catalogue section data.
 - Added migration `20260822110000_phase5_instructor_review` and extended the Phase 5 integration test to verify instructor correction through review, verification, canonical persistence, and dashboard serialization. The in-app browser smoke attempt remained unavailable because the local Windows browser-runtime helper exited before opening a page; automated UI build, API integration, and engine checks passed.
 
+## Configurable grading aggregation — August 22, 2026
+
+- Extraction category records now carry the existing `aggregationRule` and
+  nullable `ruleParameterN` configuration, defaulting deterministic extraction
+  to `EQUAL_MEAN`. Assessment records may carry an explicit grading-category
+  reference.
+- The outline review UI lets users assign assessments to categories and choose
+  Equal weight, Points weighted, Individual weights, Best N, or Drop lowest N.
+  Best N and Drop lowest N expose a positive integer N; missing N or unknown
+  category references block verification. Renaming or removing a category keeps
+  assessment references consistent, and newly added assessments default to the
+  first category when one exists.
+- Verified canonical persistence now retains the user-selected aggregation rule
+  and N value, and the active Grade Dashboard explains each category’s selected
+  calculation. This uses the existing `GradeCategory` fields; no Prisma
+  migration was required. Model-training work remains deferred until correction
+  volume justifies it.
+- Added extraction and API integration coverage for equal-weight defaults,
+  category-reference validation, missing-N validation, and end-to-end N-rule
+  persistence.
+
 ## Implemented
 
 ### Repository and tooling
@@ -331,7 +352,8 @@ HTTP smoke or automated API/engine checks.
   key, or external service is required for the baseline workflow.
 - Deterministic validation adds warnings for incomplete weights or missing
   course identity and blocking conflicts for course mismatches, duplicate
-  categories/assessments, over-100% weights, and invalid grade thresholds.
+  categories/assessments, over-100% weights, and invalid grade thresholds, missing N
+  values for N-rules, and assessments assigned to unknown categories.
   Validated drafts still stop at `REVIEW_REQUIRED`; validation never writes
   canonical academic data.
 - The protected review API allows an owner to edit and save a schema-valid
@@ -461,6 +483,10 @@ HTTP smoke or automated API/engine checks.
   includes category rule metadata, graded counts, and dropped counts in each
   summary, and the active-semester card explains provisional versus excluded
   results.
+- The outline review UI now configures these rules directly and requires a
+  positive N before verification. Assessment-to-category assignment is saved
+  with the verified outline, so equal-weight quiz, exam, assignment, and lab
+  groups do not require manually entered per-item weights.
 - No Prisma migration was required; the existing nullable `rule_parameter_n`
   field already represents the documented rule configuration.
 

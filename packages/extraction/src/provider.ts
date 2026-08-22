@@ -19,6 +19,10 @@ const courseIdentitySchema = z.object({
 const gradingCategorySchema = z.object({
   name: z.string().trim().min(1).max(160),
   weightPercentage: z.number().finite().min(0).max(100).nullable(),
+  aggregationRule: z
+    .enum(['EQUAL_MEAN', 'POINTS_WEIGHTED_MEAN', 'EXPLICIT_WEIGHTS', 'BEST_N', 'DROP_LOWEST_N'])
+    .default('EQUAL_MEAN'),
+  ruleParameterN: z.number().int().min(1).max(100).nullable().default(null),
   confidence: confidenceSchema,
   evidence: z.array(evidenceSchema).max(20),
 });
@@ -39,6 +43,7 @@ const gradingSchemeSchema = z.object({
 
 const assessmentSchema = z.object({
   title: z.string().trim().min(1).max(200),
+  category: z.string().trim().min(1).max(160).nullable().default(null),
   type: z.enum([
     'ASSIGNMENT',
     'QUIZ',

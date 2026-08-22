@@ -2,14 +2,19 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 type Evidence = { pageNumber?: number; text: string };
+type AggregationRule =
+  'EQUAL_MEAN' | 'POINTS_WEIGHTED_MEAN' | 'EXPLICIT_WEIGHTS' | 'BEST_N' | 'DROP_LOWEST_N';
 type Category = {
   name: string;
   weightPercentage: number | null;
+  aggregationRule: AggregationRule;
+  ruleParameterN: number | null;
   confidence: number;
   evidence: Evidence[];
 };
 type Assessment = {
   title: string;
+  category: string | null;
   type:
     | 'ASSIGNMENT'
     | 'QUIZ'
@@ -25,6 +30,33 @@ type Assessment = {
   confidence: number;
   evidence: Evidence[];
 };
+const aggregationRuleOptions: Array<{ value: AggregationRule; label: string }> = [
+  { value: 'EQUAL_MEAN', label: 'Equal weight' },
+  { value: 'POINTS_WEIGHTED_MEAN', label: 'Points weighted' },
+  { value: 'EXPLICIT_WEIGHTS', label: 'Individual weights' },
+  { value: 'BEST_N', label: 'Best N' },
+  { value: 'DROP_LOWEST_N', label: 'Drop lowest N' },
+];
+
+function ruleRequiresN(rule: AggregationRule) {
+  return rule === 'BEST_N' || rule === 'DROP_LOWEST_N';
+}
+
+function aggregationRuleDescription(category: Category) {
+  switch (category.aggregationRule) {
+    case 'EQUAL_MEAN':
+      return 'Equal weight: split this category evenly across its assessments.';
+    case 'POINTS_WEIGHTED_MEAN':
+      return 'Points weighted: use points possible to determine each assessment’s share.';
+    case 'EXPLICIT_WEIGHTS':
+      return 'Individual weights: enter assessment weights that add up to this category total.';
+    case 'BEST_N':
+      return `Best ${category.ruleParameterN ?? 'N'}: only the highest results count.`;
+    case 'DROP_LOWEST_N':
+      return `Drop lowest ${category.ruleParameterN ?? 'N'}: the lowest results are excluded.`;
+  }
+}
+
 type ExtractionPayload = {
   documentId: string;
   documentType: 'COURSE_OUTLINE';
@@ -181,15 +213,48 @@ export function ExtractionReviewPage() {
   }
 
   function updateCategory(index: number, patch: Partial<Category>) {
-    updatePayload((current) => ({
-      ...current,
-      gradingScheme: {
-        ...current.gradingScheme,
-        categories: current.gradingScheme.categories.map((category, itemIndex) =>
-          itemIndex === index ? { ...category, ...patch } : category,
-        ),
-      },
-    }));
+    updatePayload((current) => {
+      const previous = current.gradingScheme.categories[index];
+      const categories = current.gradingScheme.categories.map((category, itemIndex) =>
+        itemIndex === index ? { ...category, ...patch } : category,
+      );
+      const nextName = patch.name ?? previous?.name ?? '';
+      return {
+        ...current,
+        gradingScheme: {
+          ...current.gradingScheme,
+          categories,
+        },
+        assessments:
+          previous && patch.name !== undefined && nextName !== previous.name
+            ? current.assessments.map((assessment) =>
+                assessment.category === previous.name
+                  ? { ...assessment, category: nextName || null }
+                  : assessment,
+              )
+            : current.assessments,
+      };
+    });
+  }
+
+  function removeCategory(index: number) {
+    updatePayload((current) => {
+      const removedName = current.gradingScheme.categories[index]?.name;
+      return {
+        ...current,
+        gradingScheme: {
+          ...current.gradingScheme,
+          categories: current.gradingScheme.categories.filter(
+            (_category, itemIndex) => itemIndex !== index,
+          ),
+        },
+        assessments: removedName
+          ? current.assessments.map((assessment) =>
+              assessment.category === removedName ? { ...assessment, category: null } : assessment,
+            )
+          : current.assessments,
+      };
+    });
   }
 
   function updateAssessment(index: number, patch: Partial<Assessment>) {
@@ -502,7 +567,10 @@ export function ExtractionReviewPage() {
             </label>
             <div className="review-edit-list">
               {payload.gradingScheme.categories.map((category, index) => (
-                <div className="review-edit-row" key={`${category.name}-${index}`}>
+                <div
+                  className="review-edit-row review-category-row"
+                  key={`${category.name}-${index}`}
+                >
                   <label>
                     Category
                     <input
@@ -512,7 +580,7 @@ export function ExtractionReviewPage() {
                     />
                   </label>
                   <label>
-                    Weight %
+                    Category total %
                     <input
                       disabled={!isReviewable || Boolean(busyAction)}
                       inputMode="decimal"
@@ -525,20 +593,56 @@ export function ExtractionReviewPage() {
                       value={category.weightPercentage ?? ''}
                     />
                   </label>
+                  <div className="review-category-rule">
+                    <label>
+                      Weighting rule
+                      <select
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) => {
+                          const rule = event.target.value as AggregationRule;
+                          updateCategory(index, {
+                            aggregationRule: rule,
+                            ruleParameterN: ruleRequiresN(rule)
+                              ? (category.ruleParameterN ?? 1)
+                              : null,
+                          });
+                        }}
+                        value={category.aggregationRule}
+                      >
+                        {aggregationRuleOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {ruleRequiresN(category.aggregationRule) ? (
+                      <label>
+                        N
+                        <input
+                          disabled={!isReviewable || Boolean(busyAction)}
+                          inputMode="numeric"
+                          max="100"
+                          min="1"
+                          onChange={(event) =>
+                            updateCategory(index, {
+                              ruleParameterN: numberOrNull(event.target.value),
+                            })
+                          }
+                          step="1"
+                          type="number"
+                          value={category.ruleParameterN ?? ''}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                  <small className="review-category-help">
+                    {aggregationRuleDescription(category)}
+                  </small>
                   <button
                     className="text-button review-remove-button"
                     disabled={!isReviewable || Boolean(busyAction)}
-                    onClick={() =>
-                      updatePayload((current) => ({
-                        ...current,
-                        gradingScheme: {
-                          ...current.gradingScheme,
-                          categories: current.gradingScheme.categories.filter(
-                            (_item, itemIndex) => itemIndex !== index,
-                          ),
-                        },
-                      }))
-                    }
+                    onClick={() => removeCategory(index)}
                     type="button"
                   >
                     Remove
@@ -557,7 +661,14 @@ export function ExtractionReviewPage() {
                     ...current.gradingScheme,
                     categories: [
                       ...current.gradingScheme.categories,
-                      { name: '', weightPercentage: null, confidence: 0.5, evidence: [] },
+                      {
+                        name: '',
+                        weightPercentage: null,
+                        aggregationRule: 'EQUAL_MEAN',
+                        ruleParameterN: null,
+                        confidence: 0.5,
+                        evidence: [],
+                      },
                     ],
                   },
                 }))
@@ -586,6 +697,10 @@ export function ExtractionReviewPage() {
               </div>
               <span className="review-confidence">{payload.assessments.length} found</span>
             </div>
+            <p className="review-assessment-help">
+              Category totals are the course-level weights. Equal weight splits a category evenly;
+              enter individual assessment weights only when the outline gives them.
+            </p>
             <div className="review-edit-list">
               {payload.assessments.map((assessment, index) => (
                 <div
@@ -599,6 +714,23 @@ export function ExtractionReviewPage() {
                       onChange={(event) => updateAssessment(index, { title: event.target.value })}
                       value={assessment.title}
                     />
+                  </label>
+                  <label>
+                    Category
+                    <select
+                      disabled={!isReviewable || Boolean(busyAction)}
+                      onChange={(event) =>
+                        updateAssessment(index, { category: event.target.value || null })
+                      }
+                      value={assessment.category ?? ''}
+                    >
+                      <option value="">Unassigned</option>
+                      {payload.gradingScheme.categories.map((category) => (
+                        <option key={category.name} value={category.name}>
+                          {category.name || 'Unnamed category'}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     Type
@@ -684,6 +816,7 @@ export function ExtractionReviewPage() {
                       type: 'OTHER',
                       weightPercentage: null,
                       dueDate: null,
+                      category: current.gradingScheme.categories[0]?.name ?? null,
                       recurrence: null,
                       confidence: 0.5,
                       evidence: [],

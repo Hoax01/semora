@@ -129,6 +129,12 @@ describe('schema-constrained extraction provider', () => {
     expect(result.modelIdentifier).toBe('local-deterministic-v0');
     expect(result.courseIdentity.courseCode).toBe('CS 370');
     expect(result.gradingScheme.categories).toHaveLength(3);
+    expect(
+      result.gradingScheme.categories.every(
+        (category) => category.aggregationRule === 'EQUAL_MEAN',
+      ),
+    ).toBe(true);
+    expect(result.assessments.every((assessment) => assessment.category !== null)).toBe(true);
     expect(result.assessments.map((assessment) => assessment.type)).toEqual([
       'ASSIGNMENT',
       'MIDTERM',
@@ -137,8 +143,52 @@ describe('schema-constrained extraction provider', () => {
     expect(result.gradingScheme.gradingMode).toBe('ABSOLUTE');
   });
 
+  it('requires N when a category uses a best-N or drop-lowest-N rule', () => {
+    const base = courseDocumentExtractionSchema.parse(extraction());
+    const category = base.gradingScheme.categories[0];
+    if (!category) throw new Error('Test fixture is missing a grading category.');
+    const result = validateCourseDocumentExtraction({
+      ...base,
+      gradingScheme: {
+        ...base.gradingScheme,
+        categories: [
+          {
+            ...category,
+            aggregationRule: 'DROP_LOWEST_N',
+            ruleParameterN: null,
+          },
+        ],
+      },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.blockingIssues).toContain('MISSING_RULE_PARAMETER_N:final');
+  });
+
+  it('rejects an assessment assigned to an unknown category', () => {
+    const base = courseDocumentExtractionSchema.parse(extraction());
+    const result = validateCourseDocumentExtraction({
+      ...base,
+      assessments: [
+        {
+          title: 'Quiz 1',
+          type: 'QUIZ',
+          category: 'Quizzes',
+          weightPercentage: null,
+          dueDate: null,
+          recurrence: null,
+          confidence: 0.8,
+          evidence: [],
+        },
+      ],
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.blockingIssues).toContain('UNKNOWN_ASSESSMENT_CATEGORY:quizzes');
+  });
+
   it('adds deterministic validation warnings and blocking conflicts to the draft', () => {
-    const base = extraction();
+    const base = courseDocumentExtractionSchema.parse(extraction());
     const firstCategory = base.gradingScheme.categories[0];
     if (!firstCategory) throw new Error('Test fixture is missing a grading category.');
     const result = validateCourseDocumentExtraction(

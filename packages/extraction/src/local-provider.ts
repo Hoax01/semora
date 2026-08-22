@@ -157,12 +157,17 @@ export class LocalDeterministicExtractionProvider implements RawAcademicExtracti
           },
         ];
       }),
-    );
+    ).map((category) => ({
+      ...category,
+      aggregationRule: 'EQUAL_MEAN' as const,
+      ruleParameterN: null,
+    }));
 
     const assessments = categories.map((category) => {
       const recurrence = category.evidence[0]?.text.match(/\b(weekly|biweekly|recurring)\b/i)?.[1];
       return {
         title: category.name,
+        category: category.name,
         type: assessmentType(category.name),
         weightPercentage: category.weightPercentage,
         dueDate: null,
