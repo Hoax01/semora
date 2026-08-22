@@ -135,6 +135,12 @@ HTTP smoke or automated API/engine checks.
 - Re-saving an existing review draft removes a stale generated course-mismatch conflict when the edited/extracted code now matches. Genuinely different codes remain blocking conflicts.
 - Added regression coverage for both the stale-conflict case and existing mismatch behavior. The complete extraction package suite (15 tests), typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
 
+## Phase 8 assessment timeline navigation — August 23, 2026
+
+- The active-semester assessment timeline now starts with six visible items and supports client-side search across course code/title, assessment name, type, and number, plus course and type filters.
+- Load more reveals six additional matching assessments at a time; Show fewer collapses the list, and filter changes reset the visible page. Empty filter results have a clear action. No API or data-model change was required.
+- The focused web source diff, full typecheck, test suite, production build, lint, format check, and diff validation passed. Interactive browser smoke was not rerun for this UI-only change because the local Windows browser-runtime helper remains unavailable.
+
 ## Implemented
 
 ### Repository and tooling

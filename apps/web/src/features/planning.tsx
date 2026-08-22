@@ -3239,6 +3239,8 @@ export function PlanningPage() {
   );
 }
 
+const ASSESSMENT_PAGE_SIZE = 6;
+
 function ActiveSemesterView({
   workspace,
   onReload,
@@ -3257,6 +3259,10 @@ function ActiveSemesterView({
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [gradeSummaries, setGradeSummaries] = useState<GradeSummary[]>([]);
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
+  const [assessmentSearch, setAssessmentSearch] = useState('');
+  const [assessmentTypeFilter, setAssessmentTypeFilter] = useState<AssessmentType | ''>('');
+  const [assessmentCourseFilter, setAssessmentCourseFilter] = useState('');
+  const [assessmentVisibleCount, setAssessmentVisibleCount] = useState(ASSESSMENT_PAGE_SIZE);
   const [workload, setWorkload] = useState<Workload>();
   const [isWorkloadLoading, setIsWorkloadLoading] = useState(true);
   const [forecastFeedback, setForecastFeedback] = useState<string>();
@@ -3281,6 +3287,27 @@ function ActiveSemesterView({
   const [gradeScenarioSummaries, setGradeScenarioSummaries] = useState<
     Record<string, GradeSummary>
   >({});
+  const assessmentSearchTerms = assessmentSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const filteredAssessments = assessments.filter((assessment) => {
+    if (assessmentTypeFilter && assessment.assessmentType !== assessmentTypeFilter) return false;
+    if (assessmentCourseFilter && assessment.activeSelectionId !== assessmentCourseFilter) {
+      return false;
+    }
+    if (!assessmentSearchTerms.length) return true;
+    const searchable = [
+      assessment.courseCode,
+      assessment.courseTitle,
+      assessment.title,
+      assessment.assessmentType,
+    ]
+      .join(' ')
+      .toLowerCase();
+    return assessmentSearchTerms.every((term) => searchable.includes(term));
+  });
+  const visibleAssessments = filteredAssessments.slice(0, assessmentVisibleCount);
+  const hasAssessmentFilters = Boolean(
+    assessmentSearch.trim() || assessmentTypeFilter || assessmentCourseFilter,
+  );
 
   async function loadAssessments() {
     setIsAssessmentsLoading(true);
@@ -3290,6 +3317,7 @@ function ActiveSemesterView({
         gradeSummaries: GradeSummary[];
       }>(`/api/workspaces/${workspace.id}/assessments`);
       setAssessments(result.assessments);
+      setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
       setGradeSummaries(result.gradeSummaries);
       setGradeScenarioSummaries({});
     } catch (reason) {
@@ -4849,15 +4877,114 @@ function ActiveSemesterView({
             </div>
           </section>
         ) : null}
+        {!isAssessmentsLoading && assessments.length ? (
+          <div className="assessment-list-toolbar">
+            <div className="assessment-list-toolbar-heading">
+              <div>
+                <strong>Find an assessment</strong>
+                <small>Search by course, name, type, or number.</small>
+              </div>
+              <span>
+                Showing {Math.min(visibleAssessments.length, filteredAssessments.length)} of{' '}
+                {filteredAssessments.length}
+              </span>
+            </div>
+            <div className="assessment-filter-grid">
+              <label>
+                Search
+                <input
+                  aria-label="Search assessments"
+                  onChange={(event) => {
+                    setAssessmentSearch(event.target.value);
+                    setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
+                  }}
+                  placeholder="e.g. CS 370, assignment 2, quiz"
+                  type="search"
+                  value={assessmentSearch}
+                />
+              </label>
+              <label>
+                Course
+                <select
+                  aria-label="Filter assessments by course"
+                  onChange={(event) => {
+                    setAssessmentCourseFilter(event.target.value);
+                    setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
+                  }}
+                  value={assessmentCourseFilter}
+                >
+                  <option value="">All courses</option>
+                  {workspace.activeCourseSelections.map((selection) => (
+                    <option key={selection.id} value={selection.id}>
+                      {selection.courseCode} · {selection.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Type
+                <select
+                  aria-label="Filter assessments by type"
+                  onChange={(event) => {
+                    setAssessmentTypeFilter(event.target.value as AssessmentType | '');
+                    setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
+                  }}
+                  value={assessmentTypeFilter}
+                >
+                  <option value="">All types</option>
+                  <option value="ASSIGNMENT">Assignments</option>
+                  <option value="QUIZ">Quizzes</option>
+                  <option value="PROJECT">Projects</option>
+                  <option value="PRESENTATION">Presentations</option>
+                  <option value="MIDTERM">Midterms</option>
+                  <option value="FINAL">Finals</option>
+                  <option value="PARTICIPATION">Participation</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+              {hasAssessmentFilters ? (
+                <button
+                  className="quiet-button compact-button assessment-filter-clear"
+                  onClick={() => {
+                    setAssessmentSearch('');
+                    setAssessmentCourseFilter('');
+                    setAssessmentTypeFilter('');
+                    setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
+                  }}
+                  type="button"
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {isAssessmentsLoading ? <p className="assessment-empty">Loading assessments…</p> : null}
         {!isAssessmentsLoading && !assessments.length ? (
           <p className="assessment-empty">
             No assessments yet. Add one manually or verify a course outline to build your timeline.
           </p>
         ) : null}
-        {!isAssessmentsLoading && assessments.length ? (
+        {!isAssessmentsLoading && assessments.length && !filteredAssessments.length ? (
+          <div className="assessment-filter-empty">
+            <p>No assessments match these filters.</p>
+            <button
+              className="quiet-button compact-button"
+              onClick={() => {
+                setAssessmentSearch('');
+                setAssessmentCourseFilter('');
+                setAssessmentTypeFilter('');
+                setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE);
+              }}
+              type="button"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+        {!isAssessmentsLoading && filteredAssessments.length ? (
           <div className="assessment-timeline">
-            {assessments.map((assessment) => {
+            {visibleAssessments.map((assessment) => {
               const assessmentSummary = gradeSummaries.find(
                 (summary) => summary.courseOfferingId === assessment.courseOfferingId,
               );
@@ -5133,6 +5260,36 @@ function ActiveSemesterView({
                 </article>
               );
             })}
+          </div>
+        ) : null}
+        {!isAssessmentsLoading && filteredAssessments.length > visibleAssessments.length ? (
+          <div className="assessment-list-pagination">
+            <small>
+              Showing {visibleAssessments.length} of {filteredAssessments.length} matching
+              assessments
+            </small>
+            <button
+              className="secondary-button compact-button"
+              onClick={() =>
+                setAssessmentVisibleCount((count) =>
+                  Math.min(count + ASSESSMENT_PAGE_SIZE, filteredAssessments.length),
+                )
+              }
+              type="button"
+            >
+              Load more
+            </button>
+          </div>
+        ) : !isAssessmentsLoading && filteredAssessments.length > ASSESSMENT_PAGE_SIZE ? (
+          <div className="assessment-list-pagination">
+            <small>Showing all {filteredAssessments.length} matching assessments</small>
+            <button
+              className="quiet-button compact-button"
+              onClick={() => setAssessmentVisibleCount(ASSESSMENT_PAGE_SIZE)}
+              type="button"
+            >
+              Show fewer
+            </button>
           </div>
         ) : null}
       </section>
