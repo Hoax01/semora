@@ -123,6 +123,12 @@ HTTP smoke or automated API/engine checks.
 - Generic effort labels now say which assessment type they apply to and the editor explains that type defaults are fallback workload hours, not grade weights. Current defaults are 6h for assignments, 2.5h for quizzes, 15h for projects, 5h for presentations, 8h for midterms, 12h for finals, 1h for participation, and unknown for other types.
 - The focused assessment API tests, typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
 
+## Phase 8 assessment-entry visual polish — August 23, 2026
+
+- The active-semester assessment form now uses the Semora dark input/select treatment instead of browser-default gray controls, with consistent sizing, borders, hover states, focus rings, and readable placeholders.
+- The form header and action row now have clearer separation and alignment, and the form keeps a scroll margin for the Edit action’s focused jump target. The previously used `--text-muted` token is now defined centrally.
+- Typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
+
 ## Implemented
 
 ### Repository and tooling

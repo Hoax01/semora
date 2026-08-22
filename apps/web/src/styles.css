@@ -6,6 +6,7 @@
   --border-strong: #343c48;
   --text-primary: #f5f7fa;
   --text-secondary: #a9b0bb;
+  --text-muted: #7c8694;
   --accent: #7c6cff;
   --accent-hover: #8c7eff;
   --positive: #63d39a;
@@ -979,9 +980,10 @@ h1 {
   display: grid;
   gap: 1rem;
   margin-top: 1.25rem;
-  padding: 1rem;
+  scroll-margin-top: 1.25rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
   border: 1px solid var(--border-subtle);
-  border-radius: 0.7rem;
+  border-radius: 0.8rem;
   background: var(--surface-elevated);
 }
 
@@ -1489,6 +1491,16 @@ h1 {
   gap: 0.75rem;
 }
 
+.assessment-entry-heading {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.assessment-entry-heading strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
 .assessment-entry-heading strong,
 .assessment-entry-heading small {
   display: block;
@@ -1517,11 +1529,65 @@ h1 {
 
 .assessment-entry-grid input,
 .assessment-entry-grid select {
+  width: 100%;
   min-width: 0;
+  min-height: 2.65rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 400;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.assessment-entry-grid input::placeholder {
+  color: var(--text-muted);
+}
+
+.assessment-entry-grid input:hover,
+.assessment-entry-grid select:hover {
+  border-color: #596579;
+}
+
+.assessment-entry-grid input:focus-visible,
+.assessment-entry-grid select:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid #7c6cff66;
+  outline-offset: 1px;
+  background: #141827;
+  box-shadow: 0 0 0 3px #7c6cff14;
 }
 
 .assessment-entry-actions {
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-start;
+  padding-top: 0.1rem;
+}
+
+.assessment-entry-actions > button {
+  min-height: 2.65rem;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.assessment-entry-actions > button:not(:disabled):hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0.4rem 1.2rem #7c6cff2e;
+  transform: translateY(-1px);
+}
+
+.assessment-entry-actions > small {
+  flex: 1 1 20rem;
+  line-height: 1.4;
 }
 
 .assessment-weight-hint {
