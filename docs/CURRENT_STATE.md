@@ -1,6 +1,6 @@
 # Semora — Current Implementation State
 
-**Last Updated:** August 22, 2026
+**Last Updated:** August 23, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
 **Next Build Objective:** Phase 8.1 — UX Pass
 **Product Status:** Product and technical design are complete. Phase 0 is
@@ -115,6 +115,13 @@ HTTP smoke or automated API/engine checks.
   production build passed. Standalone API integration files passed as well. A
   concurrent root workspace run hit the configured 5-second timeout in three
   database-heavy API tests under parallel load; standalone reruns passed.
+
+## Phase 8 assessment editing affordance — August 23, 2026
+
+- Assessment timeline Edit actions now open the shared assessment editor, scroll it into view, and focus the assessment title so changing a saved exam or assignment is visible and actionable.
+- The editor continues to populate the effective weight for equal-weight assessments and the stored weight for explicit assessments. Saving a changed equal share converts that category to explicit individual weights; clearing or preserving the derived share keeps the equal-weight rule.
+- Generic effort labels now say which assessment type they apply to and the editor explains that type defaults are fallback workload hours, not grade weights. Current defaults are 6h for assignments, 2.5h for quizzes, 15h for projects, 5h for presentations, 8h for midterms, 12h for finals, 1h for participation, and unknown for other types.
+- The focused assessment API tests, typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
 
 ## Implemented
 

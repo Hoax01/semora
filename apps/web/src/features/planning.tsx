@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 
 type Candidate = {
@@ -3271,6 +3271,7 @@ function ActiveSemesterView({
     personalEffortHours: '',
   });
   const [editingAssessmentId, setEditingAssessmentId] = useState<string>();
+  const assessmentEntryFormRef = useRef<HTMLFormElement>(null);
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
   const [scoreModes, setScoreModes] = useState<Record<string, AssessmentScoreMode>>({});
   const [classStatisticsDrafts, setClassStatisticsDrafts] = useState<
@@ -3450,6 +3451,13 @@ function ActiveSemesterView({
       dueDate: assessment.dueDate ?? '',
       progressPercentage: Math.round(assessment.progressPercentage ?? 0).toString(),
       personalEffortHours: assessment.personalEffortHours?.toString() ?? '',
+    });
+    requestAnimationFrame(() => {
+      const form = assessmentEntryFormRef.current;
+      if (!form) return;
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      form.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+      form.querySelector<HTMLInputElement>('input[placeholder="e.g. Assignment 2"]')?.focus();
     });
   }
 
@@ -4342,7 +4350,12 @@ function ActiveSemesterView({
           </span>
         </div>
 
-        <form className="assessment-entry-form" onSubmit={saveAssessment}>
+        <form
+          className="assessment-entry-form"
+          id="assessment-entry-form"
+          onSubmit={saveAssessment}
+          ref={assessmentEntryFormRef}
+        >
           <div className="assessment-entry-heading">
             <div>
               <strong>{editingAssessmentId ? 'Edit assessment' : 'Add an assessment'}</strong>
@@ -4509,7 +4522,8 @@ function ActiveSemesterView({
                     : 'Add assessment'}
             </button>
             <small>
-              Leave effort blank to use the type default or outline estimate. It can be reset later.
+              Leave effort blank to use the outline estimate or Semora generic type default. This
+              affects workload planning, not grade weight.
             </small>
           </div>
         </form>
@@ -4857,7 +4871,7 @@ function ActiveSemesterView({
                   : assessment.effortSource === 'OUTLINE_ESTIMATE'
                     ? 'From outline'
                     : assessment.effortSource === 'GENERIC_DEFAULT'
-                      ? 'Type default'
+                      ? `Semora default for ${assessment.assessmentType.toLowerCase()}`
                       : 'Effort unknown';
               return (
                 <article
@@ -5095,6 +5109,7 @@ function ActiveSemesterView({
                       ) : null}
                       {!isCancelled ? (
                         <button
+                          aria-label={`Edit ${assessment.title}`}
                           className="secondary-button compact-button"
                           disabled={Boolean(busyAction)}
                           onClick={() => editAssessment(assessment)}
