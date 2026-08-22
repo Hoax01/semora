@@ -2982,13 +2982,16 @@ export function PlanningPage() {
                                     </small>
                                   </summary>
                                   <form
+                                    noValidate
                                     onSubmit={(event) =>
                                       saveWorkloadProfile(selection.courseOfferingId, event)
                                     }
                                   >
                                     <p className="workload-editor-help">
                                       Semora starts with structural estimates where available. You
-                                      can adjust them manually; blank means unknown. Higher values
+                                      can adjust them manually; blank means unknown. The spinner
+                                      moves in 0.25 steps, but existing values such as 6.63 remain
+                                      valid and save unchanged until you adjust them. Higher values
                                       mean heavier modeled demand, not better performance.
                                     </p>
                                     <div className="workload-field-grid">
@@ -3001,7 +3004,7 @@ export function PlanningPage() {
                                             min="0"
                                             name={field}
                                             placeholder="Unknown"
-                                            step="0.01"
+                                            step="0.25"
                                             type="number"
                                           />
                                         </label>
@@ -3014,7 +3017,7 @@ export function PlanningPage() {
                                           min="0"
                                           name="estimatedWeeklyHours"
                                           placeholder="Unknown"
-                                          step="0.01"
+                                          step="0.25"
                                           type="number"
                                         />
                                       </label>
