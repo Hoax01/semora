@@ -129,6 +129,12 @@ HTTP smoke or automated API/engine checks.
 - The form header and action row now have clearer separation and alignment, and the form keeps a scroll margin for the Edit action’s focused jump target. The previously used `--text-muted` token is now defined centrally.
 - Typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
 
+## Phase 8 course-code validation polish — August 23, 2026
+
+- Extraction validation now compares course codes case-insensitively while ignoring presentation separators such as spaces, hyphens, and slashes, so `CS5326`, `CS-5326`, and `CS 5326` are treated as the same active course.
+- Re-saving an existing review draft removes a stale generated course-mismatch conflict when the edited/extracted code now matches. Genuinely different codes remain blocking conflicts.
+- Added regression coverage for both the stale-conflict case and existing mismatch behavior. The complete extraction package suite (15 tests), typecheck, production build, lint, format check, and diff validation passed. No database migration was required.
+
 ## Implemented
 
 ### Repository and tooling

@@ -23,10 +23,7 @@ function normalizedThresholdLabel(value: string) {
 }
 
 function normalizedCourseCode(value: string) {
-  return value
-    .toUpperCase()
-    .replace(/[\s-]+/g, ' ')
-    .trim();
+  return value.toUpperCase().replace(/[^A-Z0-9]+/g, '');
 }
 
 function evidenceOf(extraction: CourseDocumentExtraction) {
@@ -45,7 +42,20 @@ export function validateCourseDocumentExtraction(
 ): ExtractionValidationResult {
   const extraction = courseDocumentExtractionSchema.parse(input);
   const warnings = [...extraction.warnings];
-  const conflicts = [...extraction.conflicts];
+  const conflicts = extraction.conflicts.filter((conflict) => {
+    if (
+      conflict.field !== 'courseIdentity.courseCode' ||
+      conflict.message !== 'The extracted course code does not match the active course offering.'
+    ) {
+      return true;
+    }
+    const actual = extraction.courseIdentity.courseCode;
+    return (
+      !actual ||
+      !context.expectedCourseCode ||
+      normalizedCourseCode(actual) !== normalizedCourseCode(context.expectedCourseCode)
+    );
+  });
   const blockingIssues: string[] = [];
   const addWarning = (
     code: string,

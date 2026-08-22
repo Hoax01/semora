@@ -190,6 +190,28 @@ describe('schema-constrained extraction provider', () => {
     expect(result.blockingIssues).toContain('UNKNOWN_ASSESSMENT_CATEGORY:quizzes');
   });
 
+  it('accepts course-code formatting differences and clears stale mismatch conflicts', () => {
+    const base = courseDocumentExtractionSchema.parse(extraction());
+    const result = validateCourseDocumentExtraction(
+      {
+        ...base,
+        courseIdentity: { ...base.courseIdentity, courseCode: 'CS5326' },
+        conflicts: [
+          {
+            field: 'courseIdentity.courseCode',
+            message: 'The extracted course code does not match the active course offering.',
+            values: ['CS5326', 'CS 5326'],
+            evidence: [],
+          },
+        ],
+      },
+      { expectedCourseCode: 'CS 5326' },
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.blockingIssues).not.toContain('COURSE_MISMATCH');
+    expect(result.extraction.conflicts).toEqual([]);
+  });
   it('adds deterministic validation warnings and blocking conflicts to the draft', () => {
     const base = courseDocumentExtractionSchema.parse(extraction());
     const firstCategory = base.gradingScheme.categories[0];
