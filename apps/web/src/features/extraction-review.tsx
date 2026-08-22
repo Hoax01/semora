@@ -567,10 +567,7 @@ export function ExtractionReviewPage() {
             </label>
             <div className="review-edit-list">
               {payload.gradingScheme.categories.map((category, index) => (
-                <div
-                  className="review-edit-row review-category-row"
-                  key={`${category.name}-${index}`}
-                >
+                <div className="review-edit-row review-category-row" key={`category-${index}`}>
                   <label>
                     Category
                     <input
@@ -703,10 +700,7 @@ export function ExtractionReviewPage() {
             </p>
             <div className="review-edit-list">
               {payload.assessments.map((assessment, index) => (
-                <div
-                  className="review-edit-row review-assessment-row"
-                  key={`${assessment.title}-${index}`}
-                >
+                <div className="review-edit-row review-assessment-row" key={`assessment-${index}`}>
                   <label>
                     Assessment
                     <input

@@ -75,6 +75,12 @@ HTTP smoke or automated API/engine checks.
   category-reference validation, missing-N validation, and end-to-end N-rule
   persistence.
 
+## Phase 5 review input focus — August 22, 2026
+
+- Extraction review category and assessment rows now use stable React keys, so
+  editing a title or category name no longer remounts the row and drops focus
+  after each character.
+
 ## Implemented
 
 ### Repository and tooling
