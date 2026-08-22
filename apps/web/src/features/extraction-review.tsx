@@ -25,6 +25,8 @@ type Assessment = {
     | 'PARTICIPATION'
     | 'OTHER';
   weightPercentage: number | null;
+  count: number | null;
+  isGroupAssessment: boolean;
   dueDate: string | null;
   recurrence: string | null;
   confidence: number;
@@ -57,6 +59,31 @@ function aggregationRuleDescription(category: Category) {
   }
 }
 
+function assessmentLabel(assessment: Pick<Assessment, 'title' | 'category' | 'type'>) {
+  switch (assessment.type) {
+    case 'ASSIGNMENT':
+      return 'Assignment';
+    case 'QUIZ':
+      return 'Quiz';
+    case 'PROJECT':
+      return 'Project';
+    case 'PRESENTATION':
+      return 'Presentation';
+    case 'MIDTERM':
+      return 'Midterm';
+    case 'FINAL':
+      return 'Final';
+    case 'PARTICIPATION':
+      return 'Participation';
+  }
+  const text = `${assessment.title} ${assessment.category ?? ''}`.toLowerCase();
+  if (/exam/.test(text)) return 'Exam';
+  if (/quiz|test/.test(text)) return 'Quiz';
+  if (/assignment|homework/.test(text)) return 'Assignment';
+  if (/lab/.test(text)) return 'Lab';
+  if (/project/.test(text)) return 'Project';
+  return 'Assessment';
+}
 type ExtractionPayload = {
   documentId: string;
   documentType: 'COURSE_OUTLINE';
@@ -266,6 +293,32 @@ export function ExtractionReviewPage() {
     }));
   }
 
+  function expandAssessment(index: number) {
+    updatePayload((current) => {
+      const groupedAssessment = current.assessments[index];
+      const count = groupedAssessment?.count;
+      if (!groupedAssessment || !count || count <= 1) return current;
+
+      const label = assessmentLabel(groupedAssessment);
+      const expandedAssessments = Array.from({ length: count }, (_item, itemIndex) => ({
+        ...groupedAssessment,
+        title: `${label} ${itemIndex + 1}`,
+        count: null,
+        isGroupAssessment: false,
+        weightPercentage: null,
+        dueDate: null,
+        recurrence: null,
+      }));
+      return {
+        ...current,
+        assessments: [
+          ...current.assessments.slice(0, index),
+          ...expandedAssessments,
+          ...current.assessments.slice(index + 1),
+        ],
+      };
+    });
+  }
   function updateInstructor(index: number, value: string) {
     updatePayload((current) => ({
       ...current,
@@ -699,103 +752,134 @@ export function ExtractionReviewPage() {
               enter individual assessment weights only when the outline gives them.
             </p>
             <div className="review-edit-list">
-              {payload.assessments.map((assessment, index) => (
-                <div className="review-edit-row review-assessment-row" key={`assessment-${index}`}>
-                  <label>
-                    Assessment
-                    <input
-                      disabled={!isReviewable || Boolean(busyAction)}
-                      onChange={(event) => updateAssessment(index, { title: event.target.value })}
-                      value={assessment.title}
-                    />
-                  </label>
-                  <label>
-                    Category
-                    <select
-                      disabled={!isReviewable || Boolean(busyAction)}
-                      onChange={(event) =>
-                        updateAssessment(index, { category: event.target.value || null })
-                      }
-                      value={assessment.category ?? ''}
-                    >
-                      <option value="">Unassigned</option>
-                      {payload.gradingScheme.categories.map((category) => (
-                        <option key={category.name} value={category.name}>
-                          {category.name || 'Unnamed category'}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Type
-                    <select
-                      disabled={!isReviewable || Boolean(busyAction)}
-                      onChange={(event) =>
-                        updateAssessment(index, {
-                          type: event.target.value as Assessment['type'],
-                        })
-                      }
-                      value={assessment.type}
-                    >
-                      {[
-                        'ASSIGNMENT',
-                        'QUIZ',
-                        'PROJECT',
-                        'PRESENTATION',
-                        'MIDTERM',
-                        'FINAL',
-                        'PARTICIPATION',
-                        'OTHER',
-                      ].map((type) => (
-                        <option key={type} value={type}>
-                          {type.replaceAll('_', ' ')}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Weight %
-                    <input
-                      disabled={!isReviewable || Boolean(busyAction)}
-                      inputMode="decimal"
-                      onChange={(event) =>
-                        updateAssessment(index, {
-                          weightPercentage: numberOrNull(event.target.value),
-                        })
-                      }
-                      type="number"
-                      value={assessment.weightPercentage ?? ''}
-                    />
-                  </label>
-                  <label>
-                    Due date
-                    <input
-                      disabled={!isReviewable || Boolean(busyAction)}
-                      onChange={(event) =>
-                        updateAssessment(index, { dueDate: event.target.value || null })
-                      }
-                      type="date"
-                      value={assessment.dueDate ?? ''}
-                    />
-                  </label>
-                  <button
-                    className="text-button review-remove-button"
-                    disabled={!isReviewable || Boolean(busyAction)}
-                    onClick={() =>
-                      updatePayload((current) => ({
-                        ...current,
-                        assessments: current.assessments.filter(
-                          (_item, itemIndex) => itemIndex !== index,
-                        ),
-                      }))
-                    }
-                    type="button"
+              {payload.assessments.map((assessment, index) => {
+                const category = payload.gradingScheme.categories.find(
+                  (item) => item.name === assessment.category,
+                );
+                const hasGroupCount = (assessment.count ?? 0) > 1;
+                const canExpandEqually = category?.aggregationRule === 'EQUAL_MEAN';
+                return (
+                  <div
+                    className="review-edit-row review-assessment-row"
+                    key={`assessment-${index}`}
                   >
-                    Remove
-                  </button>
-                  <ReviewEvidence evidence={assessment.evidence} />
-                </div>
-              ))}
+                    <label>
+                      Assessment
+                      <input
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) => updateAssessment(index, { title: event.target.value })}
+                        value={assessment.title}
+                      />
+                      {hasGroupCount ? (
+                        <small className="review-assessment-group-note">
+                          Outline line represents {assessment.count} items.
+                        </small>
+                      ) : null}
+                    </label>
+                    <label>
+                      Category
+                      <select
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) =>
+                          updateAssessment(index, { category: event.target.value || null })
+                        }
+                        value={assessment.category ?? ''}
+                      >
+                        <option value="">Unassigned</option>
+                        {payload.gradingScheme.categories.map((category) => (
+                          <option key={category.name} value={category.name}>
+                            {category.name || 'Unnamed category'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Type
+                      <select
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) =>
+                          updateAssessment(index, {
+                            type: event.target.value as Assessment['type'],
+                          })
+                        }
+                        value={assessment.type}
+                      >
+                        {[
+                          'ASSIGNMENT',
+                          'QUIZ',
+                          'PROJECT',
+                          'PRESENTATION',
+                          'MIDTERM',
+                          'FINAL',
+                          'PARTICIPATION',
+                          'OTHER',
+                        ].map((type) => (
+                          <option key={type} value={type}>
+                            {type.replaceAll('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Weight %
+                      <input
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          updateAssessment(index, {
+                            weightPercentage: numberOrNull(event.target.value),
+                          })
+                        }
+                        type="number"
+                        value={assessment.weightPercentage ?? ''}
+                      />
+                    </label>
+                    <label>
+                      Due date
+                      <input
+                        disabled={!isReviewable || Boolean(busyAction)}
+                        onChange={(event) =>
+                          updateAssessment(index, { dueDate: event.target.value || null })
+                        }
+                        type="date"
+                        value={assessment.dueDate ?? ''}
+                      />
+                    </label>
+                    <button
+                      className="text-button review-remove-button"
+                      disabled={!isReviewable || Boolean(busyAction)}
+                      onClick={() =>
+                        updatePayload((current) => ({
+                          ...current,
+                          assessments: current.assessments.filter(
+                            (_item, itemIndex) => itemIndex !== index,
+                          ),
+                        }))
+                      }
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                    {hasGroupCount ? (
+                      canExpandEqually ? (
+                        <button
+                          className="secondary-button compact-button review-assessment-expand"
+                          disabled={!isReviewable || Boolean(busyAction)}
+                          onClick={() => expandAssessment(index)}
+                          type="button"
+                        >
+                          Expand into {assessment.count} equal items
+                        </button>
+                      ) : (
+                        <small className="review-assessment-expand-note">
+                          Choose Equal weight to expand these items automatically.
+                        </small>
+                      )
+                    ) : null}
+                    <ReviewEvidence evidence={assessment.evidence} />
+                  </div>
+                );
+              })}
             </div>
             <button
               className="secondary-button compact-button"
@@ -809,8 +893,10 @@ export function ExtractionReviewPage() {
                       title: '',
                       type: 'OTHER',
                       weightPercentage: null,
+                      count: null,
+                      isGroupAssessment: false,
                       dueDate: null,
-                      category: current.gradingScheme.categories[0]?.name ?? null,
+                      category: null,
                       recurrence: null,
                       confidence: 0.5,
                       evidence: [],

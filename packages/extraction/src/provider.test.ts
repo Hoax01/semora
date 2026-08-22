@@ -109,7 +109,7 @@ describe('schema-constrained extraction provider', () => {
         text: [
           'CS 370 Operating Systems',
           'Instructor: Ada Lovelace',
-          'Assignments: 30%',
+          'Assignments Four programming assignments 30%',
           'Midterm: 30%',
           'Final Exam: 40%',
           'Absolute grading with letter grade thresholds',
@@ -117,7 +117,7 @@ describe('schema-constrained extraction provider', () => {
         blocks: [
           { kind: 'heading', text: 'CS 370 Operating Systems' },
           { kind: 'paragraph', text: 'Instructor: Ada Lovelace' },
-          { kind: 'paragraph', text: 'Assignments: 30%' },
+          { kind: 'paragraph', text: 'Assignments Four programming assignments 30%' },
           { kind: 'paragraph', text: 'Midterm: 30%' },
           { kind: 'paragraph', text: 'Final Exam: 40%' },
           { kind: 'paragraph', text: 'Absolute grading with letter grade thresholds' },
@@ -135,6 +135,7 @@ describe('schema-constrained extraction provider', () => {
       ),
     ).toBe(true);
     expect(result.assessments.every((assessment) => assessment.category !== null)).toBe(true);
+    expect(result.assessments[0]?.count).toBe(4);
     expect(result.assessments.map((assessment) => assessment.type)).toEqual([
       'ASSIGNMENT',
       'MIDTERM',
@@ -175,6 +176,8 @@ describe('schema-constrained extraction provider', () => {
           type: 'QUIZ',
           category: 'Quizzes',
           weightPercentage: null,
+          count: null,
+          isGroupAssessment: false,
           dueDate: null,
           recurrence: null,
           confidence: 0.8,

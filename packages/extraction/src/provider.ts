@@ -55,6 +55,8 @@ const assessmentSchema = z.object({
     'OTHER',
   ]),
   weightPercentage: z.number().finite().min(0).max(100).nullable(),
+  count: z.number().int().min(1).max(100).nullable().default(null),
+  isGroupAssessment: z.boolean().default(false),
   dueDate: z.string().date().nullable(),
   recurrence: z.string().trim().max(160).nullable(),
   confidence: confidenceSchema,

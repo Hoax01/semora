@@ -1,7 +1,7 @@
 # Semora — Current Implementation State
 
 **Last Updated:** August 22, 2026
-**Current Phase:** Phase 7 — Grade Intelligence (complete)
+**Current Phase:** Phase 8 — Product Polish (in progress)
 **Next Build Objective:** Phase 8.1 — UX Pass
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
@@ -22,7 +22,7 @@ events, Phase 6.5 workload calculations, Phase 6.6 daily pressure, Phase 6.7
 weekly pressure, Phase 6.8 pressure findings, Phase 6.9 semester heatmap, and
 Phase 6.10 initial command-center dashboard, Phase 6.11 deadline changes, and
 Phase 6.12 completion feedback are now implemented and regression-covered. The
-Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, Phase 7.8 relative grading, and Phase 7.9 Grade Dashboard are implemented and regression-covered. Phase 7 acceptance criteria are satisfied; Phase 8 product polish is next. A full
+Phase 6 acceptance criteria are satisfied. Phase 7.1 Grade Engine foundation, Phase 7.2 score entry/personal score persistence, Phase 7.3 current performance, Phase 7.4 absolute grade thresholds, Phase 7.5 target analysis, Phase 7.6 temporary what-if scenarios, Phase 7.7 drop rules, Phase 7.8 relative grading, and Phase 7.9 Grade Dashboard are implemented and regression-covered. Phase 7 acceptance criteria are satisfied; Phase 8 product polish is now in progress. A full
 Phase 6 acceptance audit was completed on August 21, 2026: the primary
 authenticated flow was smoke-tested in the browser from sign-in through
 semester lock, assessment forecasting, deadline editing, completion feedback,
@@ -80,6 +80,22 @@ HTTP smoke or automated API/engine checks.
 - Extraction review category and assessment rows now use stable React keys, so
   editing a title or category name no longer remounts the row and drops focus
   after each character.
+
+## Phase 8 grouped assessment review — August 22, 2026
+
+- The extraction contract now preserves an exact assessment count when the
+  deterministic provider recognizes wording such as “Four programming
+  assignments.” Approximate wording remains unexpanded.
+- Review rows identify grouped outline lines and provide “Expand into N equal
+  items” when the linked category uses Equal weight. Expansion creates correctly
+  categorized, blank-weight, undated slots while retaining the source evidence;
+  users can rename them and add dates later.
+- Newly added manual review assessments start Unassigned rather than silently
+  landing in the first category. Existing team/group-assessment metadata remains
+  distinct from repeated assessment counts, and no database migration was needed.
+- Automated extraction/API/engine tests, full typecheck, production build,
+  formatter, and lint checks passed. Interactive browser smoke could not start
+  because the local Windows browser helper exited before connecting.
 
 ## Implemented
 

@@ -273,6 +273,7 @@ async function persistCanonicalAcademicData(
             title: assessment.title,
             assessmentType: assessment.type,
             weightPercentage: assessment.weightPercentage,
+            isGroupAssessment: assessment.isGroupAssessment,
             dueAt: assessment.dueDate ? new Date(`${assessment.dueDate}T00:00:00.000Z`) : null,
             datePrecision: assessment.dueDate ? ('EXACT' as const) : ('UNKNOWN' as const),
             sourceType: 'VERIFIED_OUTLINE' as const,

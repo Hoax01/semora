@@ -65,6 +65,43 @@ function titleFromCourseLine(line: string, code: string) {
   return withoutCode && !/^course\s*code$/i.test(withoutCode) ? withoutCode : null;
 }
 
+const ASSESSMENT_COUNT_WORDS = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+} as const;
+const EXACT_ASSESSMENT_COUNT_PATTERN =
+  /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b(?:\s+[\w-]+){0,3}\s+(?:assignments?|quizzes|quiz|exams?|tests?|homeworks?|labs?|projects?|presentations?|papers?|assessments?)\b/i;
+
+function exactAssessmentCount(name: string) {
+  if (/\b(?:about|approximately|around|roughly|several|many|up to|at least|likely)\b/i.test(name)) {
+    return null;
+  }
+  const token = name.match(EXACT_ASSESSMENT_COUNT_PATTERN)?.[1]?.toLowerCase();
+  if (!token) return null;
+  const numericCount = Number(token);
+  const count = Number.isNaN(numericCount)
+    ? ASSESSMENT_COUNT_WORDS[token as keyof typeof ASSESSMENT_COUNT_WORDS]
+    : numericCount;
+  return count > 1 && count <= 100 ? count : null;
+}
 function assessmentType(name: string): CourseDocumentExtraction['assessments'][number]['type'] {
   const normalized = name.toLowerCase();
   if (normalized.includes('final')) return 'FINAL';
@@ -170,6 +207,8 @@ export class LocalDeterministicExtractionProvider implements RawAcademicExtracti
         category: category.name,
         type: assessmentType(category.name),
         weightPercentage: category.weightPercentage,
+        count: exactAssessmentCount(category.name),
+        isGroupAssessment: false,
         dueDate: null,
         recurrence: recurrence ?? null,
         confidence: 0.55,
