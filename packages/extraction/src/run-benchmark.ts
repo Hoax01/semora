@@ -1,7 +1,8 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   benchmarkErrorResult,
+  auditBenchmarkDataset,
   evaluateBenchmarkCase,
   summarizeBenchmarkResults,
   type BenchmarkCase,
@@ -44,6 +45,11 @@ if (!outlineDirectory) {
   );
 }
 
+const corpusFileNames = (await readdir(outlineDirectory)).filter((fileName) =>
+  /\.(?:pdf|docx|txt)$/i.test(fileName),
+);
+const audit = auditBenchmarkDataset(dataset.cases, corpusFileNames);
+
 const provider = new SchemaConstrainedExtractionProvider(
   new LocalDeterministicExtractionProvider(),
 );
@@ -70,11 +76,16 @@ const summary = summarizeBenchmarkResults(results);
 console.log(`Phase 5.10 extraction benchmark — ${dataset.semester}`);
 console.log(`Cases: ${summary.successfulCaseCount}/${summary.caseCount} extracted successfully`);
 console.log(
+  `Label coverage: ${audit.labelledFileCount}/${audit.corpusFileCount ?? 'unknown'} outlines (${audit.labelCoverageRate === null ? 'n/a' : `${(audit.labelCoverageRate * 100).toFixed(1)}%`})`,
+);
+console.log(
   `Correction proxy: ${summary.correctionRate === null ? 'n/a' : `${(summary.correctionRate * 100).toFixed(1)}%`}`,
 );
 console.log(
   `Blocking conflict rate: ${summary.blockingConflictRate === null ? 'n/a' : `${(summary.blockingConflictRate * 100).toFixed(1)}%`}`,
 );
+console.log('Micro field metrics:');
+console.log(JSON.stringify(summary.fieldMetrics, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 console.log('\nPer-case results:');
 for (const result of results) {
@@ -84,5 +95,5 @@ for (const result of results) {
 }
 
 if (process.argv.includes('--json')) {
-  console.log(JSON.stringify({ dataset, summary, results }, null, 2));
+  console.log(JSON.stringify({ audit, dataset, summary, results }, null, 2));
 }

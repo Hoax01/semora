@@ -44,6 +44,8 @@ export type BenchmarkMetric = {
   matchedCount: number;
   correctCount: number;
   accuracy: number | null;
+  precision: number | null;
+  recall: number | null;
 };
 
 export type BenchmarkCaseResult = {
@@ -84,6 +86,13 @@ export type BenchmarkSummary = {
   dateAccuracy: number | null;
   thresholdAccuracy: number | null;
   dropRuleRecall: number | null;
+  fieldMetrics: {
+    weights: BenchmarkMetric;
+    assessments: BenchmarkMetric;
+    dates: BenchmarkMetric;
+    thresholds: BenchmarkMetric;
+    dropRules: BenchmarkMetric;
+  };
 };
 
 function normalizedText(value: string) {
@@ -99,6 +108,28 @@ function average(values: Array<number | null>) {
   return known.length ? known.reduce((sum, value) => sum + value, 0) / known.length : null;
 }
 
+type BenchmarkMetricKey = 'weights' | 'assessments' | 'dates' | 'thresholds' | 'dropRules';
+
+function aggregateMetric(results: BenchmarkCaseResult[], key: BenchmarkMetricKey) {
+  const totals = results
+    .filter((result) => !result.error)
+    .reduce(
+      (total, result) => ({
+        expectedCount: total.expectedCount + result[key].expectedCount,
+        predictedCount: total.predictedCount + result[key].predictedCount,
+        matchedCount: total.matchedCount + result[key].matchedCount,
+        correctCount: total.correctCount + result[key].correctCount,
+      }),
+      { expectedCount: 0, predictedCount: 0, matchedCount: 0, correctCount: 0 },
+    );
+  return metricFor(
+    totals.expectedCount,
+    totals.predictedCount,
+    totals.matchedCount,
+    totals.correctCount,
+  );
+}
+
 function metricFor(
   expectedCount: number,
   predictedCount: number,
@@ -111,6 +142,8 @@ function metricFor(
     matchedCount,
     correctCount,
     accuracy: expectedCount ? correctCount / expectedCount : null,
+    precision: predictedCount ? correctCount / predictedCount : null,
+    recall: expectedCount ? correctCount / expectedCount : null,
   };
 }
 
@@ -292,6 +325,13 @@ export function summarizeBenchmarkResults(results: BenchmarkCaseResult[]): Bench
     dateAccuracy: average(successful.map((result) => result.dates.accuracy)),
     thresholdAccuracy: average(successful.map((result) => result.thresholds.accuracy)),
     dropRuleRecall: average(successful.map((result) => result.dropRules.accuracy)),
+    fieldMetrics: {
+      weights: aggregateMetric(results, 'weights'),
+      assessments: aggregateMetric(results, 'assessments'),
+      dates: aggregateMetric(results, 'dates'),
+      thresholds: aggregateMetric(results, 'thresholds'),
+      dropRules: aggregateMetric(results, 'dropRules'),
+    },
   };
 }
 
@@ -323,5 +363,85 @@ export function benchmarkErrorResult(
     blockingIssues: [],
     warnings: [],
     error: message,
+  };
+}
+
+export type BenchmarkCorpusAudit = {
+  corpusFileCount: number | null;
+  labelledCaseCount: number;
+  labelledFileCount: number;
+  duplicateLabelFileCount: number;
+  unlabelledFileCount: number | null;
+  labelCoverageRate: number | null;
+  missingLabelFiles: string[];
+  expectedFieldCounts: Record<BenchmarkMetricKey, number>;
+  casesWithExpectedFields: Record<BenchmarkMetricKey, number>;
+};
+
+export function auditBenchmarkDataset(
+  cases: BenchmarkCase[],
+  corpusFileNames?: string[],
+): BenchmarkCorpusAudit {
+  const labelledFiles = cases.map((benchmarkCase) => benchmarkCase.fileName);
+  const uniqueLabelledFiles = new Set(labelledFiles.map((fileName) => fileName.toLowerCase()));
+  const duplicateLabelFileCount = labelledFiles.length - uniqueLabelledFiles.size;
+  const expectedFieldCounts = {
+    weights: cases.reduce(
+      (total, benchmarkCase) => total + benchmarkCase.expected.weights.length,
+      0,
+    ),
+    assessments: cases.reduce(
+      (total, benchmarkCase) => total + benchmarkCase.expected.assessments.length,
+      0,
+    ),
+    dates: cases.reduce((total, benchmarkCase) => total + benchmarkCase.expected.dates.length, 0),
+    thresholds: cases.reduce(
+      (total, benchmarkCase) => total + benchmarkCase.expected.thresholds.length,
+      0,
+    ),
+    dropRules: cases.reduce(
+      (total, benchmarkCase) => total + benchmarkCase.expected.dropRules.length,
+      0,
+    ),
+  } satisfies Record<BenchmarkMetricKey, number>;
+  const casesWithExpectedFields = {
+    weights: cases.filter((benchmarkCase) => benchmarkCase.expected.weights.length > 0).length,
+    assessments: cases.filter((benchmarkCase) => benchmarkCase.expected.assessments.length > 0)
+      .length,
+    dates: cases.filter((benchmarkCase) => benchmarkCase.expected.dates.length > 0).length,
+    thresholds: cases.filter((benchmarkCase) => benchmarkCase.expected.thresholds.length > 0)
+      .length,
+    dropRules: cases.filter((benchmarkCase) => benchmarkCase.expected.dropRules.length > 0).length,
+  } satisfies Record<BenchmarkMetricKey, number>;
+  if (!corpusFileNames) {
+    return {
+      corpusFileCount: null,
+      labelledCaseCount: cases.length,
+      labelledFileCount: uniqueLabelledFiles.size,
+      duplicateLabelFileCount,
+      unlabelledFileCount: null,
+      labelCoverageRate: null,
+      missingLabelFiles: [],
+      expectedFieldCounts,
+      casesWithExpectedFields,
+    };
+  }
+  const corpusFiles = new Map(
+    corpusFileNames.map((fileName) => [fileName.toLowerCase(), fileName]),
+  );
+  const missingLabelFiles = labelledFiles.filter(
+    (fileName) => !corpusFiles.has(fileName.toLowerCase()),
+  );
+  const corpusFileCount = corpusFiles.size;
+  return {
+    corpusFileCount,
+    labelledCaseCount: cases.length,
+    labelledFileCount: uniqueLabelledFiles.size,
+    duplicateLabelFileCount,
+    unlabelledFileCount: Math.max(corpusFileCount - uniqueLabelledFiles.size, 0),
+    labelCoverageRate: corpusFileCount ? uniqueLabelledFiles.size / corpusFileCount : null,
+    missingLabelFiles,
+    expectedFieldCounts,
+    casesWithExpectedFields,
   };
 }

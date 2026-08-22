@@ -160,6 +160,7 @@ model User {
   workspaces              SemesterWorkspace[]
   documents               Document[]
   extractionVerifications ExtractionVerification[]
+  extractionCorrections   ExtractionCorrection[]   @relation("ExtractionCorrections")
   sessions                Session[]
   accounts                Account[]
   assessmentScores        AssessmentScore[]
@@ -408,6 +409,7 @@ model ExtractionJob {
   document         Document                @relation(fields: [documentId], references: [id], onDelete: Cascade)
   draft            ExtractionDraft?
   verification     ExtractionVerification?
+  corrections      ExtractionCorrection[]
 
   @@index([documentId, createdAt])
   @@index([status, createdAt])
@@ -418,6 +420,7 @@ model ExtractionDraft {
   id                String        @id @default(cuid())
   extractionJobId   String        @unique @map("extraction_job_id")
   draftPayload      Json          @map("draft_payload")
+  initialPayload    Json?         @map("initial_payload")
   overallConfidence Decimal       @map("overall_confidence") @db.Decimal(3, 2)
   createdAt         DateTime      @default(now()) @map("created_at")
   extractionJob     ExtractionJob @relation(fields: [extractionJobId], references: [id], onDelete: Cascade)
@@ -436,6 +439,23 @@ model ExtractionVerification {
 
   @@index([verifiedByUserId, verifiedAt])
   @@map("extraction_verifications")
+}
+
+model ExtractionCorrection {
+  id                String        @id @default(cuid())
+  extractionJobId   String        @map("extraction_job_id")
+  correctedByUserId String        @map("corrected_by_user_id")
+  fieldPath         String        @map("field_path")
+  originalValue     String        @map("original_value") @db.Text
+  correctedValue    String        @map("corrected_value") @db.Text
+  createdAt         DateTime      @default(now()) @map("created_at")
+  extractionJob     ExtractionJob @relation(fields: [extractionJobId], references: [id], onDelete: Cascade)
+  correctedByUser   User          @relation("ExtractionCorrections", fields: [correctedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([extractionJobId, createdAt])
+  @@index([correctedByUserId, createdAt])
+  @@index([fieldPath, createdAt])
+  @@map("extraction_corrections")
 }
 
 model GradingScheme {

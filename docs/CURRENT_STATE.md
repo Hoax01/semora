@@ -141,6 +141,12 @@ HTTP smoke or automated API/engine checks.
 - Load more reveals six additional matching assessments at a time; Show fewer collapses the list, and filter changes reset the visible page. Empty filter results have a clear action. No API or data-model change was required.
 - The focused web source diff, full typecheck, test suite, production build, lint, format check, and diff validation passed. Interactive browser smoke was not rerun for this UI-only change because the local Windows browser-runtime helper remains unavailable.
 
+## Phase 8 extraction audit and correction capture — August 23, 2026
+
+- The opt-in extraction benchmark now reports corpus label coverage, field-level precision/recall, micro totals, and the existing per-case correction proxy separately. Against the local Fall 2026 corpus, 11 of 392 outlines are labelled (2.8% coverage); the current deterministic baseline recovers 27 of 50 expected weight/assessment fields (54.0% micro recall, 100.0% precision), with 0% labelled recall for dates and drop rules.
+- Extraction drafts now retain the initial machine payload separately from the editable review payload. Verified review changes are diffed into owned `ExtractionCorrection` records with field paths and original/corrected values; historical drafts without an initial payload are intentionally not treated as training labels.
+- Added correction-diff and benchmark-audit tests plus migration `20260823130000_phase8_extraction_audit`. Full typecheck, test suite, production build, lint, format check, focused benchmark, and diff validation passed. `prisma migrate dev` remains unable to create its shadow database because an older timestamped Phase 7 migration references an enum value added by a later Phase 6 migration; the new migration was applied successfully with `prisma migrate deploy` without rewriting migration history.
+
 ## Implemented
 
 ### Repository and tooling

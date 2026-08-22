@@ -9,6 +9,7 @@ import {
   type CourseDocumentExtraction,
   SchemaConstrainedExtractionProvider,
   validateCourseDocumentExtraction,
+  diffExtractionPayloads,
 } from '@semora/extraction';
 import { prisma } from './db.js';
 import { privateDocumentPath } from './document-storage.js';
@@ -45,6 +46,7 @@ type ExtractionJobRecord = {
   draft: {
     id: string;
     draftPayload: unknown;
+    initialPayload: unknown | null;
     overallConfidence: { toString(): string };
     createdAt: Date;
   } | null;
@@ -132,6 +134,8 @@ async function saveReviewedDraft(job: ExtractionJobRecord, extraction: CourseDoc
       create: {
         extractionJobId: job.id,
         draftPayload: validated.extraction,
+        initialPayload:
+          job.draft?.initialPayload ?? job.draft?.draftPayload ?? validated.extraction,
         overallConfidence: validated.extraction.overallConfidence,
       },
       update: {
@@ -305,6 +309,20 @@ async function persistCanonicalAcademicData(
       })),
     });
 
+    const originalPayload = job.draft?.initialPayload;
+    const corrections = originalPayload ? diffExtractionPayloads(originalPayload, extraction) : [];
+    if (corrections.length) {
+      await transaction.extractionCorrection.createMany({
+        data: corrections.map((correction) => ({
+          extractionJobId: job.id,
+          correctedByUserId: userId,
+          fieldPath: correction.fieldPath,
+          originalValue: correction.originalValue,
+          correctedValue: correction.correctedValue,
+        })),
+      });
+    }
+
     await transaction.activeCourseState.update({
       where: { id: activeCourseStateId },
       data: {
@@ -399,10 +417,12 @@ export async function processExtractionJob(
         create: {
           extractionJobId: job.id,
           draftPayload: validated,
+          initialPayload: validated,
           overallConfidence: validated.overallConfidence,
         },
         update: {
           draftPayload: validated,
+          initialPayload: validated,
           overallConfidence: validated.overallConfidence,
           createdAt: completedAt,
         },
@@ -530,7 +550,7 @@ export function registerExtractionJobRoutes(app: express.Application) {
       ? 'VERIFIED_WITH_GAPS'
       : 'VERIFIED';
     const verified = await persistCanonicalAcademicData(
-      job,
+      saved.job,
       userId,
       saved.validation.extraction,
       verificationState,

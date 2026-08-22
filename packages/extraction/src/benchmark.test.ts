@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  auditBenchmarkDataset,
   evaluateBenchmarkCase,
   summarizeBenchmarkResults,
   type BenchmarkCase,
@@ -71,6 +72,28 @@ describe('extraction benchmark metrics', () => {
     expect(result.thresholds.accuracy).toBe(1);
     expect(result.dropRules.accuracy).toBe(1);
     expect(result.blockingIssues).toEqual([]);
+    const summary = summarizeBenchmarkResults([result]);
+    expect(summary.fieldMetrics.weights.precision).toBe(1);
+    expect(summary.fieldMetrics.weights.recall).toBe(1);
+  });
+
+  it('audits labelled coverage separately from extraction accuracy', () => {
+    const audit = auditBenchmarkDataset([benchmarkCase], ['outline.pdf', 'unlabelled.pdf']);
+
+    expect(audit).toMatchObject({
+      corpusFileCount: 2,
+      labelledCaseCount: 1,
+      labelledFileCount: 1,
+      unlabelledFileCount: 1,
+      labelCoverageRate: 0.5,
+      expectedFieldCounts: {
+        weights: 1,
+        assessments: 1,
+        dates: 1,
+        thresholds: 1,
+        dropRules: 1,
+      },
+    });
   });
 
   it('marks extraction mismatches and validator conflicts in the summary', () => {

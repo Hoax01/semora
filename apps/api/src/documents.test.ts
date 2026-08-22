@@ -169,6 +169,29 @@ describe('Phase 5 document storage', () => {
       verification: { state: 'VERIFIED' },
     });
 
+    const savedDraft = await prisma?.extractionDraft.findUnique({
+      where: { extractionJobId: textUpload.body.extractionJob.id },
+    });
+    const initialPayload = savedDraft?.initialPayload as {
+      gradingScheme?: { categories?: Array<{ name?: string }> };
+    } | null;
+    const finalPayload = savedDraft?.draftPayload as {
+      gradingScheme?: { categories?: Array<{ name?: string }> };
+    } | null;
+    expect(initialPayload?.gradingScheme?.categories?.[0]?.name).toBe('Assignments');
+    expect(finalPayload?.gradingScheme?.categories?.[0]?.name).toBe('Coursework');
+    const corrections = await prisma?.extractionCorrection.findMany({
+      where: { extractionJobId: textUpload.body.extractionJob.id },
+      orderBy: { fieldPath: 'asc' },
+    });
+    expect(corrections?.map((correction) => correction.fieldPath)).toEqual(
+      expect.arrayContaining([
+        'courseIdentity.instructors[0]',
+        'gradingScheme.categories[0].aggregationRule',
+        'gradingScheme.categories[0].name',
+      ]),
+    );
+
     const canonical = await prisma?.activeCourseState.findUnique({
       where: { activeCourseSelectionId: activeSelection.id },
       include: {
