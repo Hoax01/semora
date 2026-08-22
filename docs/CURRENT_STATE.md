@@ -97,6 +97,25 @@ HTTP smoke or automated API/engine checks.
   formatter, and lint checks passed. Interactive browser smoke could not start
   because the local Windows browser helper exited before connecting.
 
+## Phase 8 dashboard equal-weight presentation — August 23, 2026
+
+- Active assessment responses now expose both the stored per-assessment weight
+  and an effectiveWeightPercentage. Equal-mean categories derive each
+  assessment's share from the category weight and active assessment count, so
+  the dashboard no longer displays “Weight unknown” for a known equal split.
+- Editing an equal-share assessment starts with the derived value. Saving the
+  same value preserves the category rule; intentionally changing it converts
+  the category to explicit individual weights and seeds the remaining
+  assessments with their equal starting shares.
+- Remaining-assessment summaries and what-if eligibility use effective weights,
+  while the grade engine continues to use the category rule deterministically.
+  Score, class-statistics, edit, completion, and cancel controls now have
+  structured responsive styling and visible focus/hover states.
+- Focused assessment integration coverage, typecheck, formatting, lint, and
+  production build passed. Standalone API integration files passed as well. A
+  concurrent root workspace run hit the configured 5-second timeout in three
+  database-heavy API tests under parallel load; standalone reruns passed.
+
 ## Implemented
 
 ### Repository and tooling

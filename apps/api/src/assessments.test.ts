@@ -6,11 +6,12 @@ import { prisma } from './db.js';
 describe('Phase 6 and 7 assessment management', () => {
   const ownerEmail = `assessment-owner-${Date.now()}@example.test`;
   const intruderEmail = `assessment-intruder-${Date.now()}@example.test`;
+  const equalOwnerEmail = 'assessment-equal-' + Date.now() + '@example.test';
   const password = 'semora-test-password';
 
   afterAll(async () => {
     await prisma?.user
-      .deleteMany({ where: { email: { in: [ownerEmail, intruderEmail] } } })
+      .deleteMany({ where: { email: { in: [ownerEmail, intruderEmail, equalOwnerEmail] } } })
       .catch(() => undefined);
   });
 
@@ -478,5 +479,133 @@ describe('Phase 6 and 7 assessment management', () => {
       .set('Cookie', intruderSignUp.headers['set-cookie'])
       .send({ percentage: 90 });
     expect(intruderScore.status).toBe(404);
+  });
+  it('derives equal assessment weights and converts intentional overrides to explicit weights', async () => {
+    if (!prisma) return;
+
+    const signUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Equal Weight Owner',
+      email: equalOwnerEmail,
+      password,
+    });
+    expect(signUp.status).toBe(200);
+    const ownerCookie = signUp.headers['set-cookie'];
+    const ownerId = signUp.body.user.id as string;
+
+    const term = await prisma.academicTerm.findFirst({ where: { name: 'Fall 2026' } });
+    expect(term).toBeTruthy();
+    if (!term) return;
+    const section = await prisma.section.findFirst({
+      where: { courseOffering: { academicTermId: term.id } },
+    });
+    expect(section).toBeTruthy();
+    if (!section) return;
+
+    const workspace = await prisma.semesterWorkspace.create({
+      data: { userId: ownerId, academicTermId: term.id, state: 'ACTIVE' },
+    });
+    const selection = await prisma.activeCourseSelection.create({
+      data: { workspaceId: workspace.id, sectionId: section.id, status: 'ACTIVE' },
+    });
+    const activeState = await prisma.activeCourseState.create({
+      data: { activeCourseSelectionId: selection.id },
+    });
+    const sourceDocument = await prisma.document.create({
+      data: {
+        userId: ownerId,
+        workspaceId: workspace.id,
+        courseOfferingId: section.courseOfferingId,
+        originalFilename: 'equal-weight-fixture.txt',
+        storageKey: 'equal-weight-fixture-' + Date.now(),
+        mimeType: 'text/plain',
+        fileSize: 1,
+        fileHash: 'equal-weight-fixture-' + Date.now(),
+      },
+    });
+    const gradingScheme = await prisma.gradingScheme.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        gradingMode: 'UNKNOWN',
+        totalExpectedWeight: 100,
+        sourceType: 'USER_ENTERED',
+        sourceDocumentId: sourceDocument.id,
+      },
+    });
+    const category = await prisma.gradeCategory.create({
+      data: {
+        gradingSchemeId: gradingScheme.id,
+        name: 'Assignments',
+        weightPercentage: 40,
+        aggregationRule: 'EQUAL_MEAN',
+        displayOrder: 0,
+      },
+    });
+    const assessments = await prisma.assessment.createMany({
+      data: [
+        {
+          activeCourseStateId: activeState.id,
+          gradeCategoryId: category.id,
+          title: 'Assignment 1',
+          assessmentType: 'ASSIGNMENT',
+          datePrecision: 'UNKNOWN',
+          status: 'UPCOMING',
+          sourceType: 'USER_ENTERED',
+        },
+        {
+          activeCourseStateId: activeState.id,
+          gradeCategoryId: category.id,
+          title: 'Assignment 2',
+          assessmentType: 'ASSIGNMENT',
+          datePrecision: 'UNKNOWN',
+          status: 'UPCOMING',
+          sourceType: 'USER_ENTERED',
+        },
+      ],
+    });
+    expect(assessments.count).toBe(2);
+
+    const listed = await request(app)
+      .get('/api/workspaces/' + workspace.id + '/assessments')
+      .set('Cookie', ownerCookie);
+    expect(listed.status).toBe(200);
+    expect(listed.body.assessments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Assignment 1',
+          weightPercentage: null,
+          effectiveWeightPercentage: 20,
+          weightIsDerived: true,
+        }),
+      ]),
+    );
+    expect(listed.body.gradeSummaries[0].remainingAssessments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ weightPercentage: 20 })]),
+    );
+
+    const assignmentOne = listed.body.assessments.find(
+      (assessment: { title: string }) => assessment.title === 'Assignment 1',
+    );
+    const edited = await request(app)
+      .patch('/api/assessments/' + assignmentOne.id)
+      .set('Cookie', ownerCookie)
+      .send({ weightPercentage: 15 });
+    expect(edited.status).toBe(200);
+    expect(edited.body.assessment).toMatchObject({
+      weightPercentage: 15,
+      effectiveWeightPercentage: 15,
+      weightIsDerived: false,
+    });
+
+    const updatedCategory = await prisma.gradeCategory.findUniqueOrThrow({
+      where: { id: category.id },
+    });
+    expect(updatedCategory.aggregationRule).toBe('EXPLICIT_WEIGHTS');
+    const updatedAssessments = await prisma.assessment.findMany({
+      where: { activeCourseStateId: activeState.id, gradeCategoryId: category.id },
+      orderBy: { title: 'asc' },
+    });
+    expect(updatedAssessments.map((assessment) => Number(assessment.weightPercentage))).toEqual([
+      15, 20,
+    ]);
   });
 });

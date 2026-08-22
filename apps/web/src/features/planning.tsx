@@ -240,6 +240,8 @@ type Assessment = {
   title: string;
   assessmentType: AssessmentType;
   weightPercentage: number | null;
+  effectiveWeightPercentage: number | null;
+  weightIsDerived: boolean;
   pointsPossible: number | null;
   score: {
     id: string;
@@ -705,7 +707,12 @@ function formatMetric(value: number | null) {
 }
 
 function formatPercent(value: number) {
-  return `${Math.round(value * 100)}%`;
+  return String(Math.round(value * 100)) + '%';
+}
+
+function formatAssessmentWeight(value: number | null) {
+  if (value === null) return 'Weight unknown';
+  return value.toFixed(2).replace(/\.?(0+)$/, '') + '%';
 }
 
 function formatPressureDate(value: string) {
@@ -3436,7 +3443,10 @@ function ActiveSemesterView({
       activeSelectionId: assessment.activeSelectionId,
       title: assessment.title,
       assessmentType: assessment.assessmentType,
-      weightPercentage: assessment.weightPercentage?.toString() ?? '',
+      weightPercentage:
+        assessment.effectiveWeightPercentage?.toString() ??
+        assessment.weightPercentage?.toString() ??
+        '',
       dueDate: assessment.dueDate ?? '',
       progressPercentage: Math.round(assessment.progressPercentage ?? 0).toString(),
       personalEffortHours: assessment.personalEffortHours?.toString() ?? '',
@@ -4429,7 +4439,7 @@ function ActiveSemesterView({
               />
             </label>
             <label>
-              Weight %
+              <span>Weight %</span>
               <input
                 max="100"
                 min="0"
@@ -4443,6 +4453,13 @@ function ActiveSemesterView({
                 type="number"
                 value={assessmentDraft.weightPercentage}
               />
+              {editingAssessmentId &&
+              assessments.find((assessment) => assessment.id === editingAssessmentId)
+                ?.weightIsDerived ? (
+                <small className="assessment-weight-hint">
+                  Equal share by default. Changing it switches this category to individual weights.
+                </small>
+              ) : null}
             </label>
             <label>
               Work progress %
@@ -4516,7 +4533,7 @@ function ActiveSemesterView({
                   (assessment) =>
                     assessment.courseOfferingId === summary.courseOfferingId &&
                     assessment.score === null &&
-                    assessment.weightPercentage !== null &&
+                    assessment.effectiveWeightPercentage !== null &&
                     !['CANCELLED', 'DROPPED', 'EXCUSED'].includes(assessment.status),
                 );
                 const scenarioSummary = gradeScenarioSummaries[summary.courseOfferingId];
@@ -4648,10 +4665,7 @@ function ActiveSemesterView({
                                   {assessment.dueDate
                                     ? assessment.dueDate.slice(5)
                                     : 'Date unknown'}{' '}
-                                  ·{' '}
-                                  {assessment.weightPercentage === null
-                                    ? 'Weight unknown'
-                                    : assessment.weightPercentage.toFixed(1) + '%'}
+                                  · {formatAssessmentWeight(assessment.weightPercentage)}
                                 </small>
                               </div>
                               <span>
@@ -4874,10 +4888,7 @@ function ActiveSemesterView({
                     </div>
                     <p className="assessment-meta">
                       {assessment.assessmentType.toLowerCase()} ·{' '}
-                      {assessment.weightPercentage === null
-                        ? 'Weight unknown'
-                        : `${assessment.weightPercentage}%`}{' '}
-                      ·{' '}
+                      {formatAssessmentWeight(assessment.effectiveWeightPercentage)} ·{' '}
                       {assessment.sourceType === 'USER_ENTERED'
                         ? 'Entered by you'
                         : 'From course outline'}

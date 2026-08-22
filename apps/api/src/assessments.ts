@@ -165,6 +165,7 @@ const assessmentInclude = {
   activeCourseState: {
     include: {
       gradingScheme: { include: { categories: true, thresholds: true } },
+      assessments: { select: { id: true, gradeCategoryId: true, status: true } },
       activeCourseSelection: {
         include: {
           section: {
@@ -218,6 +219,11 @@ type AssessmentRecord = {
   }>;
 
   activeCourseState: {
+    assessments: Array<{
+      id: string;
+      gradeCategoryId: string | null;
+      status: string;
+    }>;
     gradingScheme: {
       gradingMode: string;
       totalExpectedWeight: { toString(): string } | null;
@@ -265,6 +271,25 @@ function isValidDateInput(value: string) {
 
 function decimalOrNull(value: { toString(): string } | null) {
   return value === null ? null : Number(value);
+}
+
+function categoryForAssessment(assessment: AssessmentRecord) {
+  return assessment.activeCourseState.gradingScheme?.categories.find(
+    (category) => category.id === assessment.gradeCategoryId,
+  );
+}
+
+function effectiveWeightForAssessment(assessment: AssessmentRecord) {
+  const category = categoryForAssessment(assessment);
+  if (category?.aggregationRule === 'EQUAL_MEAN' && category.weightPercentage !== null) {
+    const categoryAssessmentCount = assessment.activeCourseState.assessments.filter(
+      (candidate) => candidate.gradeCategoryId === category.id && candidate.status !== 'CANCELLED',
+    ).length;
+    return categoryAssessmentCount > 0
+      ? Number(category.weightPercentage) / categoryAssessmentCount
+      : null;
+  }
+  return decimalOrNull(assessment.weightPercentage);
 }
 
 function gradeStatusFor(status: string): GradeAssessmentStatus {
@@ -361,7 +386,7 @@ function calculateGradeSummaries(
           assessmentType: assessment.assessmentType,
           dueDate: assessment.dueAt?.toISOString().slice(0, 10) ?? null,
           datePrecision: assessment.datePrecision,
-          weightPercentage: decimalOrNull(assessment.weightPercentage),
+          weightPercentage: effectiveWeightForAssessment(assessment),
           status: assessment.status,
         })),
       warnings: [
@@ -477,6 +502,10 @@ function serializeAssessment(assessment: AssessmentRecord, userId: string) {
         : defaultEffortHours !== null
           ? 'GENERIC_DEFAULT'
           : 'UNKNOWN';
+  const category = categoryForAssessment(assessment);
+  const effectiveWeightPercentage = effectiveWeightForAssessment(assessment);
+  const weightIsDerived =
+    category?.aggregationRule === 'EQUAL_MEAN' && effectiveWeightPercentage !== null;
   return {
     id: assessment.id,
     activeSelectionId: assessment.activeCourseState.activeCourseSelection.id,
@@ -488,6 +517,8 @@ function serializeAssessment(assessment: AssessmentRecord, userId: string) {
     title: assessment.title,
     assessmentType: assessment.assessmentType,
     weightPercentage: decimalOrNull(assessment.weightPercentage),
+    effectiveWeightPercentage,
+    weightIsDerived,
     pointsPossible: decimalOrNull(assessment.pointsPossible),
     score: score
       ? {
@@ -749,28 +780,69 @@ export function registerAssessmentRoutes(app: express.Express) {
       return;
     }
     const workState = workStateUpdate(values.workStatus, values.progressPercentage);
-    const assessment = await prisma.assessment.update({
-      where: { id: existing.id },
-      data: {
-        ...(values.title === undefined ? {} : { title: values.title }),
-        ...(values.assessmentType === undefined ? {} : { assessmentType: values.assessmentType }),
-        ...(values.weightPercentage === undefined
-          ? {}
-          : { weightPercentage: values.weightPercentage }),
-        ...(values.pointsPossible === undefined ? {} : { pointsPossible: values.pointsPossible }),
-        ...(values.dueDate === undefined ? {} : { dueAt: dateFromInput(values.dueDate) }),
-        ...(values.dueDate === undefined && values.datePrecision === undefined
-          ? {}
-          : { datePrecision: values.dueDate ? 'EXACT' : (values.datePrecision ?? 'UNKNOWN') }),
-        ...(values.personalEffortHours === undefined
-          ? {}
-          : {
-              personalEffortHours: values.personalEffortHours,
-              personalEffortConfidence: values.personalEffortHours === null ? null : 0.8,
-            }),
-        ...workState,
-      },
-      include: assessmentInclude,
+    const category = categoryForAssessment(existing);
+    const equalCategoryAssessmentCount = category
+      ? existing.activeCourseState.assessments.filter(
+          (candidate) =>
+            candidate.gradeCategoryId === category.id && candidate.status !== 'CANCELLED',
+        ).length
+      : 0;
+    const equalWeight =
+      category?.aggregationRule === 'EQUAL_MEAN' &&
+      category.weightPercentage !== null &&
+      equalCategoryAssessmentCount > 0
+        ? Number(category.weightPercentage) / equalCategoryAssessmentCount
+        : null;
+    const changesEqualWeight =
+      values.weightPercentage !== undefined &&
+      values.weightPercentage !== null &&
+      equalWeight !== null &&
+      Math.abs(values.weightPercentage - equalWeight) > 0.0001;
+    const preservesEqualWeight = category?.aggregationRule === 'EQUAL_MEAN' && !changesEqualWeight;
+    const assessment = await prisma.$transaction(async (transaction) => {
+      if (changesEqualWeight && category && equalWeight !== null) {
+        const categoryAssessments = await transaction.assessment.findMany({
+          where: {
+            activeCourseStateId: existing.activeCourseStateId,
+            gradeCategoryId: category.id,
+            status: { not: 'CANCELLED' },
+          },
+          select: { id: true },
+        });
+        await transaction.assessment.updateMany({
+          where: { id: { in: categoryAssessments.map((candidate) => candidate.id) } },
+          data: { weightPercentage: equalWeight },
+        });
+        await transaction.gradeCategory.update({
+          where: { id: category.id },
+          data: { aggregationRule: 'EXPLICIT_WEIGHTS' },
+        });
+      }
+      return transaction.assessment.update({
+        where: { id: existing.id },
+        data: {
+          ...(values.title === undefined ? {} : { title: values.title }),
+          ...(values.assessmentType === undefined ? {} : { assessmentType: values.assessmentType }),
+          ...(values.weightPercentage === undefined
+            ? {}
+            : {
+                weightPercentage: preservesEqualWeight ? null : values.weightPercentage,
+              }),
+          ...(values.pointsPossible === undefined ? {} : { pointsPossible: values.pointsPossible }),
+          ...(values.dueDate === undefined ? {} : { dueAt: dateFromInput(values.dueDate) }),
+          ...(values.dueDate === undefined && values.datePrecision === undefined
+            ? {}
+            : { datePrecision: values.dueDate ? 'EXACT' : (values.datePrecision ?? 'UNKNOWN') }),
+          ...(values.personalEffortHours === undefined
+            ? {}
+            : {
+                personalEffortHours: values.personalEffortHours,
+                personalEffortConfidence: values.personalEffortHours === null ? null : 0.8,
+              }),
+          ...workState,
+        },
+        include: assessmentInclude,
+      });
     });
     response
       .status(200)
