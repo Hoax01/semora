@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { LoadingState, PageState } from '../components/ui-state';
 
 type Evidence = { pageNumber?: number; text: string };
 type AggregationRule =
@@ -426,17 +427,42 @@ export function ExtractionReviewPage() {
     }
   }
 
-  if (isLoading) return <main className="app-page">Loading extraction review…</main>;
+  if (isLoading)
+    return (
+      <main className="app-page">
+        <LoadingState eyebrow="COURSE OUTLINE / REVIEW" label="Loading extraction review…" />
+      </main>
+    );
   if (error && !job)
     return (
       <main className="app-page">
-        <p className="form-error">{error}</p>
+        <PageState
+          action={
+            <Link className="secondary-button state-action" to="/">
+              Back to active semester
+            </Link>
+          }
+          eyebrow="COURSE OUTLINE / REVIEW"
+          message={error}
+          title="This review could not be loaded."
+          tone="error"
+        />
       </main>
     );
   if (!job || !payload)
     return (
       <main className="app-page">
-        <p className="form-error">This extraction does not have a reviewable draft.</p>
+        <PageState
+          action={
+            <Link className="secondary-button state-action" to="/">
+              Back to active semester
+            </Link>
+          }
+          eyebrow="COURSE OUTLINE / REVIEW"
+          message="The extraction is missing the editable information needed for review. No academic data was changed."
+          title="No reviewable draft is available."
+          tone="error"
+        />
       </main>
     );
 

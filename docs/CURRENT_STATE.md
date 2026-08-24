@@ -154,6 +154,14 @@ HTTP smoke or automated API/engine checks.
 - Added explicit focus/selected navigation states and safe mobile content spacing. No API, data-model, or engine behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, all standalone API tests (14 passed), and all non-API package tests (81 passed) passed. The concurrent root test run reproduced the existing database-heavy 5-second timeout in four API tests; the standalone API rerun passed.
 
+## Phase 8 screen-state UX pass — August 24, 2026
+
+- Added shared loading and error state components for the web app, with consistent hierarchy, accessible status/alert semantics, reduced-motion-aware loading feedback, and flat semantic surfaces.
+- Applied the shared treatment to catalogue loading/search-empty/failure states, course-detail loading/failure states with retry, authenticated session loading, semester setup loading/empty/failure states, planner workspace loading/failure states, and extraction-review loading/missing-draft/failure states.
+- Catalogue and course-detail failures now expose a safe retry action without changing API or data behavior. Empty catalogue and empty semester setup states distinguish “no matching data” from “no data available yet.”
+- No API, data-model, engine, or product-scope changes were made.
+- Verification: typecheck, lint, Prettier format check, production build, and standalone API tests (14 passed) passed.
+
 ## Implemented
 
 ### Repository and tooling

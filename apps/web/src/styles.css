@@ -111,6 +111,86 @@ button:disabled {
   color: #ff9f9f;
 }
 
+.state-panel {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.4rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+
+.state-panel .eyebrow {
+  margin-bottom: 0.15rem;
+}
+
+.state-panel h2,
+.state-panel p {
+  margin: 0;
+}
+
+.state-panel h2 {
+  font-size: 1.05rem;
+}
+
+.state-panel > p:not(.eyebrow) {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.state-panel-error {
+  border-color: #a95761;
+  background: #3b2026;
+}
+
+.state-panel-error > p:not(.eyebrow) {
+  color: #f2c4c8;
+}
+
+.state-panel-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.state-action {
+  margin-top: 0;
+}
+
+.state-panel-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.state-loading-label {
+  color: var(--text-secondary);
+}
+
+.loading-indicator {
+  display: block;
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  border: 2px solid #4a626d;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: state-spin 900ms linear infinite;
+}
+
+@keyframes state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-indicator {
+    animation: none;
+  }
+}
 .auth-switch {
   margin: 1.5rem 0 0;
   color: var(--text-secondary);

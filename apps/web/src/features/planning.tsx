@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { LoadingState, PageState } from '../components/ui-state';
 
 type Candidate = {
   id: string;
@@ -1041,10 +1042,24 @@ export function PlanningLandingPage() {
           plan takes shape.
         </p>
         {!universities && !error ? (
-          <p className="catalogue-message">Loading available terms…</p>
+          <LoadingState eyebrow="PLAN / SEMESTER SETUP" label="Loading available terms…" />
         ) : null}
-        {error ? <p className="form-error setup-message">{error}</p> : null}
-        {universities ? (
+        {error ? (
+          <PageState
+            eyebrow="PLAN / SEMESTER SETUP"
+            message={error}
+            title="Semester setup is temporarily unavailable."
+            tone="error"
+          />
+        ) : null}
+        {universities && !termOptions.length ? (
+          <PageState
+            eyebrow="PLAN / SEMESTER SETUP"
+            message="No university terms are available yet. Try again later or ask an administrator to load the catalogue."
+            title="No semesters are available."
+          />
+        ) : null}
+        {universities && termOptions.length ? (
           <form className="setup-form" onSubmit={createWorkspace}>
             <label htmlFor="academic-term">University and academic term</label>
             <select
@@ -1671,7 +1686,7 @@ export function PlanningPage() {
   if (!workspace && !error)
     return (
       <main className="app-page">
-        <p className="catalogue-message">Loading your semester workspace…</p>
+        <LoadingState eyebrow="PLAN / SEMESTER DESIGNER" label="Loading your semester workspace…" />
       </main>
     );
 
@@ -3233,7 +3248,12 @@ export function PlanningPage() {
           )}
         </>
       ) : (
-        <p className="form-error">{error}</p>
+        <PageState
+          eyebrow="PLAN / SEMESTER DESIGNER"
+          message={error ?? 'The semester workspace could not be loaded.'}
+          title="Your semester workspace is unavailable."
+          tone="error"
+        />
       )}
     </main>
   );

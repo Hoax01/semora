@@ -12,6 +12,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { authClient } from './auth-client';
+import { LoadingState, PageState } from './components/ui-state';
 import { ExtractionReviewPage } from './features/extraction-review';
 import { PlanningLandingPage, PlanningPage } from './features/planning';
 
@@ -149,6 +150,7 @@ function CataloguePage() {
   const [termName, setTermName] = useState('Fall 2026');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -172,7 +174,7 @@ function CataloguePage() {
     return () => {
       isCurrent = false;
     };
-  }, [appliedQuery, termId]);
+  }, [appliedQuery, retryKey, termId]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -203,34 +205,60 @@ function CataloguePage() {
           <button type="submit">Search</button>
         </div>
       </form>
-      {isLoading ? <p className="catalogue-message">Loading available courses…</p> : null}
-      {error ? <p className="form-error catalogue-message">{error}</p> : null}
-      {!isLoading && !error && courses.length === 0 ? (
-        <p className="catalogue-message">
-          No courses match “{appliedQuery}”. Try a course code or department.
-        </p>
+      {isLoading ? (
+        <LoadingState eyebrow="COURSE CATALOGUE" label="Loading available courses…" />
       ) : null}
-      <div className="catalogue-list">
-        {courses.map((course) => (
-          <Link
-            className="catalogue-item"
-            key={course.id}
-            to={`/catalogue/${course.id}${termId ? `?termId=${encodeURIComponent(termId)}` : ''}`}
-          >
-            <div>
-              <p className="course-code">{course.courseCode}</p>
-              <h2>{course.title}</h2>
-              <p className="course-meta">
-                {course.department ?? 'General'} · {course.credits} credits
-              </p>
-            </div>
-            <div className="course-summary">
-              <strong>{course.sections.length} sections</strong>
-              <span>{course.sections[0]?.meetings[0]?.day ?? 'Timing TBA'}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {error ? (
+        <PageState
+          action={
+            <button
+              className="secondary-button state-action"
+              onClick={() => setRetryKey((value) => value + 1)}
+              type="button"
+            >
+              Try again
+            </button>
+          }
+          eyebrow="COURSE CATALOGUE"
+          message={error}
+          title="Courses are temporarily unavailable."
+          tone="error"
+        />
+      ) : null}
+      {!isLoading && !error && courses.length === 0 ? (
+        <PageState
+          eyebrow="COURSE CATALOGUE"
+          message={
+            appliedQuery
+              ? `No courses match “${appliedQuery}”. Try a course code or department.`
+              : 'No course offerings are available for this term yet.'
+          }
+          title={appliedQuery ? 'No matching courses.' : 'The catalogue is empty.'}
+        />
+      ) : null}
+      {!isLoading && !error && courses.length ? (
+        <div className="catalogue-list">
+          {courses.map((course) => (
+            <Link
+              className="catalogue-item"
+              key={course.id}
+              to={`/catalogue/${course.id}${termId ? `?termId=${encodeURIComponent(termId)}` : ''}`}
+            >
+              <div>
+                <p className="course-code">{course.courseCode}</p>
+                <h2>{course.title}</h2>
+                <p className="course-meta">
+                  {course.department ?? 'General'} · {course.credits} credits
+                </p>
+              </div>
+              <div className="course-summary">
+                <strong>{course.sections.length} sections</strong>
+                <span>{course.sections[0]?.meetings[0]?.day ?? 'Timing TBA'}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -241,26 +269,42 @@ function CourseDetailPage() {
   const termId = searchParams.get('termId')?.trim() ?? '';
   const [course, setCourse] = useState<CatalogueCourse>();
   const [error, setError] = useState<string>();
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!offeringId) return;
+    setError(undefined);
     getApi<{ course: CatalogueCourse }>(`/api/catalogue/${offeringId}`)
       .then((result) => setCourse(result.course))
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : 'Unable to load course.'),
       );
-  }, [offeringId]);
+  }, [offeringId, retryKey]);
 
   if (error)
     return (
       <main className="app-page">
-        <p className="form-error">{error}</p>
+        <PageState
+          action={
+            <button
+              className="secondary-button state-action"
+              onClick={() => setRetryKey((value) => value + 1)}
+              type="button"
+            >
+              Try again
+            </button>
+          }
+          eyebrow="COURSE DETAILS"
+          message={error}
+          title="Course details are temporarily unavailable."
+          tone="error"
+        />
       </main>
     );
   if (!course)
     return (
       <main className="app-page">
-        <p className="catalogue-message">Loading course details…</p>
+        <LoadingState eyebrow="COURSE DETAILS" label="Loading course details…" />
       </main>
     );
 
@@ -315,7 +359,12 @@ function ProtectedShell() {
   const location = useLocation();
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) return <main className="shell">Loading your workspace…</main>;
+  if (isPending)
+    return (
+      <main className="shell">
+        <LoadingState eyebrow="SEMORA" label="Loading your workspace…" />
+      </main>
+    );
   if (!session) return <Navigate replace to="/sign-in" />;
 
   async function handleSignOut() {
