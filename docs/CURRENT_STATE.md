@@ -2,7 +2,7 @@
 
 **Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.6 — Fix only actual noticeable performance bottlenecks
+**Next Build Objective:** Phase 8.7 — Security review
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
