@@ -12,6 +12,18 @@ describe('GET /api/health', () => {
   });
 });
 
+describe('request parsing errors', () => {
+  it('returns a JSON error for malformed request bodies', async () => {
+    const response = await request(app)
+      .post('/api/workspaces')
+      .set('Content-Type', 'application/json')
+      .send('{"academicTermId":');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'INVALID_REQUEST' });
+  });
+});
+
 describe('GET /api/health/db', () => {
   it.skipIf(!process.env.DATABASE_URL)('returns a healthy database response', async () => {
     const response = await request(app).get('/api/health/db');

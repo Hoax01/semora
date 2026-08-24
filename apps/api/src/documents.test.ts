@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { app } from './app.js';
 import { prisma } from './db.js';
 import { removePrivateDocument, privateDocumentPath } from './document-storage.js';
+import { DEFAULT_MAX_DOCUMENT_BYTES } from '@semora/extraction';
 
 describe('Phase 5 document storage', () => {
   const ownerEmail = `document-owner-${Date.now()}@example.test`;
@@ -349,5 +350,14 @@ describe('Phase 5 document storage', () => {
       .send(Buffer.alloc(0));
     expect(empty.status).toBe(400);
     expect(empty.body.error).toBe('EMPTY_DOCUMENT');
+
+    const oversized = await request(app)
+      .post('/api/active-selections/' + activeSelection.id + '/outline')
+      .set('Cookie', ownerCookie)
+      .set('Content-Type', 'application/pdf')
+      .set('X-File-Name', 'oversized.pdf')
+      .send(Buffer.alloc(DEFAULT_MAX_DOCUMENT_BYTES + 1));
+    expect(oversized.status).toBe(413);
+    expect(oversized.body.error).toBe('REQUEST_TOO_LARGE');
   });
 });

@@ -1,10 +1,13 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
 import { prisma } from './db.js';
+import { requireAuthSecret } from './auth-config.js';
 
 if (!prisma) {
   throw new Error('DATABASE_URL must be set before initializing authentication.');
 }
+
+const authSecret = requireAuthSecret();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -15,5 +18,5 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  secret: process.env.BETTER_AUTH_SECRET,
+  secret: authSecret,
 });

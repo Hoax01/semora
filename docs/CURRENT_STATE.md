@@ -2,7 +2,7 @@
 
 **Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.7 — Security review
+**Next Build Objective:** Phase 8.8 — Deployment (user-owned)
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -243,6 +243,17 @@ HTTP smoke or automated API/engine checks.
 - No API contract, database schema, engine behavior, or product scope changed. The optimization is limited to client-side refresh orchestration.
 - Verification: full typecheck, full repository tests (99 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
+## Phase 8.7 security review — August 24, 2026
+
+- Completed the minimum security review across authorization, private file access, authentication/session configuration, upload validation, extraction boundaries, and secrets. The inspected user-owned routes continue to verify ownership server-side; no authorization bypass was identified.
+- Private outline storage now resolves every generated storage key under the configured private root and rejects traversal keys before reading, writing, or deleting a file. Uploads retain supported MIME/extension checks and the 25 MB raw-body limit.
+- Better Auth now fails fast at API startup when BETTER_AUTH_SECRET is absent or shorter than 32 characters, avoiding the library's insecure fallback behavior.
+- Express parser failures now return bounded JSON errors: malformed JSON is 400 INVALID_REQUEST, oversized bodies are 413 REQUEST_TOO_LARGE, and unexpected failures are 500 INTERNAL_SERVER_ERROR without exposing stack details.
+- The extraction baseline remains a local deterministic provider with no external LLM/network adapter or provider secret in the repository. Document text is treated as input data, and the existing review/verification gate remains required before canonical persistence.
+- Verification: full typecheck, full repository tests (102 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local Windows browser runtime exits during setup.
+- Phase 8.8 deployment remains intentionally user-owned and was not performed by the agent.
+
+---
 ## Implemented
 
 ### Repository and tooling
@@ -335,10 +346,14 @@ HTTP smoke or automated API/engine checks.
 - Express API in `apps/api` with `GET /api/health` and
   `GET /api/health/db`.
 - Better Auth email/password authentication, mounted at `/api/auth/*`.
+- JSON and raw-upload parser failures are normalized to bounded JSON responses
+  for malformed requests and oversized bodies; unexpected failures do not expose
+  stack details.
 - Server-managed session cookies and `GET /api/me`, which returns the current
   user or `401 UNAUTHORIZED`.
 - API authentication routes are registered before JSON parsing, as required by
-  the Better Auth Express handler.
+  the Better Auth Express handler. Better Auth also fails fast when the configured
+  secret is missing or shorter than 32 characters.
 - Protected `GET /api/catalogue` search endpoint for course code, title, or
   department, with exact academic-term ID scoping for planning workspaces and
   term-name compatibility for the Phase 1 catalogue, plus

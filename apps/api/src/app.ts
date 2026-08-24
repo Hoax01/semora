@@ -209,3 +209,25 @@ registerAssessmentRoutes(app);
 registerWorkloadRoutes(app);
 registerDocumentRoutes(app);
 registerExtractionJobRoutes(app);
+
+app.use(
+  (
+    error: unknown,
+    _request: express.Request,
+    response: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    const typedError = error as { status?: number; type?: string };
+    if (typedError.type === 'entity.too.large' || typedError.status === 413) {
+      response.status(413).json({ error: 'REQUEST_TOO_LARGE' });
+      return;
+    }
+    if (typedError.type === 'entity.parse.failed' || typedError.status === 400) {
+      response.status(400).json({ error: 'INVALID_REQUEST' });
+      return;
+    }
+
+    console.error('Unhandled API error', error instanceof Error ? error.message : 'Unknown error');
+    response.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  },
+);

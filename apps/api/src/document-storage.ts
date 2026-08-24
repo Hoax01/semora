@@ -8,6 +8,16 @@ function storageRoot() {
   return path.resolve(process.env.SEMORA_FILE_STORAGE_PATH ?? DEFAULT_STORAGE_DIRECTORY);
 }
 
+function privateStoragePath(storageKey: string) {
+  const root = storageRoot();
+  const absolutePath = path.resolve(root, ...storageKey.split('/'));
+  const rootPrefix = root + path.sep;
+  if (!absolutePath.startsWith(rootPrefix)) {
+    throw new Error('Invalid private document storage key.');
+  }
+  return absolutePath;
+}
+
 function safeStorageSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'user';
 }
@@ -33,17 +43,17 @@ export async function storePrivateDocument(input: {
     safeStorageSegment(input.ownerId),
     `${randomUUID()}-${safeName}`,
   );
-  const absolutePath = path.join(storageRoot(), ...storageKey.split('/'));
+  const absolutePath = privateStoragePath(storageKey);
   await mkdir(path.dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, input.data, { flag: 'wx' });
   return { storageKey, absolutePath, originalFilename: safeName };
 }
 
 export async function removePrivateDocument(storageKey: string) {
-  const absolutePath = path.join(storageRoot(), ...storageKey.split('/'));
+  const absolutePath = privateStoragePath(storageKey);
   await rm(absolutePath, { force: true });
 }
 
 export function privateDocumentPath(storageKey: string) {
-  return path.join(storageRoot(), ...storageKey.split('/'));
+  return privateStoragePath(storageKey);
 }
