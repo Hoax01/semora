@@ -253,6 +253,13 @@ HTTP smoke or automated API/engine checks.
 - Verification: full typecheck, full repository tests (102 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local Windows browser runtime exits during setup.
 - Phase 8.8 deployment remains intentionally user-owned and was not performed by the agent.
 
+## Phase 8 timeout and palette cleanup — August 24, 2026
+
+- Increased the API Vitest default test timeout from 5 seconds to 15 seconds so the database-backed document integration test runs reliably under the normal repository test command.
+- Replaced the remaining violet/purple-looking assessment, finding, and commitment-event colors with the existing cyan/neutral palette. No gradient declarations are present in the web source.
+- Verification: full typecheck, full repository tests (102 passed), production build, format check, lint, and no-purple/no-gradient source audit.
+
+
 ---
 ## Implemented
 

@@ -2076,9 +2076,9 @@ h1 {
 .assessment-score-actions .secondary-button,
 .assessment-relative-actions .secondary-button,
 .assessment-actions .secondary-button {
-  color: #f3f1ff;
-  border-color: #766be0aa;
-  background: #6458d626;
+  color: #d6eef4;
+  border-color: #4b8ea3aa;
+  background: #17303a;
   transition:
     background 140ms ease,
     border-color 140ms ease,
@@ -2089,7 +2089,7 @@ h1 {
 .assessment-relative-actions .secondary-button:hover,
 .assessment-actions .secondary-button:hover {
   border-color: var(--accent-hover);
-  background: #7569e044;
+  background: #2b667866;
   transform: translateY(-1px);
 }
 
@@ -2866,8 +2866,8 @@ h1 {
 }
 
 .finding-severity-low {
-  color: #cbd3ff;
-  background: #4c5ab066;
+  color: #d6eef4;
+  background: #2b667866;
 }
 
 .finding-severity-info {
@@ -3258,9 +3258,9 @@ h1 {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.85rem 1rem;
-  border: 1px solid #a68be066;
+  border: 1px solid #4b8ea366;
   border-radius: 0.65rem;
-  background: #a68be00c;
+  background: #17303a0b;
 }
 
 .commitment-event-row h4 {
