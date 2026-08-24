@@ -214,6 +214,11 @@ type ActiveCourseSelection = Selection & {
   } | null;
 };
 
+type OutlineRecovery = {
+  jobId: string;
+  message: string;
+};
+
 type AssessmentType =
   | 'ASSIGNMENT'
   | 'QUIZ'
@@ -3334,6 +3339,7 @@ function ActiveSemesterView({
   const [isCatalogueLoading, setIsCatalogueLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
+  const [outlineRecovery, setOutlineRecovery] = useState<Record<string, OutlineRecovery>>({});
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [gradeSummaries, setGradeSummaries] = useState<GradeSummary[]>([]);
   const [isAssessmentsLoading, setIsAssessmentsLoading] = useState(true);
@@ -3537,6 +3543,54 @@ function ActiveSemesterView({
     );
   }
 
+  function setOutlineRecoveryMessage(selectionId: string, jobId: string, message: string) {
+    setOutlineRecovery((current) => ({ ...current, [selectionId]: { jobId, message } }));
+  }
+
+  function clearOutlineRecovery(selectionId: string) {
+    setOutlineRecovery((current) => {
+      const next = { ...current };
+      delete next[selectionId];
+      return next;
+    });
+  }
+
+  async function retryOutlineExtraction(selection: ActiveCourseSelection) {
+    const jobId = selection.state?.outline?.extractionJob?.id;
+    if (!jobId) return;
+    const action = 'outline-retry-' + selection.id;
+    setBusyAction(action);
+    setError(undefined);
+    clearOutlineRecovery(selection.id);
+    try {
+      const processed = await apiRequest<{ extractionJob: { id: string; status: string } }>(
+        '/api/extraction-jobs/' + jobId + '/process',
+        { method: 'POST' },
+      );
+      if (processed.extractionJob.status !== 'REVIEW_REQUIRED') {
+        await onReload();
+        setOutlineRecoveryMessage(
+          selection.id,
+          jobId,
+          'The outline is still saved, but Semora could not extract a reviewable draft. No course data was changed.',
+        );
+        return;
+      }
+      await onReload();
+      navigate('/extraction-review/' + jobId);
+    } catch (reason) {
+      setOutlineRecoveryMessage(
+        selection.id,
+        jobId,
+        reason instanceof Error
+          ? reason.message + ' The uploaded outline is still safe, and no course data was changed.'
+          : 'Semora could not retry this outline. The uploaded file is still safe, and no course data was changed.',
+      );
+    } finally {
+      setBusyAction(undefined);
+    }
+  }
+
   function resetAssessmentDraft(selectionId = workspace.activeCourseSelections[0]?.id ?? '') {
     setAssessmentDraft({
       activeSelectionId: selectionId,
@@ -3546,6 +3600,17 @@ function ActiveSemesterView({
       dueDate: '',
       progressPercentage: '0',
       personalEffortHours: '',
+    });
+  }
+
+  function enterAssessmentManually(selectionId: string) {
+    resetAssessmentDraft(selectionId);
+    requestAnimationFrame(() => {
+      const form = assessmentEntryFormRef.current;
+      if (!form) return;
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      form.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+      form.querySelector<HTMLInputElement>('input[placeholder="e.g. Assignment 2"]')?.focus();
     });
   }
 
@@ -3828,7 +3893,9 @@ function ActiveSemesterView({
           ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
           : 'text/plain');
     setError(undefined);
+    clearOutlineRecovery(selection.id);
     setBusyAction(`outline-${selection.id}`);
+    let extractionJobId = '';
     try {
       const uploadResponse = await fetch(`/api/active-selections/${selection.id}/outline`, {
         method: 'POST',
@@ -3847,19 +3914,38 @@ function ActiveSemesterView({
               : 'Semora could not upload this outline.',
         );
       }
+      extractionJobId = uploadBody.extractionJob.id;
       const processed = await apiRequest<{ extractionJob: { status: string } }>(
-        `/api/extraction-jobs/${uploadBody.extractionJob.id}/process`,
+        `/api/extraction-jobs/${extractionJobId}/process`,
         {
           method: 'POST',
         },
       );
       if (processed.extractionJob.status !== 'REVIEW_REQUIRED') {
-        throw new Error('Semora could not extract a reviewable draft from this outline.');
+        await onReload();
+        setOutlineRecoveryMessage(
+          selection.id,
+          extractionJobId,
+          'Your outline was uploaded, but Semora could not extract a reviewable draft. No course data was changed.',
+        );
+        return;
       }
       await onReload();
-      navigate(`/extraction-review/${uploadBody.extractionJob.id}`);
+      navigate(`/extraction-review/${extractionJobId}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to process this outline.');
+      if (extractionJobId) {
+        await onReload().catch(() => undefined);
+        setOutlineRecoveryMessage(
+          selection.id,
+          extractionJobId,
+          reason instanceof Error
+            ? reason.message +
+                ' The uploaded outline is still safe, and no course data was changed.'
+            : 'Semora could not process this outline. The uploaded file is still safe, and no course data was changed.',
+        );
+      } else {
+        setError(reason instanceof Error ? reason.message : 'Unable to upload this outline.');
+      }
     } finally {
       setBusyAction(undefined);
     }
@@ -5483,6 +5569,38 @@ function ActiveSemesterView({
                   ) : null}
                   {selection.state?.outline?.extractionJob?.status === 'VERIFIED' ? (
                     <span className="outline-status">Outline verified</span>
+                  ) : null}
+                  {selection.state?.outline?.extractionJob?.status === 'FAILED' ? (
+                    <div className="outline-recovery" role="alert">
+                      <strong>Outline processing needs attention</strong>
+                      <p>
+                        Your file is still uploaded, but no course data was changed. Retry the
+                        extraction or add assessments manually below.
+                      </p>
+                      <div className="outline-recovery-actions">
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => void retryOutlineExtraction(selection)}
+                          type="button"
+                        >
+                          {busyAction === 'outline-retry-' + selection.id
+                            ? 'Retrying…'
+                            : 'Retry extraction'}
+                        </button>
+                        <button
+                          className="quiet-button compact-button"
+                          disabled={Boolean(busyAction)}
+                          onClick={() => enterAssessmentManually(selection.id)}
+                          type="button"
+                        >
+                          Enter manually
+                        </button>
+                      </div>
+                      {outlineRecovery[selection.id]?.message ? (
+                        <small>{outlineRecovery[selection.id]?.message}</small>
+                      ) : null}
+                    </div>
                   ) : null}
                   <button
                     className="danger-button compact-button"

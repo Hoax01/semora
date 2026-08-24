@@ -2,7 +2,7 @@
 
 **Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.1 — Continue screen-level UX audit
+**Next Build Objective:** Phase 8.5 — Cover the remaining graceful-failure cases
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -213,6 +213,13 @@ HTTP smoke or automated API/engine checks.
 - This prioritizes the correction hotspots identified by the local extraction audit without changing extracted values, save/verify behavior, or blocking rules.
 - No extraction engine, API, data-model, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+
+## Phase 8 extraction failure recovery — August 24, 2026
+
+- Failed outline extraction jobs now remain visible as recoverable states instead of collapsing into a generic missing-draft message. Active-course cards and direct extraction-review routes offer retry for the existing uploaded outline.
+- Recovery copy makes the safety boundary explicit: the uploaded file remains available, no canonical course data was changed, and users can enter assessments manually when extraction continues to fail. Upload processing failures no longer surface as an unrelated global dashboard error.
+- No API contract, data-model, extraction-engine, grade-engine, workload-engine, or product-scope behavior changed.
+- Verification: full typecheck, lint, Prettier format check, production build, full repository tests (95 passed), focused extraction tests (18 passed), and the document integration test (passed with a 15-second timeout; the default 5-second timeout remains a known database-heavy test limitation). Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
 ## Implemented
 

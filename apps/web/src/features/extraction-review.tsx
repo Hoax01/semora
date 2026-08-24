@@ -427,6 +427,35 @@ export function ExtractionReviewPage() {
     }
   }
 
+  async function retryExtraction() {
+    if (!jobId) return;
+    setBusyAction('retry');
+    setError(undefined);
+    setNotice(undefined);
+    try {
+      const result = await reviewRequest<{ extractionJob: ExtractionJob }>(
+        `/api/extraction-jobs/${jobId}/process`,
+        { method: 'POST' },
+      );
+      applyJob(result.extractionJob);
+      if (result.extractionJob.status === 'REVIEW_REQUIRED') {
+        setNotice('Extraction succeeded. Review the draft before confirming it.');
+      } else {
+        setError(
+          'Semora could not process this outline again. The uploaded file is still safe, and no course data was changed.',
+        );
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message + ' The uploaded outline is still safe, and no course data was changed.'
+          : 'Semora could not retry this outline. The uploaded file is still safe, and no course data was changed.',
+      );
+    } finally {
+      setBusyAction(undefined);
+    }
+  }
+
   if (isLoading)
     return (
       <main className="app-page">
@@ -445,6 +474,35 @@ export function ExtractionReviewPage() {
           eyebrow="COURSE OUTLINE / REVIEW"
           message={error}
           title="This review could not be loaded."
+          tone="error"
+        />
+      </main>
+    );
+  if (job?.status === 'FAILED' && !payload)
+    return (
+      <main className="app-page">
+        <PageState
+          action={
+            <>
+              <button
+                className="secondary-button state-action"
+                disabled={busyAction === 'retry'}
+                onClick={() => void retryExtraction()}
+                type="button"
+              >
+                {busyAction === 'retry' ? 'Retrying…' : 'Retry extraction'}
+              </button>
+              <Link className="quiet-button state-action" to="/">
+                Enter assessments manually
+              </Link>
+            </>
+          }
+          eyebrow="COURSE OUTLINE / RECOVERY"
+          message={
+            error ??
+            'The outline is still uploaded, but extraction did not produce a reviewable draft. No course data was changed.'
+          }
+          title="This outline needs another attempt."
           tone="error"
         />
       </main>
