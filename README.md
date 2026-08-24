@@ -165,6 +165,8 @@ The latest full run covers 102 automated tests across the API and pure domain pa
 
 See [docs/FINAL_STATE_AUDIT.md](docs/FINAL_STATE_AUDIT.md) for the complete implementation audit and [docs/USER_MANUAL.md](docs/USER_MANUAL.md) for the user guide.
 
+Downloadable guide formats: [DOCX](docs/SEMORA_User_Guide.docx) and [PDF](output/pdf/SEMORA_User_Guide.pdf).
+
 ## Documentation
 
 - [docs/PRODUCT.md](docs/PRODUCT.md) — product contract and lifecycle.
