@@ -261,6 +261,12 @@ HTTP smoke or automated API/engine checks.
 
 
 ---
+
+## Phase 8 final documentation audit — August 24, 2026
+
+- Added the root README, a maintained user manual, and the final-state implementation audit.
+- The documentation describes the implemented PLAN → LOCK → NAVIGATE lifecycle, deterministic engine boundaries, mandatory extraction verification, current verification results, and the user-owned deployment/Phase 9 boundary.
+- No application behavior or database schema changed.
 ## Implemented
 
 ### Repository and tooling
