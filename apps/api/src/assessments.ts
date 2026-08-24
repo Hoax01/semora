@@ -361,21 +361,31 @@ function calculateGradeSummaries(
   assessments: AssessmentRecord[],
   userId: string,
   scenarioOverrides: readonly GradeScenarioOverride[] = [],
+  activeCourseStates: Array<AssessmentRecord['activeCourseState']> = [],
 ) {
-  const byCourse = new Map<string, AssessmentRecord[]>();
+  const byCourse = new Map<
+    string,
+    { activeCourseState: AssessmentRecord['activeCourseState']; assessments: AssessmentRecord[] }
+  >();
+  for (const activeCourseState of activeCourseStates) {
+    const courseOfferingId = activeCourseState.activeCourseSelection.section.courseOffering.id;
+    byCourse.set(courseOfferingId, { activeCourseState, assessments: [] });
+  }
   for (const assessment of assessments) {
     const courseOfferingId =
       assessment.activeCourseState.activeCourseSelection.section.courseOffering.id;
-    const courseAssessments = byCourse.get(courseOfferingId) ?? [];
-    courseAssessments.push(assessment);
-    byCourse.set(courseOfferingId, courseAssessments);
+    const course = byCourse.get(courseOfferingId) ?? {
+      activeCourseState: assessment.activeCourseState,
+      assessments: [] as AssessmentRecord[],
+    };
+    course.assessments.push(assessment);
+    byCourse.set(courseOfferingId, course);
   }
 
-  return [...byCourse.entries()].map(([courseOfferingId, courseAssessments]) => {
-    const firstAssessment = courseAssessments[0] as AssessmentRecord;
-    const courseOffering =
-      firstAssessment.activeCourseState.activeCourseSelection.section.courseOffering;
-    const gradingScheme = firstAssessment.activeCourseState.gradingScheme;
+  return [...byCourse.entries()].map(([courseOfferingId, course]) => {
+    const courseAssessments = course.assessments;
+    const courseOffering = course.activeCourseState.activeCourseSelection.section.courseOffering;
+    const gradingScheme = course.activeCourseState.gradingScheme;
     const totalExpectedWeight =
       gradingScheme?.totalExpectedWeight === null ||
       gradingScheme?.totalExpectedWeight === undefined
@@ -693,11 +703,32 @@ export function registerAssessmentRoutes(app: express.Express) {
       include: assessmentInclude,
       orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
     });
+    const activeCourseStates = await prisma.activeCourseState.findMany({
+      where: {
+        activeCourseSelection: { workspaceId: workspace.id, status: 'ACTIVE' },
+      },
+      include: {
+        gradingScheme: { include: { categories: true, thresholds: true } },
+        assessments: { select: { id: true, gradeCategoryId: true, status: true } },
+        activeCourseSelection: {
+          include: {
+            section: {
+              include: { courseOffering: { include: { course: true } } },
+            },
+          },
+        },
+      },
+    });
     response.status(200).json({
       assessments: assessments.map((assessment) =>
         serializeAssessment(assessment as AssessmentRecord, userId),
       ),
-      gradeSummaries: calculateGradeSummaries(assessments as AssessmentRecord[], userId),
+      gradeSummaries: calculateGradeSummaries(
+        assessments as AssessmentRecord[],
+        userId,
+        [],
+        activeCourseStates as unknown as Array<AssessmentRecord['activeCourseState']>,
+      ),
     });
   });
 

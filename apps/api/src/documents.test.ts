@@ -219,6 +219,48 @@ describe('Phase 5 document storage', () => {
         }),
       ]),
     );
+
+    const manuallyAddedAfterVerification = await request(app)
+      .post(`/api/active-selections/${activeSelection.id}/assessments`)
+      .set('Cookie', ownerCookie)
+      .send({ title: 'Surprise quiz', assessmentType: 'QUIZ' });
+    expect(manuallyAddedAfterVerification.status).toBe(201);
+    const manualAssessmentId = manuallyAddedAfterVerification.body.assessment.id as string;
+    const manualScore = await request(app)
+      .put(`/api/assessments/${manualAssessmentId}/score`)
+      .set('Cookie', ownerCookie)
+      .send({ percentage: 88 });
+    expect(manualScore.status).toBe(200);
+
+    reviewPayload.gradingScheme.gradingMode = 'RELATIVE';
+    const savedVerifiedEdit = await request(app)
+      .put(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/review`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: reviewPayload });
+    expect(savedVerifiedEdit.status).toBe(200);
+    expect(savedVerifiedEdit.body.extractionJob.status).toBe('VERIFIED');
+
+    const appliedVerifiedEdit = await request(app)
+      .post(`/api/extraction-jobs/${textUpload.body.extractionJob.id}/verify`)
+      .set('Cookie', ownerCookie)
+      .send({ payload: reviewPayload });
+    expect(appliedVerifiedEdit.status).toBe(200);
+    const canonicalAfterVerifiedEdit = await prisma?.activeCourseState.findUnique({
+      where: { activeCourseSelectionId: activeSelection.id },
+      include: {
+        gradingScheme: { include: { categories: true, thresholds: true } },
+        assessments: { include: { scores: true } },
+      },
+    });
+    expect(canonicalAfterVerifiedEdit?.gradingScheme?.gradingMode).toBe('RELATIVE');
+    expect(canonicalAfterVerifiedEdit?.assessments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: manualAssessmentId,
+          scores: [expect.objectContaining({ percentageOverride: expect.anything() })],
+        }),
+      ]),
+    );
     expect(canonical?.assessments[0]?.gradeCategoryId).toBe(
       canonical?.gradingScheme?.categories.find((category) => category.name === 'Coursework')?.id,
     );

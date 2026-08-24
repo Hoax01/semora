@@ -372,7 +372,11 @@ export function ExtractionReviewPage() {
       });
       applyJob(result.extractionJob);
       setBlockingIssues(result.blockingIssues);
-      setNotice('Draft saved. It is still unverified.');
+      setNotice(
+        job?.status === 'VERIFIED'
+          ? 'Edits saved as a draft. Apply the changes when you are ready.'
+          : 'Draft saved. It is still unverified.',
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save this draft.');
     } finally {
@@ -529,7 +533,7 @@ export function ExtractionReviewPage() {
     0,
   );
   const hasBlockingConflicts = payload.conflicts.length > 0 || weightTotal > 100.0001;
-  const isReviewable = job.status === 'REVIEW_REQUIRED';
+  const isReviewable = job.status === 'REVIEW_REQUIRED' || job.status === 'VERIFIED';
   const uncertainCategoryCount = payload.gradingScheme.categories.filter(
     (category) => confidenceLabel(category.confidence) !== 'Confident',
   ).length;
@@ -1062,31 +1066,39 @@ export function ExtractionReviewPage() {
               onClick={saveDraft}
               type="button"
             >
-              {busyAction === 'save' ? 'Saving…' : 'Save draft'}
+              {busyAction === 'save'
+                ? 'Saving…'
+                : job.status === 'VERIFIED'
+                  ? 'Save edits'
+                  : 'Save draft'}
             </button>
             <button
               disabled={!isReviewable || Boolean(busyAction) || hasBlockingConflicts}
               onClick={verifyDraft}
               type="button"
             >
-              {busyAction === 'verify' ? 'Confirming…' : 'Confirm course structure'}
+              {busyAction === 'verify'
+                ? 'Applying…'
+                : job.status === 'VERIFIED'
+                  ? 'Apply course structure changes'
+                  : 'Confirm course structure'}
             </button>
             <button
               className="danger-button"
-              disabled={!isReviewable || Boolean(busyAction)}
+              disabled={job.status !== 'REVIEW_REQUIRED' || Boolean(busyAction)}
               onClick={rejectDraft}
               type="button"
             >
               {busyAction === 'reject' ? 'Rejecting…' : 'Reject draft'}
             </button>
           </div>
-          {!isReviewable ? (
+          {job.status !== 'REVIEW_REQUIRED' ? (
             <p className="review-status-note">
               This draft is{' '}
               {job.verification?.state?.toLowerCase().replaceAll('_', ' ') ??
                 job.status.toLowerCase()}
               {job.status === 'VERIFIED'
-                ? '. Canonical course records were updated when it was verified.'
+                ? '. You can edit it here and apply course-structure changes without re-uploading.'
                 : '. Canonical course records were not changed.'}
             </p>
           ) : null}

@@ -326,6 +326,26 @@ HTTP smoke or automated API/engine checks.
 - Verification: typecheck, production build, format check, and diff validation
   passed. The existing in-app browser smoke limitation remains unchanged.
 
+## Phase 8 verified-outline editing and course-summary coverage - August 25, 2026
+
+- Verified outline jobs remain editable from the active-course card and the
+  extraction-review route. The review screen now allows saving edits and
+  applying course-structure changes after confirmation, including correcting a
+  grading mode that was initially left unknown.
+- Post-verification application is intentionally non-destructive: the existing
+  grading scheme, categories, thresholds, and outline assessment rows are
+  updated in place by position, new extracted rows may be added, and existing
+  scores, progress, effort, and manually entered assessments are preserved.
+  No canonical rows are deleted by this correction path.
+- Grade summaries are now seeded from every active course state, so a course
+  shows a “No grade yet” card even before its first assessment. The same card
+  is refreshed after assessments are added manually from the active-semester
+  planning page.
+- No Prisma migration or product-scope expansion was required.
+- Verification: full repository tests (103 passed), full typecheck, production
+  build, format check, lint, diff validation, and the no-purple/no-gradient
+  source audit passed. Interactive browser smoke remains unavailable because
+  the local browser connector exits during setup.
 ## Implemented
 
 ### Repository and tooling

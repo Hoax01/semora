@@ -5803,7 +5803,21 @@ function ActiveSemesterView({
                     </button>
                   ) : null}
                   {selection.state?.outline?.extractionJob?.status === 'VERIFIED' ? (
-                    <span className="outline-status">Outline verified</span>
+                    <>
+                      <span className="outline-status">Outline verified</span>
+                      <button
+                        className="secondary-button compact-button"
+                        disabled={Boolean(busyAction)}
+                        onClick={() =>
+                          navigate(
+                            `/extraction-review/${selection.state?.outline?.extractionJob?.id}`,
+                          )
+                        }
+                        type="button"
+                      >
+                        Edit verified outline
+                      </button>
+                    </>
                   ) : null}
                   {selection.state?.outline?.extractionJob?.status === 'FAILED' ? (
                     <div className="outline-recovery" role="alert">

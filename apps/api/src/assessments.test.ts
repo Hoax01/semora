@@ -59,6 +59,13 @@ describe('Phase 6 and 7 assessment management', () => {
       .set('Cookie', ownerCookie);
     expect(empty.status).toBe(200);
     expect(empty.body.assessments).toEqual([]);
+    expect(empty.body.gradeSummaries).toEqual([
+      expect.objectContaining({
+        courseOfferingId: section.courseOfferingId,
+        assessmentCount: 0,
+        currentPerformance: null,
+      }),
+    ]);
 
     const created = await request(app)
       .post(`/api/active-selections/${selection.id}/assessments`)
@@ -83,6 +90,17 @@ describe('Phase 6 and 7 assessment management', () => {
       personalEffortHours: null,
       sourceType: 'USER_ENTERED',
     });
+
+    const afterManualCreate = await request(app)
+      .get(`/api/workspaces/${workspace.id}/assessments`)
+      .set('Cookie', ownerCookie);
+    expect(afterManualCreate.status).toBe(200);
+    expect(afterManualCreate.body.gradeSummaries).toEqual([
+      expect.objectContaining({
+        courseOfferingId: section.courseOfferingId,
+        assessmentCount: 1,
+      }),
+    ]);
 
     const assessmentId = created.body.assessment.id as string;
 
