@@ -207,6 +207,13 @@ HTTP smoke or automated API/engine checks.
 - No workload engine, API, data-model, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
 
+## Phase 8 extraction review focus — August 24, 2026
+
+- Added a review-priority summary that counts low-confidence grading categories, low-confidence assessments, and assessments without extracted due dates, with links to the relevant review sections.
+- This prioritizes the correction hotspots identified by the local extraction audit without changing extracted values, save/verify behavior, or blocking rules.
+- No extraction engine, API, data-model, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+
 ## Implemented
 
 ### Repository and tooling

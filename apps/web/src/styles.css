@@ -2198,6 +2198,46 @@ h1 {
   color: #ffe4ad;
 }
 
+.review-focus {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.65fr);
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-soft);
+  border-radius: 0.7rem;
+  background: var(--surface-elevated);
+}
+
+.review-focus h2,
+.review-focus p,
+.review-focus ul {
+  margin: 0;
+}
+
+.review-focus h2 {
+  font-size: 1.1rem;
+}
+
+.review-focus p:not(.eyebrow) {
+  margin-top: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.review-focus ul {
+  display: grid;
+  gap: 0.35rem;
+  align-content: center;
+  padding-left: 1.1rem;
+}
+
+.review-focus a {
+  color: var(--accent-hover);
+  font-size: 0.82rem;
+}
+
 .extraction-review-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
@@ -4275,6 +4315,10 @@ h1 {
   }
 
   .extraction-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .review-focus {
     grid-template-columns: 1fr;
   }
 

@@ -472,6 +472,17 @@ export function ExtractionReviewPage() {
   );
   const hasBlockingConflicts = payload.conflicts.length > 0 || weightTotal > 100.0001;
   const isReviewable = job.status === 'REVIEW_REQUIRED';
+  const uncertainCategoryCount = payload.gradingScheme.categories.filter(
+    (category) => confidenceLabel(category.confidence) !== 'Confident',
+  ).length;
+  const uncertainAssessmentCount = payload.assessments.filter(
+    (assessment) => confidenceLabel(assessment.confidence) !== 'Confident',
+  ).length;
+  const missingAssessmentDateCount = payload.assessments.filter(
+    (assessment) => assessment.dueDate === null,
+  ).length;
+  const reviewFocusCount =
+    uncertainCategoryCount + uncertainAssessmentCount + missingAssessmentDateCount;
 
   return (
     <main className="app-page extraction-review-page">
@@ -499,6 +510,42 @@ export function ExtractionReviewPage() {
             {blockingIssues.map((issue) => (
               <li key={issue}>{issue.replaceAll('_', ' ').toLowerCase()}</li>
             ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {reviewFocusCount ? (
+        <section className="review-focus" aria-labelledby="review-focus-title">
+          <div>
+            <p className="eyebrow">REVIEW PRIORITY</p>
+            <h2 id="review-focus-title">Start with the uncertain fields.</h2>
+            <p>Semora marked these extracted areas as uncertain or incomplete.</p>
+          </div>
+          <ul>
+            {uncertainCategoryCount ? (
+              <li>
+                <a href="#grading-title">
+                  {uncertainCategoryCount} grading categor
+                  {uncertainCategoryCount === 1 ? 'y' : 'ies'} need review
+                </a>
+              </li>
+            ) : null}
+            {uncertainAssessmentCount ? (
+              <li>
+                <a href="#assessments-title">
+                  {uncertainAssessmentCount} assessment
+                  {uncertainAssessmentCount === 1 ? '' : 's'} have low extraction confidence
+                </a>
+              </li>
+            ) : null}
+            {missingAssessmentDateCount ? (
+              <li>
+                <a href="#assessments-title">
+                  {missingAssessmentDateCount} assessment
+                  {missingAssessmentDateCount === 1 ? '' : 's'} have no extracted due date
+                </a>
+              </li>
+            ) : null}
           </ul>
         </section>
       ) : null}
