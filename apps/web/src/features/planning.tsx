@@ -1815,7 +1815,11 @@ export function PlanningPage() {
           ) : null}
 
           {candidateComparison && candidateComparison.candidates.length > 1 ? (
-            <section className="comparison-panel" aria-labelledby="comparison-title">
+            <section
+              className="comparison-panel"
+              aria-describedby="comparison-guide"
+              aria-labelledby="comparison-title"
+            >
               <div className="panel-heading-row">
                 <div>
                   <p className="eyebrow">CANDIDATE COMPARISON</p>
@@ -1823,6 +1827,15 @@ export function PlanningPage() {
                 </div>
                 <span className="course-meta">Differences under 0.5 stay neutral</span>
               </div>
+              <aside className="comparison-guide" id="comparison-guide">
+                <strong>How to read this comparison</strong>
+                <span>
+                  Bold values mark the stronger signal when a difference is meaningful. Lower is
+                  lighter for load metrics; higher is better for schedule, fit, balance, confidence,
+                  and completeness.
+                </span>
+                <span>Recommendation tags reflect the priorities saved for this semester.</span>
+              </aside>
               <div className="comparison-candidate-grid">
                 {candidateComparison.candidates.map((candidate) => {
                   const selections =

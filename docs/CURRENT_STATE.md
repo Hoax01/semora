@@ -188,6 +188,12 @@ HTTP smoke or automated API/engine checks.
 - The explanations use native expandable controls and remain available on mobile; no API, data-model, engine, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
 
+## Phase 8 candidate comparison clarity — August 24, 2026
+
+- Added a compact comparison guide explaining meaningful-difference highlighting, lower-is-lighter versus higher-is-better score direction, and the role of saved semester priorities in recommendation tags.
+- No comparison calculations, API, data-model, engine, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
+
 ## Implemented
 
 ### Repository and tooling
