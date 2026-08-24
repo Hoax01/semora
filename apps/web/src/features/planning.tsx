@@ -3489,13 +3489,14 @@ function ActiveSemesterView({
     action: string,
     mutation: () => Promise<unknown>,
     onWorkloadReloaded?: (nextWorkload: Workload | undefined) => void,
+    reloadWorkspace = true,
   ) {
     setError(undefined);
     setForecastFeedback(undefined);
     setBusyAction(action);
     try {
       await mutation();
-      await onReload();
+      if (reloadWorkspace) await onReload();
       const [, nextWorkload] = await Promise.all([loadAssessments(), loadWorkload()]);
       onWorkloadReloaded?.(nextWorkload);
       return true;
@@ -3507,6 +3508,14 @@ function ActiveSemesterView({
     } finally {
       setBusyAction(undefined);
     }
+  }
+
+  function runAssessmentMutation(
+    action: string,
+    mutation: () => Promise<unknown>,
+    onWorkloadReloaded?: (nextWorkload: Workload | undefined) => void,
+  ) {
+    return runMutation(action, mutation, onWorkloadReloaded, false);
   }
 
   function searchCourses(event: FormEvent<HTMLFormElement>) {
@@ -3708,7 +3717,7 @@ function ActiveSemesterView({
     }
     const payload = assessmentPayload();
     if (editingAssessmentId) {
-      void runMutation('assessment-edit', () =>
+      void runAssessmentMutation('assessment-edit', () =>
         apiRequest(`/api/assessments/${editingAssessmentId}`, {
           method: 'PATCH',
           body: JSON.stringify(payload),
@@ -3721,7 +3730,7 @@ function ActiveSemesterView({
       });
       return;
     }
-    void runMutation('assessment-create', () =>
+    void runAssessmentMutation('assessment-create', () =>
       apiRequest(`/api/active-selections/${assessmentDraft.activeSelectionId}/assessments`, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -3733,14 +3742,14 @@ function ActiveSemesterView({
 
   function cancelAssessment(assessment: Assessment) {
     if (!window.confirm(`Cancel ${assessment.title}? It will remain in your history.`)) return;
-    void runMutation(`assessment-cancel-${assessment.id}`, () =>
+    void runAssessmentMutation(`assessment-cancel-${assessment.id}`, () =>
       apiRequest(`/api/assessments/${assessment.id}`, { method: 'DELETE' }),
     );
   }
 
   function markAssessmentDone(assessment: Assessment) {
     const previousWorkload = workload;
-    void runMutation(
+    void runAssessmentMutation(
       `assessment-done-${assessment.id}`,
       () =>
         apiRequest(`/api/assessments/${assessment.id}`, {
@@ -3796,7 +3805,7 @@ function ActiveSemesterView({
       return;
     }
 
-    void runMutation('assessment-score-' + assessment.id, () =>
+    void runAssessmentMutation('assessment-score-' + assessment.id, () =>
       apiRequest('/api/assessments/' + assessment.id + '/score', {
         method: 'PUT',
         body: JSON.stringify(mode === 'POINTS' ? { pointsEarned: value } : { percentage: value }),
@@ -3813,7 +3822,7 @@ function ActiveSemesterView({
   }
 
   function clearAssessmentScore(assessment: Assessment) {
-    void runMutation('assessment-score-clear-' + assessment.id, () =>
+    void runAssessmentMutation('assessment-score-clear-' + assessment.id, () =>
       apiRequest('/api/assessments/' + assessment.id + '/score', { method: 'DELETE' }),
     ).then((succeeded) => {
       if (succeeded) {
@@ -3860,7 +3869,7 @@ function ActiveSemesterView({
       return;
     }
 
-    void runMutation('assessment-class-statistics-' + assessment.id, () =>
+    void runAssessmentMutation('assessment-class-statistics-' + assessment.id, () =>
       apiRequest('/api/assessments/' + assessment.id + '/class-statistics', {
         method: 'PUT',
         body: JSON.stringify({ mean, median, standardDeviation }),
@@ -3877,7 +3886,7 @@ function ActiveSemesterView({
   }
 
   function clearClassStatistics(assessment: Assessment) {
-    void runMutation('assessment-class-statistics-clear-' + assessment.id, () =>
+    void runAssessmentMutation('assessment-class-statistics-clear-' + assessment.id, () =>
       apiRequest('/api/assessments/' + assessment.id + '/class-statistics', { method: 'DELETE' }),
     ).then((succeeded) => {
       if (succeeded) {

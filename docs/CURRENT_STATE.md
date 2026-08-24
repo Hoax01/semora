@@ -239,8 +239,9 @@ HTTP smoke or automated API/engine checks.
 ## Phase 8.6 active-semester refresh performance — August 24, 2026
 
 - Active-semester mutations still refresh the workspace first, then now refresh assessments and workload concurrently. This removes the unnecessary sequential wait between two independent dashboard requests after saves, drops, deadline changes, and other mutations.
+- Assessment-only mutations now skip the parent planning workspace reload entirely; course-selection and other workspace-owned mutations retain that reload for consistency.
 - No API contract, database schema, engine behavior, or product scope changed. The optimization is limited to client-side refresh orchestration.
-- Verification: full typecheck, API suite with the documented 15-second database-test timeout (17 passed), extraction/grade/semester/workload suites (82 passed), production build, format check, and lint. The default workspace test command was also attempted; its two known database-heavy integration tests exceeded the default 5-second timeout and passed on the extended-timeout rerun. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+- Verification: full typecheck, full repository tests (99 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
 ## Implemented
 
