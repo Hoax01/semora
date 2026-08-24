@@ -799,6 +799,7 @@ h1 {
 
 .grade-performance-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7rem;
   margin-top: 1.25rem;
@@ -806,6 +807,7 @@ h1 {
 
 .grade-performance-card {
   display: grid;
+  align-content: start;
   gap: 0.7rem;
   min-width: 0;
   padding: 1rem;

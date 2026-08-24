@@ -313,6 +313,17 @@ HTTP smoke or automated API/engine checks.
   source audit. The in-app browser smoke retry exited during connector setup;
   focused authenticated API coverage passed.
 
+## Phase 8 grade-card density polish - August 25, 2026
+
+- Grade Dashboard cards now align to the top of the two-column layout, while
+  each card packs its own content at natural spacing. Courses with fewer
+  categories or assessments no longer show artificial vertical gaps just to
+  match the height of a longer neighboring course card.
+- No API, data-model, grade-engine, workload-engine, or product behavior
+  changed; this is a scoped responsive layout correction.
+- Verification: typecheck, production build, format check, and diff validation
+  passed. The existing in-app browser smoke limitation remains unchanged.
+
 ## Implemented
 
 ### Repository and tooling
