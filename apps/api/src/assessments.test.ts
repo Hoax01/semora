@@ -78,6 +78,27 @@ describe('Phase 6 and 7 assessment management', () => {
 
     const assessmentId = created.body.assessment.id as string;
 
+    const invalidWeight = await request(app)
+      .patch('/api/assessments/' + assessmentId)
+      .set('Cookie', ownerCookie)
+      .send({ weightPercentage: 101 });
+    expect(invalidWeight.status).toBe(400);
+    const afterInvalidWeight = await prisma.assessment.findUniqueOrThrow({
+      where: { id: assessmentId },
+    });
+    expect(Number(afterInvalidWeight.weightPercentage)).toBe(8);
+
+    const invalidDate = await request(app)
+      .patch('/api/assessments/' + assessmentId)
+      .set('Cookie', ownerCookie)
+      .send({ dueDate: '2026-02-30' });
+    expect(invalidDate.status).toBe(400);
+    const afterInvalidDate = await prisma.assessment.findUniqueOrThrow({
+      where: { id: assessmentId },
+    });
+    expect(afterInvalidDate.dueAt?.toISOString().slice(0, 10)).toBe('2026-09-18');
+    expect(afterInvalidDate.datePrecision).toBe('EXACT');
+
     const pointsScore = await request(app)
       .put('/api/assessments/' + assessmentId + '/score')
       .set('Cookie', ownerCookie)
@@ -402,6 +423,8 @@ describe('Phase 6 and 7 assessment management', () => {
       .send({ title: 'Unscoped task', assessmentType: 'OTHER' });
     expect(unknown.status).toBe(201);
     expect(unknown.body.assessment).toMatchObject({
+      dueDate: null,
+      datePrecision: 'UNKNOWN',
       estimatedEffortHours: null,
       effortSource: 'UNKNOWN',
       personalEffortHours: null,

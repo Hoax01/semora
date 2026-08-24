@@ -3637,6 +3637,53 @@ function ActiveSemesterView({
     });
   }
 
+  function assessmentDraftError() {
+    const boundedNumberError = (
+      value: string,
+      label: string,
+      minimum: number,
+      maximum: number,
+      suffix = '',
+    ) => {
+      if (!value.trim()) return undefined;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
+        ? undefined
+        : `${label} must be between ${minimum} and ${maximum}${suffix}.`;
+    };
+
+    const weightError = boundedNumberError(assessmentDraft.weightPercentage, 'Weight', 0, 100);
+    if (weightError) return weightError;
+    const progressError = boundedNumberError(
+      assessmentDraft.progressPercentage,
+      'Work progress',
+      0,
+      100,
+    );
+    if (progressError) return progressError;
+    const effortError = boundedNumberError(
+      assessmentDraft.personalEffortHours,
+      'Personal effort',
+      0,
+      168,
+      ' hours',
+    );
+    if (effortError) return effortError;
+
+    if (assessmentDraft.dueDate) {
+      const parsed = new Date(`${assessmentDraft.dueDate}T00:00:00.000Z`);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(assessmentDraft.dueDate) ||
+        Number.isNaN(parsed.getTime()) ||
+        parsed.toISOString().slice(0, 10) !== assessmentDraft.dueDate
+      ) {
+        return 'Due date must be a real calendar date or left blank.';
+      }
+    }
+
+    return undefined;
+  }
+
   function assessmentPayload() {
     const weight = assessmentDraft.weightPercentage.trim();
     const progress = assessmentDraft.progressPercentage.trim();
@@ -3655,6 +3702,11 @@ function ActiveSemesterView({
   function saveAssessment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!assessmentDraft.activeSelectionId || !assessmentDraft.title.trim()) return;
+    const validationMessage = assessmentDraftError();
+    if (validationMessage) {
+      setError(validationMessage);
+      return;
+    }
     const payload = assessmentPayload();
     if (editingAssessmentId) {
       void runMutation('assessment-edit', () =>

@@ -552,6 +552,20 @@ describe('grade engine level 1', () => {
       }),
     ).toThrow('positive integer rule parameter N');
   });
+  it('rejects invalid assessment and category weights before calculating', () => {
+    expect(() =>
+      calculateGrade({
+        assessments: [{ id: 'final', title: 'Final', weightPercentage: 101 }],
+      }),
+    ).toThrow('between 0 and 100');
+    expect(() =>
+      calculateGrade({
+        categories: [{ id: 'final', name: 'Final', weightPercentage: -1 }],
+        assessments: [],
+      }),
+    ).toThrow('between 0 and 100');
+  });
+
   it('rejects invalid or duplicate hypothetical assessment overrides', () => {
     const input = {
       assessments: [{ id: 'final', title: 'Final', weightPercentage: 100 }],

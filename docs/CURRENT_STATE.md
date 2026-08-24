@@ -2,7 +2,7 @@
 
 **Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.5 — Verify remaining graceful-failure cases (dates, weights, relative grading)
+**Next Build Objective:** Phase 8.6 — Fix only actual noticeable performance bottlenecks
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -227,6 +227,14 @@ HTTP smoke or automated API/engine checks.
 - Catalogue validation still completes before the Prisma transaction, so invalid source data is rejected before any catalogue mutation begins.
 - Added focused coverage for malformed JSON, actionable validation errors, and unknown thrown values. No API contract, schema, engine, or product-scope behavior changed.
 - Verification: full typecheck, lint, Prettier format check, production build, full repository tests (98 passed), focused catalogue tests (5 passed), and a malformed-JSON CLI check with the expected nonzero exit. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+
+## Phase 8 assessment input recovery — August 24, 2026
+
+- Assessment entry now validates numeric weight, progress, and personal-effort fields before building the API payload. Malformed numeric text cannot become `NaN` and silently clear a stored weight; users receive a bounded, actionable message instead.
+- Real calendar dates are validated at the form boundary while a blank due date remains an intentional unknown-date state. The existing workload and grade behavior continues to show unknown dates explicitly without fabricating pressure peaks or grade predictions.
+- Added API regression coverage proving invalid weights and invalid calendar dates return validation errors without mutating canonical assessment data, plus direct grade-engine coverage for invalid category and assessment weights. Existing relative-grading and unknown-date safety tests remain green.
+- Phase 8.5 graceful-failure coverage is now complete across weird/failed outline recovery, missing dates, bad weights, relative grading, and invalid catalogue imports. No API contract, schema, or deployment behavior changed.
+- Verification: focused assessment API tests (2 passed), focused grade-engine tests (20 passed), full typecheck, full repository tests (99 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
 ## Implemented
 
