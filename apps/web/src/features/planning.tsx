@@ -4306,7 +4306,11 @@ function ActiveSemesterView({
             ) : (
               <p className="assessment-empty">No weekly pressure is scheduled yet.</p>
             )}
-            <section className="semester-heatmap-panel" aria-labelledby="semester-heatmap-title">
+            <section
+              className="semester-heatmap-panel"
+              aria-describedby="semester-heatmap-guide"
+              aria-labelledby="semester-heatmap-title"
+            >
               <div className="interaction-pressure-heading">
                 <div>
                   <p className="eyebrow">FULL TERM</p>
@@ -4314,20 +4318,27 @@ function ActiveSemesterView({
                 </div>
                 <span className="course-meta">Select a week to see its drivers</span>
               </div>
+              <p className="heatmap-guide" id="semester-heatmap-guide">
+                <strong>How to read the heatmap</strong>
+                <span>
+                  Color is supporting context only. Every cell shows its week, pressure label, and
+                  numeric score; select a week to see the drivers behind a peak.
+                </span>
+              </p>
               {workload.weeklyPressure.length ? (
                 <div className="semester-heatmap" aria-label="Semester weekly pressure heatmap">
                   {workload.weeklyPressure.map((week, index) => {
                     const isSelected = week.weekStart === selectedWeekStart;
                     return (
                       <button
-                        aria-label={`Week ${index + 1}, ${formatPressureRange(week.weekStart, week.weekEnd)}, ${week.pressure.toFixed(1)} ${week.band}`}
+                        aria-label={`Week ${index + 1}, ${formatPressureRange(week.weekStart, week.weekEnd)}, pressure ${week.band}, score ${week.pressure.toFixed(1)}`}
                         aria-pressed={isSelected}
                         className={`semester-heatmap-cell semester-heatmap-${week.band.toLowerCase()}${isSelected ? ' semester-heatmap-selected' : ''}`}
                         key={week.weekStart}
                         onClick={() => setSelectedWeekStart(week.weekStart)}
                         type="button"
                       >
-                        <span>W{index + 1}</span>
+                        <span>Week {index + 1}</span>
                         <strong>{week.pressure.toFixed(1)}</strong>
                         <small>{week.band}</small>
                       </button>

@@ -200,6 +200,13 @@ HTTP smoke or automated API/engine checks.
 - No candidate, selection, engine, data-model, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
 
+## Phase 8 heatmap interpretation and accessibility — August 24, 2026
+
+- Added a visible heatmap reading guide explaining that color is supporting context, while each cell communicates its week, pressure label, and numeric score; selecting a week still reveals the modeled drivers behind a peak.
+- Tightened heatmap button labels for assistive technology and changed the visible cell label from an abbreviation to “Week N”. Existing two-column mobile behavior and pressure calculations remain unchanged.
+- No workload engine, API, data-model, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
+
 ## Implemented
 
 ### Repository and tooling
