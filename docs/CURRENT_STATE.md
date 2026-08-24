@@ -182,6 +182,12 @@ HTTP smoke or automated API/engine checks.
 - No workload engine, API, data-model, heatmap, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
 
+## Phase 8 Semester Designer score explanations — August 24, 2026
+
+- Candidate intelligence metrics in the Semester Designer now expose collapsed “Why?” explanations covering workload, schedule, commitment, preference-fit, balance, confidence, and completeness semantics without changing the underlying values.
+- The explanations use native expandable controls and remain available on mobile; no API, data-model, engine, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
+
 ## Implemented
 
 ### Repository and tooling

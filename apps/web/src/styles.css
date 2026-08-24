@@ -2682,6 +2682,25 @@ h1 {
   margin-top: 0.8rem;
 }
 
+.candidate-metric-help {
+  margin-top: 0.15rem;
+}
+
+.candidate-metric-help summary {
+  width: fit-content;
+  color: var(--accent-soft);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.candidate-metric-help p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
 .candidate-metrics-grid article {
   display: grid;
   gap: 0.25rem;

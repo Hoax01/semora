@@ -707,6 +707,38 @@ function formatMetric(value: number | null) {
   return value === null ? 'Unknown' : `${value.toFixed(1)}/10`;
 }
 
+const candidateMetricExplanations: Record<keyof CandidateAnalysis['metrics'], string> = {
+  academicIntensity:
+    'A combined signal of the candidate’s modeled academic demand across its known workload dimensions.',
+  continuousLoad:
+    'The ongoing assignment, quiz, lab, and other continuous-assessment demand across selected courses.',
+  projectLoad: 'The modeled concentration of project-based work across selected courses.',
+  examLoad: 'The modeled concentration of exam-based work across selected courses.',
+  assessmentFragmentation:
+    'How spread out and numerous the candidate’s assessment demands are across the semester.',
+  scheduleQuality:
+    'How compact and usable the fixed timetable is, including gaps, long spans, and free days.',
+  commitmentCompatibility:
+    'How well fixed course meetings fit around the commitments configured for this candidate.',
+  interestFit: 'The average fit with the interest ratings you provided for selected courses.',
+  careerFit: 'The average fit with the career-relevance ratings you provided for selected courses.',
+  balance:
+    'A combined signal of how workload, schedule, commitments, and course preferences balance together.',
+  analysisConfidence:
+    'How confidently the engine can estimate this candidate from the available structured inputs.',
+  dataCompleteness:
+    'How much of the candidate’s workload and schedule information is known rather than missing.',
+};
+
+function CandidateMetricExplanation({ metric }: { metric: keyof CandidateAnalysis['metrics'] }) {
+  return (
+    <details className="candidate-metric-help">
+      <summary>Why?</summary>
+      <p>{candidateMetricExplanations[metric]}</p>
+    </details>
+  );
+}
+
 function formatPercent(value: number) {
   return String(Math.round(value * 100)) + '%';
 }
@@ -2073,46 +2105,56 @@ export function PlanningPage() {
                   <article>
                     <span>Academic intensity</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.academicIntensity)}</strong>
+                    <CandidateMetricExplanation metric="academicIntensity" />
                   </article>
                   <article>
                     <span>Continuous load</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.continuousLoad)}</strong>
+                    <CandidateMetricExplanation metric="continuousLoad" />
                   </article>
                   <article>
                     <span>Project load</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.projectLoad)}</strong>
+                    <CandidateMetricExplanation metric="projectLoad" />
                   </article>
                   <article>
                     <span>Exam load</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.examLoad)}</strong>
+                    <CandidateMetricExplanation metric="examLoad" />
                   </article>
                   <article>
                     <span>Assessment fragmentation</span>
                     <strong>
                       {formatMetric(candidateAnalysis.metrics.assessmentFragmentation)}
                     </strong>
+                    <CandidateMetricExplanation metric="assessmentFragmentation" />
                   </article>
                   <article>
                     <span>Schedule quality</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.scheduleQuality)}</strong>
+                    <CandidateMetricExplanation metric="scheduleQuality" />
                   </article>
                   <article>
                     <span>Commitment compatibility</span>
                     <strong>
                       {formatMetric(candidateAnalysis.metrics.commitmentCompatibility)}
                     </strong>
+                    <CandidateMetricExplanation metric="commitmentCompatibility" />
                   </article>
                   <article>
                     <span>Interest fit</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.interestFit)}</strong>
+                    <CandidateMetricExplanation metric="interestFit" />
                   </article>
                   <article>
                     <span>Career fit</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.careerFit)}</strong>
+                    <CandidateMetricExplanation metric="careerFit" />
                   </article>
                   <article>
                     <span>Balance</span>
                     <strong>{formatMetric(candidateAnalysis.metrics.balance)}</strong>
+                    <CandidateMetricExplanation metric="balance" />
                   </article>
                 </div>
                 <p className="interaction-pressure-help">
