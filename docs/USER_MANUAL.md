@@ -74,7 +74,28 @@ Semora does not assume that the lowest workload is always best. Choose the trade
 - personal interest;
 - assessment safety and balance.
 
-Course-level interest and career-fit ratings can be reused across candidates. These are preferences, not hard constraints; they influence explanations and recommendation tags rather than silently deciding for you.
+### The course inputs you provide manually
+
+For each course offering, you can save a workload profile and course-fit ratings. These are manual estimates and preferences, not facts that Semora can reliably infer from a catalogue.
+
+Workload dimensions use a 0-10 scale. Higher means heavier modeled demand:
+
+- **Overall intensity:** your estimate of the course's total academic demand.
+- **Continuous workload:** the amount of ongoing work throughout the term rather than only a few large exams.
+- **Assignment intensity:** the regular assignment or homework burden.
+- **Quiz intensity:** the frequency or burden of quizzes and short tests.
+- **Project intensity:** the size, complexity, or coordination burden of projects.
+- **Exam intensity:** the expected importance or preparation burden of midterms and finals.
+- **Lab intensity:** the practical, lab, or hands-on workload.
+- **Reading intensity:** the expected reading load.
+- **Schedule burden:** how awkward or time-consuming the meeting pattern is.
+- **Assessment fragmentation:** how spread out or numerous the assessment demands feel.
+
+You may also enter estimated hours per week. Leaving a field blank means unknown. Semora may begin with a structural estimate where one exists, but you can replace it with your own estimate or reset it later. The saved profile belongs to that course offering in this workspace and is reused by candidate comparisons.
+
+For course fit, choose **Interest** and **Career relevance** as Low, Medium, or High. Interest means how much you personally want to study the subject. Career relevance means how strongly the course supports your academic or career direction. These ratings are also manual, and they are reused across candidate semesters.
+
+These values are signals, not hard constraints. They influence explanations and recommendation tags rather than silently deciding for you.
 
 ## 6. Read candidate intelligence
 
@@ -110,7 +131,7 @@ When one candidate is ready:
 
 Locking makes the selected courses the active semester while preserving planning data. During Add/Drop, you can add, switch, or drop active courses without losing the candidate history.
 
-After locking, the home view changes from semester design toward active-semester navigation.
+After locking, the home view changes from semester design toward active-semester navigation. You can still add, edit, or remove commitments after locking, and Add/Drop still supports adding, switching, or dropping active courses.
 
 ## 9. Add course outlines
 
@@ -134,13 +155,15 @@ Treat the review page as a required checkpoint.
 3. Review grading mode and category weights.
 4. Review each assessment, type, date, weight, and category.
 5. Resolve blocking conflicts, such as a course mismatch, impossible totals, invalid dates, or unresolved aggregation parameters.
-6. Expand grouped assessments when the source gives an exact count and the category supports equal weighting.
+6. Expand grouped assessments when the source gives an exact count and the category supports equal weighting. For example, an exact "Four programming assignments" line can be expanded into four equal, individually trackable items during review.
 7. Add missing information manually when the outline does not provide it.
 8. Choose **Verify** only when the draft represents the course accurately.
 
 Verification promotes the reviewed draft into canonical academic data. Workload and grade calculations consume verified or manually entered data, not an unreviewed extraction draft.
 
 If extraction is incomplete, use manual assessment entry. The product should remain usable even when one outline is unusual or unreadable.
+
+An approximate range such as "5-6 quizzes" is not a special range object in the current model. Do not treat an automatically extracted result as a confirmed count; correct the review draft manually, keep it grouped, or add the individual quiz slots once you know them. Likewise, a rule such as "drop the lowest N quizzes" or "best N of the quizzes" must have a real positive integer N before verification. If the outline leaves N undeclared, verification is blocked until you resolve it. If N is known but the eventual total number of quizzes is not, you can add the quiz records over time and the grade calculation remains provisional until the available assessment set is complete.
 
 ## 11. Navigate the active semester
 
@@ -163,6 +186,22 @@ Use the dashboard sections to inspect:
 
 Higher pressure means more modeled demand. Pressure bands and findings explain the window and related assessments rather than pretending to be exact predictions of the number of hours you will need.
 
+### What works before assessment dates are known?
+
+Dates are useful, but they are not required for Semora's core academic state. Before dates are available, you can still:
+
+- keep the assessment in the timeline with its title, type, category, and weight;
+- review category weights and grade calculations;
+- enter scores and class statistics when results are available;
+- track progress and mark work complete;
+- use current performance, remaining weight, target-grade, drop-rule, and what-if calculations;
+- keep workload effort estimates and commitment pressure available;
+- add or correct assessments as the instructor reveals them.
+
+Known dates add the time dimension. They enable due-soon ordering, urgency, preparation windows, deadline compression, dated overlap findings, daily and weekly pressure placement, and the heatmap. An assessment without a date is retained and contributes to non-temporal information such as effort, importance when its weight is known, remaining work, and confidence/completeness, but it is not placed on a particular day or week. Semora reports the missing date instead of inventing one.
+
+Surprise quizzes do not need a special feature. Add the quiz manually with no date, record progress or mark it done, and add the date later if it becomes known. Leaving the date blank is valid; marking the work done does not require a date.
+
 ## 12. Manage assessments
 
 Assessments can come from verified outline data or manual entry. Each assessment keeps academic result state separate from work-progress state.
@@ -175,7 +214,9 @@ You can:
 - mark work complete;
 - record a score when the result is available.
 
-Changing a deadline or completion state recalculates the active pressure forecast. Completing work removes its future pressure contribution while retaining the historical assessment record.
+Changing a deadline or completion state recalculates the active pressure forecast. Completing work removes its future dated pressure contribution while retaining the historical assessment record. You can mark an undated assessment done without entering a date; it simply has no dated pressure contribution to remove.
+
+Most of the manual setup happens when the semester begins or when course information becomes available: entering course workload/fit estimates, uploading and verifying outlines, and correcting the initial assessment structure. During the term, the usual maintenance is much smaller: add newly announced dates, update progress, mark work done, enter scores, and occasionally add, edit, cancel, or remove an assessment when the course changes.
 
 ## 13. Understand grades
 
@@ -209,6 +250,8 @@ Semora combines different kinds of information:
 
 These are not equally certain. A missing final date remains unknown. A heuristic workload estimate is not the same as a verified assessment weight. Use the confidence and completeness explanations to decide what deserves manual follow-up.
 
+Unknown dates reduce the confidence of the time-based forecast; they do not disable the rest of the course or grade intelligence. The heatmap and dated pressure findings become more useful incrementally as dates are added during the term.
+
 ## 15. Common recovery paths
 
 ### A course outline fails
@@ -226,6 +269,10 @@ Review duplicate categories, missing rule parameters, or weights that exceed a v
 ### A date is unknown
 
 Leave it unknown until you have reliable information. The workload engine excludes unknown dates from time-based calculations rather than inventing a date.
+
+### A TAship has fixed and flexible work
+
+Use two commitments when the parts behave differently. Create one recurring **HARD** commitment for fixed office hours, and a second **FLEXIBLE** or **SOFT** commitment for grading, preparation, or assessment-writing work. Give the second record its expected weekly hours and use one-off events when a particular grading or preparation block gets a known date. Flexibility applies to the whole commitment record, so splitting these parts keeps the model honest.
 
 ### The dashboard looks heavy
 

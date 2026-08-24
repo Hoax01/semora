@@ -1,6 +1,6 @@
 # Semora — Current Implementation State
 
-**Last Updated:** August 24, 2026
+**Last Updated:** August 25, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
 **Next Build Objective:** Phase 8.8 — Deployment (user-owned)
 **Product Status:** Product and technical design are complete. Phase 0 is
@@ -268,6 +268,25 @@ HTTP smoke or automated API/engine checks.
 - Added formatted DOCX and PDF user-guide deliverables generated from the maintained Markdown manual; the DOCX received structural QA and the PDF was rasterized into eight non-empty Letter pages.
 - The documentation describes the implemented PLAN → LOCK → NAVIGATE lifecycle, deterministic engine boundaries, mandatory extraction verification, current verification results, and the user-owned deployment/Phase 9 boundary.
 - No application behavior or database schema changed.
+## Phase 8 user-guide clarification - August 25, 2026
+
+- Expanded docs/USER_MANUAL.md with the exact manual course inputs: 0-10
+  workload dimensions, estimated weekly hours, and Low/Medium/High interest and
+  career-relevance ratings. The guide now explains what each signal means and
+  that structural estimates may be overridden by the student.
+- Documented that undated assessments remain usable for assessment state, grade
+  calculations, effort, progress, completion, and manual updates. Missing dates
+  only reduce confidence and prevent placement into due-soon, urgency,
+  preparation-window, daily/weekly pressure, and heatmap calculations.
+- Documented the current counted-assessment boundary: exact counts can be
+  expanded during review when equal weighting applies, while ranges such as
+  5-6 quizzes require manual correction. BEST_N and DROP_LOWEST_N require a
+  positive integer N before verification.
+- Documented the low-maintenance in-term workflow, the split-commitment pattern
+  for fixed TA office hours versus flexible TA work, and post-lock commitment
+  management. This was documentation-only; no application behavior or database
+  schema changed.
+
 ## Implemented
 
 ### Repository and tooling
