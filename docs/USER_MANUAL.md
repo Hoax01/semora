@@ -163,7 +163,7 @@ Verification promotes the reviewed draft into canonical academic data. Workload 
 
 If extraction is incomplete, use manual assessment entry. The product should remain usable even when one outline is unusual or unreadable.
 
-An approximate range such as "5-6 quizzes" is not a special range object in the current model. Do not treat an automatically extracted result as a confirmed count; correct the review draft manually, keep it grouped, or add the individual quiz slots once you know them. An exact total of N quizzes is enough to create N quiz slots, but it does not resolve a separate unknown drop count X. If the outline says "N quizzes; X may be dropped" and X has not been declared, Semora cannot encode that as an optional 0-or-more drop rule, so verification must wait until X is known. If X is 0, use Equal weight; if X is positive, configure Drop lowest X. The DROP_LOWEST_N and BEST_N configurations require a positive integer parameter. If the total quiz count is known but the individual records are not entered yet, expand the exact count during review and add dates or scores later.
+An approximate range such as "5-6 quizzes" is not a special range object in the current model. Do not treat an automatically extracted result as a confirmed count; correct the review draft manually, keep it grouped, or add the individual quiz slots once you know them. An exact total of N quizzes is enough to create N quiz slots, but it does not resolve a separate unknown drop count X. Semora cannot encode an optional 0-or-more drop range. If X is 0, use Equal weight; if X is positive, configure Drop lowest X. The DROP_LOWEST_N and BEST_N configurations require a positive integer parameter. If you initially use Equal weight because X is not known yet, you can later change the verified category rule from the active-semester grade card once the course confirms X; the existing assessment records and scores are preserved. If the total quiz count is known but the individual records are not entered yet, expand the exact count during review and add dates or scores later.
 
 ## 11. Navigate the active semester
 
@@ -235,6 +235,8 @@ For a course, review:
 What-if values are previews only. They do not change saved scores.
 
 Categories may use equal mean, points weighting, individual weights, best N, or drop-lowest N rules. The dashboard explains the selected rule and preserves the distinction between stored weights and derived equal shares.
+
+After an outline is verified, select **Edit grading rule** beneath a category to change its aggregation method or configure the positive N parameter for Best N or Drop lowest N. Semora recalculates the grade immediately without replacing assessments or scores. Individual weights require every active assessment in that category to have a stored weight first; use assessment editing to establish those weights.
 
 For relative grading, Semora can show safe class-statistics context such as difference from the mean and standardized position when the data is sufficient. It does not fabricate a letter-grade prediction from incomplete relative information.
 

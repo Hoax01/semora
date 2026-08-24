@@ -27,6 +27,13 @@ const assessmentTypes = [
   'OTHER',
 ] as const;
 const workStatuses = ['NOT_STARTED', 'IN_PROGRESS', 'DONE'] as const;
+const gradeAggregationRules = [
+  'EQUAL_MEAN',
+  'POINTS_WEIGHTED_MEAN',
+  'EXPLICIT_WEIGHTS',
+  'BEST_N',
+  'DROP_LOWEST_N',
+] as const;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 const assessmentFields = z.object({
@@ -129,6 +136,30 @@ const classStatisticsSchema = z
         code: 'custom',
         path: ['minimum'],
         message: 'Minimum cannot exceed maximum.',
+      });
+    }
+  });
+
+const gradeCategoryUpdateSchema = z
+  .object({
+    aggregationRule: z.enum(gradeAggregationRules),
+    ruleParameterN: z.number().int().min(1).max(100).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    const needsParameter =
+      value.aggregationRule === 'BEST_N' || value.aggregationRule === 'DROP_LOWEST_N';
+    if (needsParameter && (value.ruleParameterN === null || value.ruleParameterN === undefined)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['ruleParameterN'],
+        message: 'Best N and Drop lowest N require a positive integer parameter.',
+      });
+    }
+    if (!needsParameter && value.ruleParameterN !== null && value.ruleParameterN !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['ruleParameterN'],
+        message: 'This grading rule does not use a rule parameter.',
       });
     }
   });
@@ -588,6 +619,30 @@ async function loadOwnedAssessment(assessmentId: string, userId: string) {
   }) as Promise<AssessmentRecord | null> | undefined;
 }
 
+async function loadOwnedGradeCategory(categoryId: string, userId: string) {
+  return prisma?.gradeCategory.findFirst({
+    where: {
+      id: categoryId,
+      gradingScheme: {
+        activeCourseState: {
+          activeCourseSelection: {
+            status: 'ACTIVE',
+            workspace: { userId, state: 'ACTIVE' },
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      weightPercentage: true,
+      aggregationRule: true,
+      ruleParameterN: true,
+      gradingScheme: { select: { activeCourseStateId: true } },
+    },
+  });
+}
+
 function workStateUpdate(
   workStatus: (typeof workStatuses)[number] | undefined,
   progressPercentage: number | null | undefined,
@@ -695,6 +750,67 @@ export function registerAssessmentRoutes(app: express.Express) {
     const [gradeSummary] = calculateGradeSummaries(assessments, userId, parsed.data.overrides);
     response.status(200).json({ gradeSummary, persisted: false });
   });
+
+  app.patch('/api/grade-categories/:categoryId', async (request, response) => {
+    if (!prisma) {
+      response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });
+      return;
+    }
+    const userId = await requireUserId(request, response);
+    if (!userId) return;
+    const parsed = gradeCategoryUpdateSchema.safeParse(request.body);
+    if (!parsed.success) {
+      validationError(response, parsed.error.flatten());
+      return;
+    }
+
+    const category = await loadOwnedGradeCategory(request.params.categoryId, userId);
+    if (!category) {
+      response.status(404).json({ error: 'GRADE_CATEGORY_NOT_FOUND' });
+      return;
+    }
+
+    if (parsed.data.aggregationRule === 'EXPLICIT_WEIGHTS') {
+      const missingAssessmentWeights = await prisma.assessment.count({
+        where: {
+          activeCourseStateId: category.gradingScheme.activeCourseStateId,
+          gradeCategoryId: category.id,
+          status: { not: 'CANCELLED' },
+          weightPercentage: null,
+        },
+      });
+      if (missingAssessmentWeights > 0) {
+        response.status(409).json({ error: 'EXPLICIT_WEIGHTS_REQUIRE_ASSESSMENT_WEIGHTS' });
+        return;
+      }
+    }
+
+    const updated = await prisma.gradeCategory.update({
+      where: { id: category.id },
+      data: {
+        aggregationRule: parsed.data.aggregationRule,
+        ruleParameterN:
+          parsed.data.aggregationRule === 'BEST_N' ||
+          parsed.data.aggregationRule === 'DROP_LOWEST_N'
+            ? (parsed.data.ruleParameterN as number)
+            : null,
+      },
+      select: {
+        id: true,
+        name: true,
+        weightPercentage: true,
+        aggregationRule: true,
+        ruleParameterN: true,
+      },
+    });
+    response.status(200).json({
+      category: {
+        ...updated,
+        weightPercentage: decimalOrNull(updated.weightPercentage),
+      },
+    });
+  });
+
   app.post('/api/active-selections/:selectionId/assessments', async (request, response) => {
     if (!prisma) {
       response.status(503).json({ error: 'DATABASE_UNAVAILABLE' });

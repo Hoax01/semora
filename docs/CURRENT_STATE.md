@@ -289,6 +289,30 @@ HTTP smoke or automated API/engine checks.
   management. This was documentation-only; no application behavior or database
   schema changed.
 
+## Phase 8 post-parse grading-rule editing - August 25, 2026
+
+- Added an owned `PATCH /api/grade-categories/:categoryId` flow that changes a
+  verified category between Equal weight, Points weighted, Individual weights,
+  Best N, and Drop lowest N without replacing the course's assessment rows.
+  Best N and Drop lowest N require a positive integer parameter, and switching
+  to Individual weights is blocked until active assessments have stored
+  individual weights.
+- The active-semester Grade Dashboard now exposes an Edit grading rule control
+  for every category. Saving confirms that calculations may change, preserves
+  dates, scores, progress, and assessment identity, and reloads the derived
+  grade/workload summaries.
+- Existing grading data is recalculated by the deterministic Grade Engine. No
+  Prisma migration was required. The course remains editable after lock for
+  this narrow grading-interpretation correction; outline replacement remains a
+  separate, destructive canonical rebuild path.
+- Added integration coverage for parameter validation, owner isolation,
+  reversible Equal/Drop-lowest changes, grade recalculation, and preservation
+  of assessment dates and scores.
+- Verification: full repository tests passed (103 tests), along with typecheck,
+  production build, format check, lint command, and the no-purple/no-gradient
+  source audit. The in-app browser smoke retry exited during connector setup;
+  focused authenticated API coverage passed.
+
 ## Implemented
 
 ### Repository and tooling

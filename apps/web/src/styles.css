@@ -874,6 +874,55 @@ h1 {
   color: var(--text-primary);
 }
 
+.grade-rule-block {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.grade-rule-edit-button {
+  justify-self: start;
+}
+
+.grade-rule-editor {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid #4b8ea366;
+  border-radius: 0.55rem;
+  background: #1e414c0d;
+}
+
+.grade-rule-editor label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.grade-rule-editor select,
+.grade-rule-editor input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.35rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+}
+
+.grade-rule-editor small {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.grade-rule-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .grade-performance-grade {
   margin: -0.2rem 0 0;
   color: var(--accent-soft);

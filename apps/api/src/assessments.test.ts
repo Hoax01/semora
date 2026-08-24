@@ -7,11 +7,19 @@ describe('Phase 6 and 7 assessment management', () => {
   const ownerEmail = `assessment-owner-${Date.now()}@example.test`;
   const intruderEmail = `assessment-intruder-${Date.now()}@example.test`;
   const equalOwnerEmail = 'assessment-equal-' + Date.now() + '@example.test';
+  const ruleOwnerEmail = 'assessment-rule-' + Date.now() + '@example.test';
+  const ruleIntruderEmail = 'assessment-rule-intruder-' + Date.now() + '@example.test';
   const password = 'semora-test-password';
 
   afterAll(async () => {
     await prisma?.user
-      .deleteMany({ where: { email: { in: [ownerEmail, intruderEmail, equalOwnerEmail] } } })
+      .deleteMany({
+        where: {
+          email: {
+            in: [ownerEmail, intruderEmail, equalOwnerEmail, ruleOwnerEmail, ruleIntruderEmail],
+          },
+        },
+      })
       .catch(() => undefined);
   });
 
@@ -630,5 +638,186 @@ describe('Phase 6 and 7 assessment management', () => {
     expect(updatedAssessments.map((assessment) => Number(assessment.weightPercentage))).toEqual([
       15, 20,
     ]);
+  });
+  it('changes a verified grading rule without replacing assessments or scores', async () => {
+    if (!prisma) return;
+
+    const signUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Grading Rule Owner',
+      email: ruleOwnerEmail,
+      password,
+    });
+    expect(signUp.status).toBe(200);
+    const ownerCookie = signUp.headers['set-cookie'];
+    const ownerId = signUp.body.user.id as string;
+    const term = await prisma.academicTerm.findFirst({ where: { name: 'Fall 2026' } });
+    expect(term).toBeTruthy();
+    if (!term) return;
+    const section = await prisma.section.findFirst({
+      where: { courseOffering: { academicTermId: term.id } },
+    });
+    expect(section).toBeTruthy();
+    if (!section) return;
+
+    const workspace = await prisma.semesterWorkspace.create({
+      data: { userId: ownerId, academicTermId: term.id, state: 'ACTIVE' },
+    });
+    const selection = await prisma.activeCourseSelection.create({
+      data: { workspaceId: workspace.id, sectionId: section.id, status: 'ACTIVE' },
+    });
+    const activeState = await prisma.activeCourseState.create({
+      data: { activeCourseSelectionId: selection.id },
+    });
+    const sourceDocument = await prisma.document.create({
+      data: {
+        userId: ownerId,
+        workspaceId: workspace.id,
+        courseOfferingId: section.courseOfferingId,
+        originalFilename: 'grading-rule-fixture.txt',
+        storageKey: 'grading-rule-fixture-' + Date.now(),
+        mimeType: 'text/plain',
+        fileSize: 1,
+        fileHash: 'grading-rule-fixture-' + Date.now(),
+      },
+    });
+    const gradingScheme = await prisma.gradingScheme.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        gradingMode: 'UNKNOWN',
+        totalExpectedWeight: 100,
+        sourceType: 'USER_ENTERED',
+        sourceDocumentId: sourceDocument.id,
+      },
+    });
+    const category = await prisma.gradeCategory.create({
+      data: {
+        gradingSchemeId: gradingScheme.id,
+        name: 'Quizzes',
+        weightPercentage: 20,
+        aggregationRule: 'EQUAL_MEAN',
+        displayOrder: 0,
+      },
+    });
+    const lowQuiz = await prisma.assessment.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        gradeCategoryId: category.id,
+        title: 'Quiz 1',
+        assessmentType: 'QUIZ',
+        dueAt: new Date('2026-09-10T00:00:00.000Z'),
+        datePrecision: 'EXACT',
+        status: 'GRADED',
+        sourceType: 'USER_ENTERED',
+      },
+    });
+    const highQuiz = await prisma.assessment.create({
+      data: {
+        activeCourseStateId: activeState.id,
+        gradeCategoryId: category.id,
+        title: 'Quiz 2',
+        assessmentType: 'QUIZ',
+        dueAt: new Date('2026-09-17T00:00:00.000Z'),
+        datePrecision: 'EXACT',
+        status: 'GRADED',
+        sourceType: 'USER_ENTERED',
+      },
+    });
+    await prisma.assessmentScore.createMany({
+      data: [
+        {
+          assessmentId: lowQuiz.id,
+          userId: ownerId,
+          percentageOverride: 80,
+          sourceType: 'USER_ENTERED',
+        },
+        {
+          assessmentId: highQuiz.id,
+          userId: ownerId,
+          percentageOverride: 90,
+          sourceType: 'USER_ENTERED',
+        },
+      ],
+    });
+
+    const baseline = await request(app)
+      .get(`/api/workspaces/${workspace.id}/assessments`)
+      .set('Cookie', ownerCookie);
+    expect(baseline.status).toBe(200);
+    expect(baseline.body.gradeSummaries[0]).toMatchObject({
+      currentPerformance: 85,
+      gradedWeight: 20,
+      categories: [
+        expect.objectContaining({ aggregationRule: 'EQUAL_MEAN', ruleParameterN: null }),
+      ],
+    });
+
+    const missingParameter = await request(app)
+      .patch(`/api/grade-categories/${category.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ aggregationRule: 'DROP_LOWEST_N' });
+    expect(missingParameter.status).toBe(400);
+
+    const intruderSignUp = await request(app).post('/api/auth/sign-up/email').send({
+      name: 'Grading Rule Intruder',
+      email: ruleIntruderEmail,
+      password,
+    });
+    expect(intruderSignUp.status).toBe(200);
+    const intruderChange = await request(app)
+      .patch(`/api/grade-categories/${category.id}`)
+      .set('Cookie', intruderSignUp.headers['set-cookie'])
+      .send({ aggregationRule: 'DROP_LOWEST_N', ruleParameterN: 1 });
+    expect(intruderChange.status).toBe(404);
+
+    const changed = await request(app)
+      .patch(`/api/grade-categories/${category.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ aggregationRule: 'DROP_LOWEST_N', ruleParameterN: 1 });
+    expect(changed.status).toBe(200);
+    expect(changed.body.category).toMatchObject({
+      id: category.id,
+      aggregationRule: 'DROP_LOWEST_N',
+      ruleParameterN: 1,
+    });
+
+    const preservedAssessments = await prisma.assessment.findMany({
+      where: { activeCourseStateId: activeState.id, gradeCategoryId: category.id },
+      include: { scores: true },
+      orderBy: { title: 'asc' },
+    });
+    expect(preservedAssessments.map((assessment) => assessment.id)).toEqual([
+      lowQuiz.id,
+      highQuiz.id,
+    ]);
+    expect(
+      preservedAssessments.map((assessment) => assessment.dueAt?.toISOString().slice(0, 10)),
+    ).toEqual(['2026-09-10', '2026-09-17']);
+    expect(preservedAssessments.map((assessment) => assessment.scores.length)).toEqual([1, 1]);
+
+    const afterChange = await request(app)
+      .get(`/api/workspaces/${workspace.id}/assessments`)
+      .set('Cookie', ownerCookie);
+    expect(afterChange.status).toBe(200);
+    expect(afterChange.body.gradeSummaries[0]).toMatchObject({
+      currentPerformance: 90,
+      gradedWeight: 10,
+      categories: [
+        expect.objectContaining({
+          aggregationRule: 'DROP_LOWEST_N',
+          ruleParameterN: 1,
+          droppedAssessmentCount: 1,
+        }),
+      ],
+    });
+
+    const restored = await request(app)
+      .patch(`/api/grade-categories/${category.id}`)
+      .set('Cookie', ownerCookie)
+      .send({ aggregationRule: 'EQUAL_MEAN', ruleParameterN: null });
+    expect(restored.status).toBe(200);
+    expect(restored.body.category).toMatchObject({
+      aggregationRule: 'EQUAL_MEAN',
+      ruleParameterN: null,
+    });
   });
 });

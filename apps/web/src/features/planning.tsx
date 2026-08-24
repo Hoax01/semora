@@ -334,6 +334,27 @@ type GradeSummary = {
   }>;
   warnings: string[];
 };
+
+type EditableGradeAggregationRule =
+  'EQUAL_MEAN' | 'POINTS_WEIGHTED_MEAN' | 'EXPLICIT_WEIGHTS' | 'BEST_N' | 'DROP_LOWEST_N';
+
+const gradeAggregationRuleOptions: Array<{
+  value: EditableGradeAggregationRule;
+  label: string;
+}> = [
+  { value: 'EQUAL_MEAN', label: 'Equal weight' },
+  { value: 'POINTS_WEIGHTED_MEAN', label: 'Points weighted' },
+  { value: 'EXPLICIT_WEIGHTS', label: 'Individual weights' },
+  { value: 'BEST_N', label: 'Best N' },
+  { value: 'DROP_LOWEST_N', label: 'Drop lowest N' },
+];
+
+function editableGradeRuleFor(rule: string): EditableGradeAggregationRule {
+  return rule === 'EXPLICIT_ASSESSMENT_WEIGHTS'
+    ? 'EXPLICIT_WEIGHTS'
+    : (rule as EditableGradeAggregationRule);
+}
+
 type AssessmentDraft = {
   activeSelectionId: string;
   title: string;
@@ -997,6 +1018,12 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     }
     if (body?.error === 'ASSESSMENT_NOT_FOUND') {
       throw new Error('That assessment is no longer available. Refresh and try again.');
+    }
+    if (body?.error === 'GRADE_CATEGORY_NOT_FOUND') {
+      throw new Error('That grading category is no longer available. Refresh and try again.');
+    }
+    if (body?.error === 'EXPLICIT_WEIGHTS_REQUIRE_ASSESSMENT_WEIGHTS') {
+      throw new Error('Add individual assessment weights before using Individual weights.');
     }
     if (body?.error === 'ASSESSMENT_CANCELLED') {
       throw new Error('Cancelled assessments cannot be edited.');
@@ -3371,6 +3398,10 @@ function ActiveSemesterView({
   const [gradeScenarioSummaries, setGradeScenarioSummaries] = useState<
     Record<string, GradeSummary>
   >({});
+  const [gradeRuleDrafts, setGradeRuleDrafts] = useState<
+    Record<string, { rule: EditableGradeAggregationRule; parameter: string }>
+  >({});
+  const [editingGradeCategoryId, setEditingGradeCategoryId] = useState<string>();
   const assessmentSearchTerms = assessmentSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const filteredAssessments = assessments.filter((assessment) => {
     if (assessmentTypeFilter && assessment.assessmentType !== assessmentTypeFilter) return false;
@@ -3516,6 +3547,58 @@ function ActiveSemesterView({
     onWorkloadReloaded?: (nextWorkload: Workload | undefined) => void,
   ) {
     return runMutation(action, mutation, onWorkloadReloaded, false);
+  }
+
+  function beginGradeRuleEdit(category: GradeSummary['categories'][number]) {
+    const rule = editableGradeRuleFor(category.aggregationRule);
+    setEditingGradeCategoryId(category.categoryId);
+    setGradeRuleDrafts((drafts) => ({
+      ...drafts,
+      [category.categoryId]: {
+        rule,
+        parameter:
+          category.ruleParameterN === null || category.ruleParameterN === undefined
+            ? rule === 'BEST_N' || rule === 'DROP_LOWEST_N'
+              ? '1'
+              : ''
+            : String(category.ruleParameterN),
+      },
+    }));
+  }
+
+  function saveGradeRule(category: GradeSummary['categories'][number]) {
+    const draft = gradeRuleDrafts[category.categoryId];
+    if (!draft) return;
+    const needsParameter = draft.rule === 'BEST_N' || draft.rule === 'DROP_LOWEST_N';
+    const parameter = draft.parameter.trim() ? Number(draft.parameter) : NaN;
+    if (needsParameter && (!Number.isInteger(parameter) || parameter < 1 || parameter > 100)) {
+      setError('Best N and Drop lowest N require a whole number between 1 and 100.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Update ${category.name}'s grading rule? Existing assessments and scores will be preserved, but calculated grades may change.`,
+      )
+    ) {
+      return;
+    }
+    void runAssessmentMutation(`grade-rule-${category.categoryId}`, () =>
+      apiRequest(`/api/grade-categories/${category.categoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          aggregationRule: draft.rule,
+          ruleParameterN: needsParameter ? parameter : null,
+        }),
+      }),
+    ).then((succeeded) => {
+      if (!succeeded) return;
+      setEditingGradeCategoryId(undefined);
+      setGradeRuleDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[category.categoryId];
+        return next;
+      });
+    });
   }
 
   function searchCourses(event: FormEvent<HTMLFormElement>) {
@@ -4881,47 +4964,139 @@ function ActiveSemesterView({
                         ? 'Current performance is unavailable from the recorded grading structure.'
                         : 'Based on ' + summary.gradedWeight.toFixed(1) + '% of course graded.'}
                     </p>
-                    {summary.categories.map((category) => (
-                      <p className="grade-rule-note" key={category.categoryId}>
-                        <strong>{category.name}</strong>{' '}
-                        {category.aggregationRule === 'EQUAL_MEAN'
-                          ? 'Equal weight across ' +
-                            category.assessmentCount +
-                            ' assessment' +
-                            (category.assessmentCount === 1 ? '' : 's') +
-                            '.'
-                          : category.aggregationRule === 'POINTS_WEIGHTED_MEAN'
-                            ? 'Points-weighted across ' +
-                              category.assessmentCount +
-                              ' assessment' +
-                              (category.assessmentCount === 1 ? '' : 's') +
-                              '.'
-                            : category.aggregationRule === 'EXPLICIT_WEIGHTS'
-                              ? 'Individual assessment weights.'
-                              : category.aggregationRule === 'BEST_N'
-                                ? 'Best ' +
-                                  (category.ruleParameterN ?? '?') +
-                                  ' of ' +
+                    {summary.categories.map((category) => {
+                      const rule = editableGradeRuleFor(category.aggregationRule);
+                      const draft = gradeRuleDrafts[category.categoryId];
+                      const requiresParameter =
+                        draft?.rule === 'BEST_N' || draft?.rule === 'DROP_LOWEST_N';
+                      return (
+                        <div className="grade-rule-block" key={category.categoryId}>
+                          <p className="grade-rule-note">
+                            <strong>{category.name}</strong>{' '}
+                            {rule === 'EQUAL_MEAN'
+                              ? 'Equal weight across ' +
+                                category.assessmentCount +
+                                ' assessment' +
+                                (category.assessmentCount === 1 ? '' : 's') +
+                                '.'
+                              : rule === 'POINTS_WEIGHTED_MEAN'
+                                ? 'Points-weighted across ' +
                                   category.assessmentCount +
+                                  ' assessment' +
+                                  (category.assessmentCount === 1 ? '' : 's') +
                                   '.'
-                                : 'Drop lowest ' +
-                                  (category.ruleParameterN ?? '?') +
-                                  ' of ' +
-                                  category.assessmentCount +
-                                  '.'}{' '}
-                        {category.aggregationRule === 'BEST_N' ||
-                        category.aggregationRule === 'DROP_LOWEST_N'
-                          ? category.droppedAssessmentCount > 0
-                            ? category.droppedAssessmentCount +
-                              ' lowest graded result' +
-                              (category.droppedAssessmentCount === 1 ? '' : 's') +
-                              ' currently excluded.'
-                            : category.gradedAssessmentCount > 0
-                              ? 'Provisional: all graded results currently count.'
-                              : 'No graded results yet.'
-                          : null}
-                      </p>
-                    ))}
+                                : rule === 'EXPLICIT_WEIGHTS'
+                                  ? 'Individual assessment weights.'
+                                  : rule === 'BEST_N'
+                                    ? 'Best ' +
+                                      (category.ruleParameterN ?? '?') +
+                                      ' of ' +
+                                      category.assessmentCount +
+                                      '.'
+                                    : 'Drop lowest ' +
+                                      (category.ruleParameterN ?? '?') +
+                                      ' of ' +
+                                      category.assessmentCount +
+                                      '.'}{' '}
+                            {rule === 'BEST_N' || rule === 'DROP_LOWEST_N'
+                              ? category.droppedAssessmentCount > 0
+                                ? category.droppedAssessmentCount +
+                                  ' lowest graded result' +
+                                  (category.droppedAssessmentCount === 1 ? '' : 's') +
+                                  ' currently excluded.'
+                                : category.gradedAssessmentCount > 0
+                                  ? 'Provisional: all graded results currently count.'
+                                  : 'No graded results yet.'
+                              : null}
+                          </p>
+                          {editingGradeCategoryId === category.categoryId && draft ? (
+                            <div className="grade-rule-editor">
+                              <label>
+                                Grading rule
+                                <select
+                                  onChange={(event) => {
+                                    const nextRule = event.target
+                                      .value as EditableGradeAggregationRule;
+                                    setGradeRuleDrafts((drafts) => ({
+                                      ...drafts,
+                                      [category.categoryId]: {
+                                        rule: nextRule,
+                                        parameter:
+                                          nextRule === 'BEST_N' || nextRule === 'DROP_LOWEST_N'
+                                            ? drafts[category.categoryId]?.parameter ||
+                                              String(category.ruleParameterN ?? 1)
+                                            : '',
+                                      },
+                                    }));
+                                  }}
+                                  value={draft.rule}
+                                >
+                                  {gradeAggregationRuleOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              {requiresParameter ? (
+                                <label>
+                                  {draft.rule === 'BEST_N' ? 'N kept' : 'N dropped'}
+                                  <input
+                                    min="1"
+                                    max="100"
+                                    onChange={(event) =>
+                                      setGradeRuleDrafts((drafts) => ({
+                                        ...drafts,
+                                        [category.categoryId]: {
+                                          ...draft,
+                                          parameter: event.target.value,
+                                        },
+                                      }))
+                                    }
+                                    step="1"
+                                    type="number"
+                                    value={draft.parameter}
+                                  />
+                                </label>
+                              ) : null}
+                              <small>
+                                This updates the calculation only. Existing assessments, dates,
+                                scores, and progress are preserved.
+                              </small>
+                              <div className="grade-rule-editor-actions">
+                                <button
+                                  className="secondary-button compact-button"
+                                  disabled={Boolean(busyAction)}
+                                  onClick={() => saveGradeRule(category)}
+                                  type="button"
+                                >
+                                  {busyAction === `grade-rule-${category.categoryId}`
+                                    ? 'Saving…'
+                                    : 'Save rule'}
+                                </button>
+                                <button
+                                  className="quiet-button compact-button"
+                                  disabled={Boolean(busyAction)}
+                                  onClick={() => setEditingGradeCategoryId(undefined)}
+                                  type="button"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              className="quiet-button compact-button grade-rule-edit-button"
+                              disabled={Boolean(busyAction)}
+                              onClick={() => beginGradeRuleEdit(category)}
+                              type="button"
+                            >
+                              Edit grading rule
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     <p className="grade-performance-grade">
                       {summary.currentGrade
                         ? 'Current equivalent: ' + summary.currentGrade
