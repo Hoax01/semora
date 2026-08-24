@@ -1768,7 +1768,7 @@ export function PlanningPage() {
                 value={newCandidateName}
               />
               <button disabled={busyAction === 'create' || !newCandidateName.trim()} type="submit">
-                + New option
+                {busyAction === 'create' ? 'Creating…' : '+ New option'}
               </button>
             </form>
           </section>
@@ -3234,7 +3234,10 @@ export function PlanningPage() {
                         </div>
                         <span className="credit-badge">{activeOffering.credits} credits</span>
                       </div>
-                      <div className="section-option-list">
+                      {busyAction === 'selection' ? (
+                        <InlineState label="Updating this candidate…" />
+                      ) : null}
+                      <div aria-busy={busyAction === 'selection'} className="section-option-list">
                         {activeOffering.sections.map((section) => {
                           const isSelected = activeSelection?.sectionId === section.id;
                           return (

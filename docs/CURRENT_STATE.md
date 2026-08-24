@@ -194,6 +194,12 @@ HTTP smoke or automated API/engine checks.
 - No comparison calculations, API, data-model, engine, or product-scope behavior changed.
 - Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
 
+## Phase 8 Semester Designer interaction feedback — August 24, 2026
+
+- Candidate creation now changes its action label while saving, and section changes expose an inline progress state while the candidate refreshes, making the existing create/switch flows feel immediate without changing their API behavior.
+- No candidate, selection, engine, data-model, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
+
 ## Implemented
 
 ### Repository and tooling
