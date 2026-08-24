@@ -4450,3 +4450,30 @@ h1 {
     display: grid;
   }
 }
+
+@media (max-width: 640px) {
+  .command-center-forecast-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-center-forecast-list > div {
+    min-width: 0;
+  }
+
+  .semester-heatmap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-center-list strong,
+  .grade-performance-heading h3 {
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .assessment-timeline-heading h3 {
+    display: block;
+    margin: 0.35rem 0 0;
+    overflow-wrap: anywhere;
+  }
+}

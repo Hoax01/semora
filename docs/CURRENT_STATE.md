@@ -162,14 +162,21 @@ HTTP smoke or automated API/engine checks.
 - No API, data-model, engine, or product-scope changes were made.
 - Verification: typecheck, lint, Prettier format check, production build, and standalone API tests (14 passed) passed.
 
-## Implemented
-
 ## Phase 8 active dashboard state polish — August 24, 2026
 
 - Added compact inline state presentation for independently loading dashboard data, keeping the “What matters now?” command-center question visible while workload pressure is calculated.
 - Active-semester workload and assessment sections now expose readable loading states, and recoverable dashboard load failures provide a single “Retry data” action that reloads both datasets.
 - No workload calculations, API contracts, data-model behavior, or heatmap semantics changed. This remains Phase 8.1 UX work; dedicated heatmap polish remains deferred to Phase 8.3.
 - Verification: typecheck, lint, Prettier format check, production build, and the previously completed standalone API suite (14 passed) passed.
+
+## Phase 8 mobile dashboard readability — August 24, 2026
+
+- Mobile dashboard forecast cards now use a compact two-column layout, while the full-term heatmap also uses two readable columns instead of relying on auto-fitting tiny cells.
+- Long dashboard course names, grade-card titles, and assessment titles wrap on mobile instead of being silently ellipsized. Desktop layout and the intentional horizontally scrollable timetable remain unchanged.
+- No API, data-model, engine, or product-scope changes were made.
+- Verification: typecheck, lint, Prettier format check, and production build passed. No purple-derived or gradient styles remain in the web source.
+
+## Implemented
 
 ### Repository and tooling
 
