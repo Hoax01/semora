@@ -2,7 +2,7 @@
 
 **Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.5 — Cover the remaining graceful-failure cases
+**Next Build Objective:** Phase 8.5 — Verify remaining graceful-failure cases (dates, weights, relative grading)
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -220,6 +220,13 @@ HTTP smoke or automated API/engine checks.
 - Recovery copy makes the safety boundary explicit: the uploaded file remains available, no canonical course data was changed, and users can enter assessments manually when extraction continues to fail. Upload processing failures no longer surface as an unrelated global dashboard error.
 - No API contract, data-model, extraction-engine, grade-engine, workload-engine, or product-scope behavior changed.
 - Verification: full typecheck, lint, Prettier format check, production build, full repository tests (95 passed), focused extraction tests (18 passed), and the document integration test (passed with a 15-second timeout; the default 5-second timeout remains a known database-heavy test limitation). Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+
+## Phase 8 invalid catalogue import recovery — August 24, 2026
+
+- The catalogue import CLI now catches malformed JSON, missing files, missing configuration, and importer validation failures at the command boundary. It reports concise actionable messages, avoids raw stack traces, and exits with a nonzero status so invalid imports cannot appear successful.
+- Catalogue validation still completes before the Prisma transaction, so invalid source data is rejected before any catalogue mutation begins.
+- Added focused coverage for malformed JSON, actionable validation errors, and unknown thrown values. No API contract, schema, engine, or product-scope behavior changed.
+- Verification: full typecheck, lint, Prettier format check, production build, full repository tests (98 passed), focused catalogue tests (5 passed), and a malformed-JSON CLI check with the expected nonzero exit. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
 ## Implemented
 
