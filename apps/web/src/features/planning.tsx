@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { LoadingState, PageState } from '../components/ui-state';
+import { InlineState, LoadingState, PageState } from '../components/ui-state';
 
 type Candidate = {
   id: string;
@@ -3416,6 +3416,11 @@ function ActiveSemesterView({
     };
   }, [appliedCourseSearch, workspace.term.id]);
 
+  async function retryDashboardData() {
+    setError(undefined);
+    await Promise.all([loadAssessments(), loadWorkload()]);
+  }
+
   async function runMutation(
     action: string,
     mutation: () => Promise<unknown>,
@@ -3901,11 +3906,34 @@ function ActiveSemesterView({
         </div>
       </section>
 
-      {error ? <p className="form-error planner-error">{error}</p> : null}
+      {error ? (
+        <InlineState
+          action={
+            <button
+              className="quiet-button compact-button state-inline-action-button"
+              onClick={() => void retryDashboardData()}
+              type="button"
+            >
+              Retry data
+            </button>
+          }
+          label={error}
+          tone="error"
+        />
+      ) : null}
       {forecastFeedback ? (
         <p className="forecast-feedback" role="status">
           {forecastFeedback}
         </p>
+      ) : null}
+
+      {isWorkloadLoading ? (
+        <section className="command-center-panel command-center-state-panel">
+          <p className="eyebrow">NAVIGATE / COMMAND CENTER</p>
+          <h2>What matters now?</h2>
+          <p>Loading the pressure forecast for your active semester.</p>
+          <InlineState label="Calculating this semester’s workload…" />
+        </section>
       ) : null}
 
       {!isWorkloadLoading && workload ? (
@@ -4130,7 +4158,7 @@ function ActiveSemesterView({
             </span>
           ) : null}
         </div>
-        {isWorkloadLoading ? <p className="assessment-empty">Calculating workload…</p> : null}
+        {isWorkloadLoading ? <InlineState label="Calculating workload…" /> : null}
         {!isWorkloadLoading && workload ? (
           <>
             <div className="daily-pressure-heading">
@@ -4979,7 +5007,7 @@ function ActiveSemesterView({
             </div>
           </div>
         ) : null}
-        {isAssessmentsLoading ? <p className="assessment-empty">Loading assessments…</p> : null}
+        {isAssessmentsLoading ? <InlineState label="Loading assessments…" /> : null}
         {!isAssessmentsLoading && !assessments.length ? (
           <p className="assessment-empty">
             No assessments yet. Add one manually or verify a course outline to build your timeline.

@@ -35,3 +35,24 @@ export function LoadingState({ eyebrow, label }: { eyebrow: string; label: strin
     </section>
   );
 }
+
+export function InlineState({
+  label,
+  tone = 'neutral',
+  action,
+}: {
+  label: string;
+  tone?: StateTone;
+  action?: ReactNode;
+}) {
+  return (
+    <div
+      className={`state-inline state-inline-${tone}`}
+      role={tone === 'error' ? 'alert' : 'status'}
+    >
+      {tone === 'neutral' ? <span className="loading-indicator" aria-hidden="true" /> : null}
+      <span>{label}</span>
+      {action ? <span className="state-inline-action">{action}</span> : null}
+    </div>
+  );
+}

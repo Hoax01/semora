@@ -188,6 +188,54 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .loading-indicator {
+    .state-inline {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-top: 1rem;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 0.55rem;
+      color: var(--text-secondary);
+      background: var(--surface-elevated);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .state-inline .loading-indicator {
+      width: 0.9rem;
+      height: 0.9rem;
+      border-width: 1.5px;
+    }
+
+    .state-inline-error {
+      border-color: #a95761;
+      color: #f2c4c8;
+      background: #3b2026;
+    }
+
+    .state-inline-action {
+      display: inline-flex;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .state-inline-action-button {
+      margin-top: 0;
+    }
+
+    .command-center-state-panel h2,
+    .command-center-state-panel p {
+      margin: 0;
+    }
+
+    .command-center-state-panel h2 {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+    }
+
+    .command-center-state-panel > p:not(.eyebrow) {
+      color: var(--text-secondary);
+    }
     animation: none;
   }
 }
