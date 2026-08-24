@@ -798,18 +798,18 @@ h1 {
 }
 
 .grade-performance-grid {
-  display: grid;
-  align-items: start;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
+  column-count: 2;
+  column-gap: 0.7rem;
   margin-top: 1.25rem;
 }
 
 .grade-performance-card {
+  break-inside: avoid;
   display: grid;
   align-content: start;
   gap: 0.7rem;
   min-width: 0;
+  margin: 0 0 0.7rem;
   padding: 1rem;
   border: 1px solid var(--border-subtle);
   border-radius: 0.7rem;
@@ -4345,7 +4345,7 @@ h1 {
 
   .active-course-grid,
   .grade-performance-grid {
-    grid-template-columns: 1fr;
+    column-count: 1;
   }
 
   .assessment-relative-inputs {

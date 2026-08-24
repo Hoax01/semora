@@ -315,10 +315,12 @@ HTTP smoke or automated API/engine checks.
 
 ## Phase 8 grade-card density polish - August 25, 2026
 
-- Grade Dashboard cards now align to the top of the two-column layout, while
-  each card packs its own content at natural spacing. Courses with fewer
-  categories or assessments no longer show artificial vertical gaps just to
-  match the height of a longer neighboring course card.
+- Grade Dashboard cards now use a staggered two-column flow on desktop, with
+  each card keeping natural height and remaining intact within its column.
+  Shorter courses no longer leave a cross-row void while a longer neighboring
+  course card determines the next row's position.
+- The layout collapses to one column on the existing mobile breakpoint, so
+  cards remain readable and flow in a single vertical stack on small screens.
 - No API, data-model, grade-engine, workload-engine, or product behavior
   changed; this is a scoped responsive layout correction.
 - Verification: typecheck, production build, format check, and diff validation
