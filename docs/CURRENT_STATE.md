@@ -280,8 +280,10 @@ HTTP smoke or automated API/engine checks.
   preparation-window, daily/weekly pressure, and heatmap calculations.
 - Documented the current counted-assessment boundary: exact counts can be
   expanded during review when equal weighting applies, while ranges such as
-  5-6 quizzes require manual correction. BEST_N and DROP_LOWEST_N require a
-  positive integer N before verification.
+  5-6 quizzes require manual correction. A known total quiz count does not
+  resolve an unknown optional drop count: zero is represented by Equal weight,
+  while a positive DROP_LOWEST_N or BEST_N parameter must be declared before
+  verification.
 - Documented the low-maintenance in-term workflow, the split-commitment pattern
   for fixed TA office hours versus flexible TA work, and post-lock commitment
   management. This was documentation-only; no application behavior or database
