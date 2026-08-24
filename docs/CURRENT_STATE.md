@@ -176,6 +176,12 @@ HTTP smoke or automated API/engine checks.
 - No API, data-model, engine, or product-scope changes were made.
 - Verification: typecheck, lint, Prettier format check, and production build passed. No purple-derived or gradient styles remain in the web source.
 
+## Phase 8 pressure forecast clarity — August 24, 2026
+
+- Added an accessible reading guide to the active-semester command center explaining that higher pressure scores indicate more modeled demand, how the Light-to-Severe bands are ordered, and which known inputs inform the forecast.
+- No workload engine, API, data-model, heatmap, or product-scope behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, and the no-purple/no-gradient source audit passed.
+
 ## Implemented
 
 ### Repository and tooling

@@ -3937,7 +3937,11 @@ function ActiveSemesterView({
       ) : null}
 
       {!isWorkloadLoading && workload ? (
-        <section className="command-center-panel" aria-labelledby="command-center-title">
+        <section
+          className="command-center-panel"
+          aria-describedby="pressure-forecast-note"
+          aria-labelledby="command-center-title"
+        >
           <div className="command-center-heading">
             <div>
               <p className="eyebrow">NAVIGATE / COMMAND CENTER</p>
@@ -3987,6 +3991,13 @@ function ActiveSemesterView({
               )}
             </article>
           </div>
+          <aside className="pressure-forecast-note" id="pressure-forecast-note">
+            <strong>How to read the forecast</strong>
+            <span>
+              Higher scores mean more modeled demand. Bands run from Light to Severe, using known
+              assessment dates, effort, and commitments.
+            </span>
+          </aside>
 
           <div className="command-center-columns">
             <section className="command-center-card" aria-labelledby="due-soon-title">
