@@ -3496,8 +3496,7 @@ function ActiveSemesterView({
     try {
       await mutation();
       await onReload();
-      await loadAssessments();
-      const nextWorkload = await loadWorkload();
+      const [, nextWorkload] = await Promise.all([loadAssessments(), loadWorkload()]);
       onWorkloadReloaded?.(nextWorkload);
       return true;
     } catch (reason) {

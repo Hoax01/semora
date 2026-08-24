@@ -236,6 +236,12 @@ HTTP smoke or automated API/engine checks.
 - Phase 8.5 graceful-failure coverage is now complete across weird/failed outline recovery, missing dates, bad weights, relative grading, and invalid catalogue imports. No API contract, schema, or deployment behavior changed.
 - Verification: focused assessment API tests (2 passed), focused grade-engine tests (20 passed), full typecheck, full repository tests (99 passed), production build, format check, and lint. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
 
+## Phase 8.6 active-semester refresh performance — August 24, 2026
+
+- Active-semester mutations still refresh the workspace first, then now refresh assessments and workload concurrently. This removes the unnecessary sequential wait between two independent dashboard requests after saves, drops, deadline changes, and other mutations.
+- No API contract, database schema, engine behavior, or product scope changed. The optimization is limited to client-side refresh orchestration.
+- Verification: full typecheck, API suite with the documented 15-second database-test timeout (17 passed), extraction/grade/semester/workload suites (82 passed), production build, format check, and lint. The default workspace test command was also attempted; its two known database-heavy integration tests exceeded the default 5-second timeout and passed on the extended-timeout rerun. Interactive browser smoke remains unavailable because the local browser runtime exits during setup.
+
 ## Implemented
 
 ### Repository and tooling
