@@ -6,6 +6,7 @@ import {
   Outlet,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -311,6 +312,7 @@ function CourseDetailPage() {
 
 function ProtectedShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) return <main className="shell">Loading your workspace…</main>;
@@ -321,20 +323,68 @@ function ProtectedShell() {
     navigate('/sign-in', { replace: true });
   }
 
+  const isCatalogue = location.pathname.startsWith('/catalogue');
+  const isPlanning = !isCatalogue && !location.pathname.startsWith('/extraction-review');
+
   return (
     <>
-      <nav className="app-nav" aria-label="Main navigation">
-        <Link className="brand" to="/">
-          semora
-        </Link>
-        <div className="nav-actions">
-          <Link to="/">Plan</Link>
-          <Link to="/catalogue">Catalogue</Link>
-          <button className="nav-signout" onClick={handleSignOut} type="button">
-            Sign out
+      <header className="app-nav-shell">
+        <nav className="app-nav" aria-label="Main navigation">
+          <Link className="brand" to="/">
+            <span className="brand-mark" aria-hidden="true">
+              S
+            </span>
+            <span>semora</span>
+          </Link>
+          <div className="nav-actions desktop-nav-actions">
+            <Link
+              className={isPlanning ? 'nav-link active' : 'nav-link'}
+              to="/"
+              aria-current={isPlanning ? 'page' : undefined}
+            >
+              Plan
+            </Link>
+            <Link
+              className={isCatalogue ? 'nav-link active' : 'nav-link'}
+              to="/catalogue"
+              aria-current={isCatalogue ? 'page' : undefined}
+            >
+              Courses
+            </Link>
+            <button className="nav-signout" onClick={handleSignOut} type="button">
+              Sign out
+            </button>
+          </div>
+        </nav>
+        <nav className="mobile-nav" aria-label="Mobile navigation">
+          <Link
+            className={isPlanning ? 'mobile-nav-link active' : 'mobile-nav-link'}
+            to="/"
+            aria-current={isPlanning ? 'page' : undefined}
+          >
+            <span className="mobile-nav-icon" aria-hidden="true">
+              ⌂
+            </span>
+            <span>Plan</span>
+          </Link>
+          <Link
+            className={isCatalogue ? 'mobile-nav-link active' : 'mobile-nav-link'}
+            to="/catalogue"
+            aria-current={isCatalogue ? 'page' : undefined}
+          >
+            <span className="mobile-nav-icon" aria-hidden="true">
+              ▦
+            </span>
+            <span>Courses</span>
+          </Link>
+          <button className="mobile-nav-link" onClick={handleSignOut} type="button">
+            <span className="mobile-nav-icon" aria-hidden="true">
+              ↪
+            </span>
+            <span>Sign out</span>
           </button>
-        </div>
-      </nav>
+        </nav>
+      </header>
       <Outlet />
     </>
   );

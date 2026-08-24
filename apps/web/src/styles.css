@@ -7,8 +7,9 @@
   --text-primary: #f5f7fa;
   --text-secondary: #a9b0bb;
   --text-muted: #7c8694;
-  --accent: #7c6cff;
-  --accent-hover: #8c7eff;
+  --accent: #55a9c7;
+  --accent-hover: #79c5dd;
+  --accent-soft: #9ed8e6;
   --positive: #63d39a;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color: var(--text-primary);
@@ -32,7 +33,7 @@ body {
   min-height: 100vh;
   place-content: center;
   padding: 2rem;
-  background: radial-gradient(circle at top left, #211f48 0, var(--canvas) 48rem);
+  background: var(--canvas);
 }
 
 .auth-shell {
@@ -42,7 +43,7 @@ body {
   min-height: 100vh;
   place-content: center;
   padding: 2rem;
-  background: radial-gradient(circle at top left, #211f48 0, var(--canvas) 48rem);
+  background: var(--canvas);
 }
 
 .auth-card {
@@ -209,6 +210,82 @@ h1 {
   background: color-mix(in srgb, var(--canvas) 88%, transparent);
 }
 
+.app-nav-shell {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--canvas);
+}
+
+.app-nav-shell .app-nav {
+  border-bottom: 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.brand-mark {
+  display: grid;
+  width: 1.6rem;
+  height: 1.6rem;
+  place-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 0.35rem;
+  color: var(--accent-soft);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.nav-link {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible,
+.nav-link.active {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: #17303a;
+}
+
+.mobile-nav {
+  display: none;
+}
+
+.mobile-nav-link {
+  display: grid;
+  flex: 1;
+  gap: 0.2rem;
+  place-items: center;
+  padding: 0.55rem 0.35rem;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link:focus-visible,
+.mobile-nav-link.active {
+  color: var(--accent-soft);
+  background: #17303a;
+}
+
+.mobile-nav-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .brand {
   color: var(--text-primary);
   font-size: 1.15rem;
@@ -258,7 +335,7 @@ h1 {
   min-height: calc(100vh - 4.5rem);
   place-items: center;
   padding: 2rem;
-  background: radial-gradient(circle at 20% 0, #211f48 0, var(--canvas) 42rem);
+  background: var(--canvas);
 }
 
 .setup-panel {
@@ -361,7 +438,7 @@ h1 {
 .candidate-tab.active {
   border-color: var(--accent);
   color: var(--text-primary);
-  background: #7c6cff18;
+  background: #17303a;
 }
 
 .new-candidate-form,
@@ -435,9 +512,9 @@ h1 {
   gap: 1.5rem;
   margin-top: 1.5rem;
   padding: 1.25rem 1.5rem;
-  border: 1px solid #9a8fff66;
+  border: 1px solid #4b8ea366;
   border-radius: 0.9rem;
-  background: #5f54c70f;
+  background: #17303a0f;
 }
 
 .lock-panel h2,
@@ -804,9 +881,9 @@ h1 {
   display: grid;
   gap: 0.55rem;
   padding: 0.7rem;
-  border: 1px solid #8d83ff66;
+  border: 1px solid #4b8ea366;
   border-radius: 0.55rem;
-  background: #7167d50d;
+  background: #1e414c0d;
 }
 
 .grade-scenario-heading {
@@ -1010,7 +1087,7 @@ h1 {
   padding: 0.7rem 0.9rem;
   border-left: 3px solid var(--accent);
   color: var(--text-secondary);
-  background: #5f54c70f;
+  background: #17303a0f;
   font-size: 0.82rem;
 }
 
@@ -1092,7 +1169,7 @@ h1 {
 }
 
 .command-center-peak-metric {
-  border-color: #7c6cff55;
+  border-color: #55a9c755;
 }
 
 .command-center-card-heading h3 {
@@ -1360,7 +1437,7 @@ h1 {
 
 .semester-heatmap-selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px #7c6cff55;
+  box-shadow: 0 0 0 2px #55a9c755;
 }
 
 .semester-heatmap-detail {
@@ -1565,10 +1642,10 @@ h1 {
 .assessment-filter-grid input:focus-visible,
 .assessment-filter-grid select:focus-visible {
   border-color: var(--accent);
-  outline: 2px solid #7c6cff66;
+  outline: 2px solid #55a9c766;
   outline-offset: 1px;
   background: #141827;
-  box-shadow: 0 0 0 3px #7c6cff14;
+  box-shadow: 0 0 0 3px #55a9c714;
 }
 
 .assessment-entry-actions {
@@ -1588,7 +1665,7 @@ h1 {
 
 .assessment-entry-actions > button:not(:disabled):hover {
   background: var(--accent-hover);
-  box-shadow: 0 0.4rem 1.2rem #7c6cff2e;
+  box-shadow: 0 0.4rem 1.2rem #55a9c72e;
   transform: translateY(-1px);
 }
 
@@ -1758,7 +1835,7 @@ h1 {
   flex-shrink: 0;
   padding: 0.28rem 0.5rem;
   border-radius: 999px;
-  background: #7c6cff1a;
+  background: #55a9c71a;
   color: var(--accent-soft);
   font-size: 0.7rem;
   font-weight: 750;
@@ -2326,9 +2403,9 @@ h1 {
 .intelligence-panel {
   margin-top: 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
-  border: 1px solid #9a8fff66;
+  border: 1px solid #4b8ea366;
   border-radius: 0.9rem;
-  background: linear-gradient(135deg, #5f54c70f, var(--surface));
+  background: var(--surface);
 }
 
 .intelligence-summary {
@@ -2379,7 +2456,7 @@ h1 {
   padding: 0.8rem 0.9rem;
   border: 1px solid var(--border-subtle);
   border-radius: 0.65rem;
-  background: #5f54c70b;
+  background: #17303a0b;
 }
 
 .preference-fit-summary span,
@@ -2708,10 +2785,10 @@ h1 {
   gap: 0.15rem;
   min-height: 1.7rem;
   padding: 0.35rem 0.4rem;
-  border: 1px solid #9a8fff;
+  border: 1px solid #4b8ea3;
   border-radius: 0.35rem;
   color: var(--text-primary);
-  background: #5f54c766;
+  background: #2b667866;
   font-size: 0.68rem;
   line-height: 1.15;
   overflow: hidden;
@@ -2725,19 +2802,13 @@ h1 {
 }
 
 .schedule-block small {
-  color: #d8d4ff;
+  color: #d6eef4;
   font-size: 0.63rem;
 }
 
 .commitment-block {
   border-color: #e0b36a;
-  background: repeating-linear-gradient(
-    -45deg,
-    #e0b36a20,
-    #e0b36a20 0.3rem,
-    #e0b36a08 0.3rem,
-    #e0b36a08 0.6rem
-  );
+  background: #4d3c21;
 }
 
 .commitment-block small {
@@ -3193,9 +3264,9 @@ h1 {
 .workload-editor {
   max-width: 52rem;
   padding: 0.7rem 0.8rem;
-  border: 1px dashed #9a8fff88;
+  border: 1px dashed #4b8ea388;
   border-radius: 0.6rem;
-  background: #5f54c70b;
+  background: #17303a0b;
 }
 
 .workload-editor summary {
@@ -3414,10 +3485,10 @@ h1 {
 
 .recommendation-tag {
   padding: 0.3rem 0.45rem;
-  border: 1px solid #9a8fff66;
+  border: 1px solid #4b8ea366;
   border-radius: 999px;
   color: var(--accent-hover);
-  background: #7c6cff12;
+  background: #55a9c712;
   font-size: 0.7rem;
 }
 
@@ -3452,7 +3523,7 @@ h1 {
 
 .comparison-table .meaningful-difference th,
 .comparison-table .meaningful-difference td {
-  background: #7c6cff0b;
+  background: #55a9c70b;
 }
 
 .comparison-table .better-value {
@@ -3478,9 +3549,9 @@ h1 {
   gap: 0.8rem;
   margin-top: 1rem;
   padding: 0.9rem;
-  border: 1px dashed #9a8fff66;
+  border: 1px dashed #4b8ea366;
   border-radius: 0.7rem;
-  background: #5f54c70b;
+  background: #17303a0b;
 }
 
 .scenario-preference-control label {
@@ -3604,7 +3675,7 @@ h1 {
 .planner-course-row:focus-visible,
 .planner-course-row.active {
   border-color: var(--accent);
-  background: #7c6cff18;
+  background: #17303a;
 }
 
 .planner-course-row > span {
@@ -3676,7 +3747,7 @@ h1 {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  background: linear-gradient(135deg, #7c6cff0a, transparent 55%), var(--surface);
+  background: var(--surface);
 }
 
 .planner-empty-state h2 {
@@ -3845,6 +3916,38 @@ h1 {
   max-width: 54rem;
 }
 
+@media (max-width: 640px) {
+  .app-nav-shell {
+    position: relative;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .app-nav {
+    padding: 0.8rem 1rem;
+  }
+
+  .desktop-nav-actions {
+    display: none;
+  }
+
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    min-height: 3.9rem;
+    padding: 0.15rem 0.65rem;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface);
+  }
+
+  .app-page,
+  .planner-page {
+    padding-bottom: 6rem;
+  }
+}
 .section-grid > h2 {
   margin: 0 0 0.5rem;
   font-size: 1.2rem;

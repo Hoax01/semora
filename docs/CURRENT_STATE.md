@@ -1,8 +1,8 @@
 # Semora — Current Implementation State
 
-**Last Updated:** August 23, 2026
+**Last Updated:** August 24, 2026
 **Current Phase:** Phase 8 — Product Polish (in progress)
-**Next Build Objective:** Phase 8.1 — UX Pass
+**Next Build Objective:** Phase 8.1 — Continue screen-level UX audit
 **Product Status:** Product and technical design are complete. Phase 0 is
 complete, the Phase 1 catalogue acceptance audit is complete, all Phase 2
 planning requirements are implemented, and the post-Phase 2 Sol architecture
@@ -147,6 +147,13 @@ HTTP smoke or automated API/engine checks.
 - Extraction drafts now retain the initial machine payload separately from the editable review payload. Verified review changes are diffed into owned `ExtractionCorrection` records with field paths and original/corrected values; historical drafts without an initial payload are intentionally not treated as training labels.
 - Added correction-diff and benchmark-audit tests plus migration `20260823130000_phase8_extraction_audit`. Full typecheck, test suite, production build, lint, format check, focused benchmark, and diff validation passed. `prisma migrate dev` remains unable to create its shadow database because an older timestamped Phase 7 migration references an enum value added by a later Phase 6 migration; the new migration was applied successfully with `prisma migrate deploy` without rewriting migration history.
 
+## Phase 8 shared UX foundation — August 24, 2026
+
+- Reworked the authenticated application shell with active lifecycle navigation for Plan and Courses, a compact Semora mark, and a mobile bottom navigation that keeps the primary routes and sign-out action reachable without reproducing the desktop layout.
+- Replaced the frontend's indigo/purple-derived accent system with a restrained blue-cyan interaction palette and removed all CSS gradients, including authentication, setup, intelligence, empty-state, focus, comparison, schedule, and commitment treatments. Semantic warning, pressure, and positive colors remain unchanged.
+- Added explicit focus/selected navigation states and safe mobile content spacing. No API, data-model, or engine behavior changed.
+- Verification: typecheck, lint, Prettier format check, production build, all standalone API tests (14 passed), and all non-API package tests (81 passed) passed. The concurrent root test run reproduced the existing database-heavy 5-second timeout in four API tests; the standalone API rerun passed.
+
 ## Implemented
 
 ### Repository and tooling
@@ -162,7 +169,7 @@ HTTP smoke or automated API/engine checks.
 ### Web application
 
 - React, TypeScript, and Vite application in `apps/web`.
-- Dark-neutral design tokens with restrained indigo interaction styling.
+- Dark-neutral design tokens with a restrained blue-cyan interaction palette and flat surfaces.
 - Email/password sign-up and sign-in screens.
 - Session-aware protected root route, loading state, authenticated application
   shell, and sign-out action.
@@ -1157,4 +1164,4 @@ the heatmap, and gives accessible forecast feedback. Phase 6 is complete.
 Phase 7.1 is complete: the pure Grade Engine calculates score normalization,
 weighted points, graded and remaining weight, category aggregation, current
 performance, and safe handling of ungraded/missing results. Phase 7.2 is complete: personal AssessmentScore persistence, owned score endpoints, points/percentage validation, and active-semester score entry are implemented
-and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. Phase 7.8 is complete: owned class-statistics persistence, safe relative differences, positive-SD z-scores, and active-semester relative context are implemented without letter-grade prediction. Phase 7.9 is complete: each course now shows current performance, graded weight, target calculations, and remaining assessments in the active-semester Grade Dashboard. The next objective is Phase 8.1, UX Pass.
+and regression-covered. Phase 7.3 is complete: owned per-course grade summaries use the deterministic Grade Engine to expose current performance, weighted points earned, graded weight, and remaining weight, and the active-semester UI displays the safe “Based on X% of course graded” context. Phase 7.4 is complete: canonical absolute thresholds resolve to current letter-grade equivalents, while relative, unknown, ungraded, and unconfirmed-threshold states remain safe and explicit. Phase 7.5 is complete: known absolute thresholds expose required averages across remaining course weight, reachable/unreachable status, and already-secured targets in the API and active-semester UI. Phase 7.6 is complete: temporary hypothetical percentages produce server-calculated projected performance and grade equivalents without changing saved scores. Phase 7.7 is complete: conservative BEST_N and DROP_LOWEST_N aggregation is implemented in the pure engine, API summaries, and active-semester grade cards. Phase 7.8 is complete: owned class-statistics persistence, safe relative differences, positive-SD z-scores, and active-semester relative context are implemented without letter-grade prediction. Phase 7.9 is complete: each course now shows current performance, graded weight, target calculations, and remaining assessments in the active-semester Grade Dashboard. The next objective is to continue the Phase 8.1 screen-level UX audit.
